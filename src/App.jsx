@@ -41,7 +41,7 @@ const SPEED_RANGES = [
 ];
 const SORT_OPTIONS = [
   { value:'Recent', label:'Recent' },{ value:'Name', label:'Name A–Z' },
-  { value:'Speed', label:'Speed ↓' },{ value:'Wear', label:'Most Worn' },
+  { value:'Speed', label:'Speed ↓' },{ value:'Wear', label:'Worst Condition' },
 ];
 const DISC_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#ffffff','#1e1e1e','#6b7280','#14b8a6'];
 const BAG_COLORS = ['#1e3a5f','#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#7c3aed','#db2777','#475569','#f59e0b','#0ea5e9','#84cc16'];
@@ -159,7 +159,7 @@ const BUY_SUGGESTIONS = {
 
 // ── Helpers ──────────────────────────────────────────
 const wc = l => l>=8?'bg-emerald-500':l>=6?'bg-lime-500':l>=4?'bg-amber-500':l>=2?'bg-orange-500':'bg-red-500';
-const ww = l => l>=9?'Mint':l>=7?'Good':l>=5?'Used':l>=3?'Beat':'Thrashed';
+const ww = l => l>=9?'Mint':l>=7?'Good':l>=5?'Used':l>=3?'Fair':'Poor';
 const td = () => new Date().toISOString().split('T')[0];
 const fmtD = d => { try { return new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return d; } };
 const luma = hex => { const c=(hex||'#888').replace('#',''); return (parseInt(c.substr(0,2),16)*299+parseInt(c.substr(2,2),16)*587+parseInt(c.substr(4,2),16)*114)/1000; };
@@ -736,8 +736,9 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
                     style={{backgroundColor:c}}/>
                 ))}
               </div>
-              <label className="block text-xs text-gray-400 mb-1">Wear: {f.wear_level}/10 · {ww(f.wear_level)}</label>
+              <label className="block text-xs text-gray-400 mb-1">Condition: {f.wear_level}/10 · {ww(f.wear_level)}</label>
               <input type="range" min={1} max={10} value={f.wear_level} onChange={e=>s('wear_level',parseInt(e.target.value))} className="w-full accent-emerald-500"/>
+              <p className="text-xs text-gray-400 mt-1">1 = Poor (heavily used) → 10 = Mint (brand new)</p>
             </section>
           </div>
           <div className="p-5 border-t border-gray-800 shrink-0 flex gap-3">
@@ -1911,8 +1912,9 @@ function DiscDetailModal({open,disc,onClose,aceHistory,bags,onEdit,onDelete,onLo
               ))}
             </div>
             <div className="mt-2 bg-gray-900/60 border border-gray-800/40 rounded-lg px-3 py-3">
-              <div className="flex items-center justify-between mb-1.5"><span className="text-xs text-gray-500">Wear</span><span className="text-xs text-gray-300 font-bold">{disc.wear_level}/10 · {ww(disc.wear_level)}</span></div>
+              <div className="flex items-center justify-between mb-1.5"><span className="text-xs text-gray-500">Condition</span><span className="text-xs text-gray-300 font-bold">{disc.wear_level}/10 · {ww(disc.wear_level)}</span></div>
               <div className="h-2 bg-gray-800 rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.8}}/></div>
+              <p className="text-xs text-gray-400 mt-1">1 = Poor → 10 = Mint</p>
             </div>
           </section>
           {/* Story */}
@@ -2021,9 +2023,9 @@ function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBacku
         )}
         {/* Flight numbers (list only) */}
         {!isGallery && <div className="grid grid-cols-4 gap-1 mb-3">{FN_META.map(fn => (<div key={fn.key} className={`rounded-lg py-1 text-center ${fn.bg}`}><div className={`font-bold text-sm leading-none ${fn.text}`}>{disc[fn.key]}</div><div className="text-gray-600 text-xs mt-0.5 font-bold tracking-widest">{fn.label}</div></div>))}</div>}
-        {/* Wear bar */}
+        {/* Condition bar */}
         <div className={`flex items-center gap-2 ${isGallery?'w-full mt-2':'mb-3'}`}>
-          {!isGallery && <span className="text-xs text-gray-600 w-6">Wear</span>}
+          {!isGallery && <span className="text-xs text-gray-600 w-6">Condition</span>}
           <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.6}}/></div>
           <span className="text-xs text-gray-500">{disc.wear_level}/10</span>
         </div>
