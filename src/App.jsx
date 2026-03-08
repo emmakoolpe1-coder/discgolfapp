@@ -13,7 +13,7 @@ import {
   MapPin, Hash, ShoppingCart, Loader, LayoutGrid, List, Upload,
   Camera, Share2, Filter, Ruler, Library, BookOpen, Info,
   AlertTriangle, TrendingUp, BarChart3, Crosshair, DollarSign,
-  Zap, Shield, Copy, Users, Sparkles, Star
+  Zap, Shield, Copy, Users, Sparkles, Star, Download
 } from 'lucide-react';
 
 // ── Constants ────────────────────────────────────────
@@ -303,6 +303,93 @@ function PrivacyPolicyModal({open,onClose}) {
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// PWA INSTALL PROMPT BANNER
+// ═══════════════════════════════════════════════════════
+const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
+
+function InstallPromptBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showBanner, setShowBanner] = useState(false);
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(PWA_INSTALL_DISMISSED_KEY) === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true
+      || document.referrer.includes('android-app://');
+    if (isStandalone || dismissed) setShowBanner(false);
+    else if (deferredPrompt) setShowBanner(true);
+  }, [deferredPrompt, dismissed]);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') setShowBanner(false);
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    setShowBanner(false);
+    setDismissed(true);
+    try { localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, '1'); } catch (_) {}
+  };
+
+  if (!showBanner || !deferredPrompt) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 100, opacity: 0 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-50 p-3 safe-area-pb"
+      >
+        <div className="max-w-lg mx-auto rounded-xl border border-emerald-500/30 bg-gray-950/95 backdrop-blur-md shadow-xl shadow-emerald-950/50 overflow-hidden">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Download size={20} className="text-emerald-400"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">Install Disc Golf Companion</p>
+              <p className="text-xs text-gray-400 mt-0.5">Add to home screen for quick access and offline use.</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleDismiss}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Not now
+              </button>
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-colors"
+              >
+                Install
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -1629,6 +1716,7 @@ export default function DiscLibrary() {
     <div className="min-h-screen bg-gray-950 text-white pb-12">
       <AnimatePresence>{showConfetti && <Confetti key={confettiKey}/>}</AnimatePresence>
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
+      <InstallPromptBanner />
 
       {/* ── HEADER ── */}
       <div className="bg-gradient-to-b from-emerald-950/40 to-gray-950 border-b border-gray-800/50">
@@ -1681,7 +1769,8 @@ export default function DiscLibrary() {
           <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-2">
             <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-gray-900 text-gray-500 border-gray-800'}`}>All ({counts.all})</button>
             {Object.entries(DT).map(([k,c]) => (
-              <button key={k} onClick={() => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-900 text-gray-500 border-gray-800'}`}>{c.label} ({counts[k]||0})</button>
+              <button key={k} onClick={
+                () => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-900 text-gray-500 border-gray-800'}`}>{c.label} ({counts[k]||0})</button>
             ))}
           </div>
           {/* Filter bar */}
