@@ -172,6 +172,11 @@ const getAceRarity = (distance) => {
 };
 
 const LS_KEY = 'discgolf_app_v2';
+const TIER_KEY = 'discgolf_user_tier';
+const FREE_DISC_LIMIT = 8;
+const FREE_BAG_LIMIT = 1;
+const FREE_ACE_LIMIT = 3;
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -181,6 +186,9 @@ function loadState() {
 }
 function saveState(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) { console.warn('Failed to save', e); }
+}
+function getStoredTier() {
+  try { return localStorage.getItem(TIER_KEY) || 'free'; } catch(_) { return 'free'; }
 }
 
 // ── Seed Data ────────────────────────────────────────
@@ -373,6 +381,73 @@ function PrivacyPolicyModal({open,onClose}) {
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-gray-200 hover:bg-gray-700"
           >
             Close
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// FREEMIUM: ProBadge & UpgradeModal
+// ═══════════════════════════════════════════════════════
+function ProBadge({ className = '' }) {
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 ${className}`}>
+      PRO
+    </span>
+  );
+}
+
+function UpgradeModal({ open, onClose, onStartTrial }) {
+  if (!open) return null;
+  const benefits = [
+    'Unlimited bags',
+    'Unlimited discs in your library',
+    'Full Gap Finder with buy recommendations',
+    'Unlimited aces in your Trophy Room',
+    'Coming soon: AI Bag Review & Throw Translator',
+  ];
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 80 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.98, opacity: 0 }}
+        className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden"
+      >
+        <div className="p-6 pb-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={20} className="text-emerald-400 shrink-0" />
+            <ProBadge />
+          </div>
+          <h2 className="text-xl font-black text-white mt-2">Unlock Your Full Bag Potential</h2>
+          <p className="text-sm text-gray-400 mt-1.5">Get the most out of your disc golf game with Pro.</p>
+          <ul className="mt-5 space-y-2.5">
+            {benefits.map((item, i) => (
+              <li key={i} className="flex items-center gap-2.5 text-sm text-gray-300">
+                <Check size={16} className="text-emerald-400 shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-6 flex items-center gap-4 text-sm">
+            <span className="text-gray-500">$2.99<span className="text-gray-600">/month</span></span>
+            <span className="text-gray-600">or</span>
+            <span className="text-emerald-400 font-bold">$24.99<span className="text-emerald-500/80 font-medium">/year</span></span>
+          </div>
+        </div>
+        <div className="px-6 pb-6 flex gap-3">
+          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">
+            Maybe later
+          </button>
+          <button
+            type="button"
+            onClick={() => { onStartTrial(); onClose(); }}
+            className="flex-1 py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 transition-colors"
+          >
+            Start Free Trial
           </button>
         </div>
       </motion.div>
@@ -1077,7 +1152,7 @@ function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,
 // ═══════════════════════════════════════════════════════
 // BAG DASHBOARD with GAP FINDER
 // ═══════════════════════════════════════════════════════
-function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch}) {
+function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,isPro,onUpgradeClick}) {
   const [expandedGap,setExpandedGap] = useState(null);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
@@ -1434,9 +1509,9 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                           )}
                           {/* Buy suggestions */}
                           {buySuggestions.length>0 && (
-                            <div>
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy</h4>
-                              <div className="space-y-1.5">
+                            <div className="relative">
+                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy {!isPro && <ProBadge />}</h4>
+                              <div className={`space-y-1.5 ${!isPro ? 'select-none pointer-events-none blur-sm' : ''}`}>
                                 {buySuggestions.map((s,si) => (
                                   <div key={si} className="flex items-center gap-2.5 bg-gray-800/40 rounded-lg px-3 py-2.5">
                                     <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:s.color||'#6b7280'}}>
@@ -1454,6 +1529,15 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                                   </div>
                                 ))}
                               </div>
+                              {!isPro && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-950/80" onClick={onUpgradeClick}>
+                                  <button type="button" className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-sm font-bold hover:bg-emerald-500/20 transition-colors">
+                                    <Sparkles size={20}/>
+                                    <span>Upgrade to Pro</span>
+                                    <span className="text-xs font-medium text-gray-400">to see buy recommendations</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1867,6 +1951,14 @@ export default function DiscLibrary() {
   const [deleteConfirm,setDeleteConfirm] = useState(null);
   const [shareAce,setShareAce] = useState(null);
   const [showPrivacy,setShowPrivacy] = useState(false);
+  const [userTier,setUserTier] = useState(() => getStoredTier());
+  const [showUpgradeModal,setShowUpgradeModal] = useState(false);
+
+  const isPro = userTier === 'pro';
+
+  useEffect(() => {
+    try { localStorage.setItem(TIER_KEY, userTier); } catch(_) {}
+  }, [userTier]);
 
   // Derived data
   const aceMap = useMemo(() => { const m={}; aceHistory.forEach(a=>{m[a.discId]=(m[a.discId]||0)+1;}); return m; }, [aceHistory]);
@@ -1909,9 +2001,10 @@ export default function DiscLibrary() {
   }, [discs]);
 
   const handleSaveAce = useCallback((aceData,isEdit) => {
+    if (!isEdit && !isPro && aceHistory.length >= FREE_ACE_LIMIT) { setShowUpgradeModal(true); return; }
     if (isEdit) { setAceHistory(p=>p.map(a=>a.id===aceData.id?aceData:a)); setToast('✏️ Ace updated!'); }
     else { setAceHistory(p=>[...p,aceData]); setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800); const d=discs.find(x=>x.id===aceData.discId); setToast(`🏆 Ace logged for ${d?.mold||'disc'}!`); }
-  }, [discs]);
+  }, [discs, isPro, aceHistory.length]);
 
   const handleDeleteAce = useCallback(aceId => { setAceHistory(p=>p.filter(a=>a.id!==aceId)); setToast('🗑️ Ace deleted'); }, []);
 
@@ -1934,8 +2027,14 @@ export default function DiscLibrary() {
   }, [deleteConfirm,detailDisc]);
 
   const openEdit = useCallback(disc => { setEditingDisc(disc); setFormOpen(true); }, []);
-  const openAdd = useCallback(() => { setEditingDisc(null); setFormOpen(true); }, []);
-  const createBag = ({name,bagColor}) => setBags(p => [...p, {id:`b${Date.now()}`,name,bagColor,disc_ids:[]}]);
+  const openAdd = useCallback(() => {
+    if (!isPro && discs.length >= FREE_DISC_LIMIT) { setShowUpgradeModal(true); return; }
+    setEditingDisc(null); setFormOpen(true);
+  }, [isPro, discs.length]);
+  const createBag = useCallback(({name,bagColor}) => {
+    if (!isPro && bags.length >= FREE_BAG_LIMIT) { setShowUpgradeModal(true); return; }
+    setBags(p => [...p, {id:`b${Date.now()}`,name,bagColor,disc_ids:[]}]);
+  }, [isPro, bags.length]);
   const deleteBag = id => { setBags(p=>p.filter(b=>b.id!==id)); if(activeBagId===id)setActiveBagId(null); };
   const updateBag = (id,data) => setBags(p=>p.map(b=>b.id===id?{...b,...data}:b));
 
@@ -1968,6 +2067,16 @@ export default function DiscLibrary() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {!isPro && (
+                <button type="button" onClick={() => setShowUpgradeModal(true)} className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all">
+                  <Sparkles size={14}/>Upgrade to Pro
+                </button>
+              )}
+              {isPro && (
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <Sparkles size={12}/>You're on Pro!
+                </span>
+              )}
               <button onClick={() => setShowTrophyRoom(true)} className="flex items-center gap-1.5 p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30 transition-all relative">
                 <Trophy size={18}/>{totalAces>0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center" style={{fontSize:9}}>{totalAces}</span>}
               </button>
@@ -2029,7 +2138,7 @@ export default function DiscLibrary() {
 
       {/* ── BODY ── */}
       <div className="max-w-7xl mx-auto px-4 pt-5">
-        {activeBag && <BagDashboard key={activeBag.id} bagDiscs={bagDiscsForDashboard} bag={activeBag} allDiscs={discs} onAddToBag={addDiscToBag} onRemoveFromBag={removeDiscFromBag} onBuySearch={handleBuySearch}/>}
+        {activeBag && <BagDashboard key={activeBag.id} bagDiscs={bagDiscsForDashboard} bag={activeBag} allDiscs={discs} onAddToBag={addDiscToBag} onRemoveFromBag={removeDiscFromBag} onBuySearch={handleBuySearch} isPro={isPro} onUpgradeClick={() => setShowUpgradeModal(true)}/>}
 
         {filteredDiscs.length>0 ? (
           <motion.div layout className={`grid ${gridCls} gap-4`}>
@@ -2077,7 +2186,7 @@ export default function DiscLibrary() {
       </div>
 
       {/* ── MODALS ── */}
-      <AnimatePresence>{showTrophyRoom && <TrophyRoomModal open onClose={() => setShowTrophyRoom(false)} aces={aceHistory} discs={discs} onShare={handleShareAce} onEditAce={ace=>{setShowTrophyRoom(false);setEditingAce(ace);}} onDeleteAce={handleDeleteAce} onLogAce={() => {setShowTrophyRoom(false);if(discs[0])setAceLogDisc(discs[0]);}}/>}</AnimatePresence>
+      <AnimatePresence>{showTrophyRoom && <TrophyRoomModal open onClose={() => setShowTrophyRoom(false)} aces={isPro ? aceHistory : aceHistory.slice(0, FREE_ACE_LIMIT)} discs={discs} onShare={handleShareAce} onEditAce={ace=>{setShowTrophyRoom(false);setEditingAce(ace);}} onDeleteAce={handleDeleteAce} onLogAce={() => {setShowTrophyRoom(false);if(discs[0])setAceLogDisc(discs[0]);}}/>}</AnimatePresence>
       <AnimatePresence>{shareAce && <ShareOverlay open ace={shareAce.ace} disc={shareAce.disc} onClose={() => setShareAce(null)}/>}</AnimatePresence>
       <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} aceHistory={aceHistory} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onLogAce={d=>{setDetailDisc(null);setAceLogDisc(d);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} onViewTrophyRoom={() => {setDetailDisc(null);setShowTrophyRoom(true);}} onEditAce={ace=>{setDetailDisc(null);setEditingAce(ace);}}/>}</AnimatePresence>
       <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc}/>
@@ -2086,6 +2195,7 @@ export default function DiscLibrary() {
       <BagSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} bags={bags} discs={discs} activeBagId={activeBagId} setActiveBagId={setActiveBagId} onCreateBag={createBag} onRemoveDisc={removeDiscFromBag} onDeleteBag={deleteBag} onUpdateBag={updateBag}/>
       <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently? Its ace records will also be removed.`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
       <AnimatePresence>{showPrivacy && <PrivacyPolicyModal open onClose={() => setShowPrivacy(false)}/>}</AnimatePresence>
+      <AnimatePresence>{showUpgradeModal && <UpgradeModal open onClose={() => setShowUpgradeModal(false)} onStartTrial={() => setUserTier('pro')}/>}</AnimatePresence>
     </div>
   );
 }
