@@ -51,6 +51,13 @@ const STAB_META = {
   overstable:{label:'Overstable',color:'#fb923c',bg:'bg-orange-500/15',text:'text-orange-400',border:'border-orange-500/30',icon:'↙'},
 };
 
+const SPEED_TIERS = [
+  { id: 'putters', label: 'Putters', min: 1, max: 3 },
+  { id: 'mids', label: 'Mids', min: 4, max: 5 },
+  { id: 'fairways', label: 'Fairways', min: 6, max: 8 },
+  { id: 'drivers', label: 'Drivers', min: 9, max: 15 },
+];
+
 const BUY_SUGGESTIONS = {
   putter: [
     { mold:'Luna', manufacturer:'Discraft', plastic:'Z Line', speed:3, glide:3, turn:0, fade:3, price:'$14–18', color:'#3b82f6', desc:'Tour-favorite putter with reliable fade' },
@@ -79,6 +86,73 @@ const BUY_SUGGESTIONS = {
   overstable: [
     { mold:'Firebird', manufacturer:'Innova', plastic:'Champion', speed:9, glide:3, turn:0, fade:4, price:'$14–18', color:'#ef4444', desc:'The ultimate utility disc' },
     { mold:'Zone', manufacturer:'Discraft', plastic:'Z', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#eab308', desc:'Overstable approach that always fades' },
+  ],
+  // Speed gap fillers (by range)
+  speed_4_5: [
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#06b6d4', desc:'Fills the midrange slot' },
+    { mold:'Roc3', manufacturer:'Innova', plastic:'Champion', speed:5, glide:4, turn:0, fade:3, price:'$14–18', color:'#6b7280', desc:'Stable mid for the 4–5 range' },
+  ],
+  speed_6_8: [
+    { mold:'Teebird', manufacturer:'Innova', plastic:'Star', speed:7, glide:5, turn:0, fade:2, price:'$15–19', color:'#eab308', desc:'Classic fairway for 6–8 gap' },
+    { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Understable fairway option' },
+  ],
+  speed_9_11: [
+    { mold:'Thunderbird', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:0, fade:2, price:'$15–19', color:'#f97316', desc:'Bridges fairway and distance' },
+    { mold:'Wraith', manufacturer:'Innova', plastic:'Star', speed:11, glide:5, turn:-1, fade:3, price:'$16–20', color:'#7c3aed', desc:'Distance driver for 9–11 range' },
+  ],
+  // Stability slot per tier
+  stability_putters_understable: [
+    { mold:'Fierce', manufacturer:'Discraft', plastic:'ESP', speed:3, glide:4, turn:-1, fade:0, price:'$14–18', color:'#ec4899', desc:'Understable putter for turnover putts' },
+    { mold:'Deputy', manufacturer:'Dynamic Discs', plastic:'Lucid', speed:3, glide:4, turn:-1, fade:0, price:'$12–16', color:'#3b82f6', desc:'Understable approach putter' },
+  ],
+  stability_putters_overstable: [
+    { mold:'Zone', manufacturer:'Discraft', plastic:'Z', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#eab308', desc:'Overstable approach and putter' },
+    { mold:'Harp', manufacturer:'Westside', plastic:'VIP', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#8b5cf6', desc:'Overstable putter slot' },
+  ],
+  stability_mids_understable: [
+    { mold:'Comet', manufacturer:'Discraft', plastic:'Z', speed:5, glide:5, turn:-2, fade:1, price:'$14–18', color:'#22c55e', desc:'Understable mid' },
+    { mold:'Mako3', manufacturer:'Innova', plastic:'Star', speed:5, glide:5, turn:0, fade:0, price:'$14–18', color:'#06b6d4', desc:'Neutral to understable mid' },
+  ],
+  stability_mids_overstable: [
+    { mold:'Roc3', manufacturer:'Innova', plastic:'Champion', speed:5, glide:4, turn:0, fade:3, price:'$14–18', color:'#6b7280', desc:'Overstable mid' },
+    { mold:'Verdict', manufacturer:'Dynamic Discs', plastic:'Lucid', speed:5, glide:4, turn:0, fade:3, price:'$14–18', color:'#ef4444', desc:'Overstable midrange' },
+  ],
+  stability_fairways_understable: [
+    { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Understable fairway' },
+    { mold:'River', manufacturer:'Latitude 64', plastic:'Gold', speed:7, glide:7, turn:-1, fade:1, price:'$15–19', color:'#06b6d4', desc:'Glidey understable fairway' },
+  ],
+  stability_fairways_overstable: [
+    { mold:'Firebird', manufacturer:'Innova', plastic:'Champion', speed:9, glide:3, turn:0, fade:4, price:'$14–18', color:'#ef4444', desc:'Overstable fairway utility' },
+    { mold:'Teebird', manufacturer:'Innova', plastic:'Star', speed:7, glide:5, turn:0, fade:2, price:'$15–19', color:'#eab308', desc:'Stable to overstable fairway' },
+  ],
+  stability_drivers_understable: [
+    { mold:'Roadrunner', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:-4, fade:1, price:'$15–19', color:'#f97316', desc:'Understable distance' },
+    { mold:'Tern', manufacturer:'Innova', plastic:'Star', speed:11, glide:5, turn:-2, fade:2, price:'$16–20', color:'#14b8a6', desc:'Understable driver' },
+  ],
+  stability_drivers_overstable: [
+    { mold:'Firebird', manufacturer:'Innova', plastic:'Champion', speed:9, glide:3, turn:0, fade:4, price:'$14–18', color:'#ef4444', desc:'Overstable utility driver' },
+    { mold:'Destroyer', manufacturer:'Innova', plastic:'Star', speed:12, glide:5, turn:-1, fade:3, price:'$16–20', color:'#7c3aed', desc:'Overstable distance' },
+  ],
+  // Utility shots
+  utility_overstable_approach: [
+    { mold:'Zone', manufacturer:'Discraft', plastic:'Z', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#eab308', desc:'Overstable approach (speed 2–4, fade 3+)' },
+    { mold:'Harp', manufacturer:'Westside', plastic:'VIP', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#8b5cf6', desc:'Meat hook approach disc' },
+    { mold:'A2', manufacturer:'Prodigy', plastic:'400', speed:4, glide:2, turn:0, fade:3, price:'$14–18', color:'#6b7280', desc:'Overstable approach' },
+  ],
+  utility_turnover: [
+    { mold:'Roadrunner', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:-4, fade:1, price:'$15–19', color:'#f97316', desc:'Understable turnover (speed 6–9)' },
+    { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Turnover fairway' },
+    { mold:'Sidewinder', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:-3, fade:1, price:'$15–19', color:'#ec4899', desc:'Understable driver' },
+  ],
+  utility_neutral_mid: [
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#06b6d4', desc:'Straight flying neutral mid' },
+    { mold:'Hex', manufacturer:'MVP', plastic:'Neutron', speed:5, glide:5, turn:-1, fade:1, price:'$15–19', color:'#8b5cf6', desc:'Dead straight mid' },
+    { mold:'Mako3', manufacturer:'Innova', plastic:'Star', speed:5, glide:5, turn:0, fade:0, price:'$14–18', color:'#14b8a6', desc:'Neutral mid' },
+  ],
+  redundancy: [
+    { mold:'Roadrunner', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:-4, fade:1, price:'$15–19', color:'#f97316', desc:'Add variety — understable option' },
+    { mold:'Zone', manufacturer:'Discraft', plastic:'Z', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#eab308', desc:'Add variety — overstable approach' },
+    { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Consider swapping one for different shot shape' },
   ],
 };
 
@@ -1020,29 +1094,187 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
 
   const bagDiscIds = useMemo(() => bag ? bag.disc_ids : [], [bag]);
 
-  // Gap Finder Logic
+  // Gap Finder Logic — deep analysis
   const gaps = useMemo(() => {
     const g = [];
-    Object.entries(DT).forEach(([type,cfg]) => {
-      if (typeCounts[type]===0) g.push({key:`type_${type}`,sev:'high',msg:`No ${cfg.label}s in this bag`,suggest:`Add a ${cfg.label.toLowerCase()}`,filterType:'disc_type',filterValue:type});
+    const seenKeys = new Set();
+
+    const add = (entry) => {
+      if (seenKeys.has(entry.key)) return;
+      seenKeys.add(entry.key);
+      g.push(entry);
+    };
+
+    // 1) Missing entire disc type (high)
+    Object.entries(DT).forEach(([type, cfg]) => {
+      if (typeCounts[type] === 0) add({ key: `type_${type}`, sev: 'high', msg: `No ${cfg.label}s in this bag`, suggest: `Add a ${cfg.label.toLowerCase()}`, filterType: 'disc_type', filterValue: type, buySuggestionKey: type === 'fairway_driver' ? 'fairway_driver' : type === 'distance_driver' ? 'distance_driver' : type });
     });
-    Object.entries(STAB_META).forEach(([stab,meta]) => {
-      if (stabCounts[stab]===0) g.push({key:`stab_${stab}`,sev:'medium',msg:`No ${meta.label.toLowerCase()} discs`,suggest:`Consider an ${meta.label.toLowerCase()} disc`,filterType:'stability',filterValue:stab});
+
+    // 2) Speed gap analysis: consecutive discs (sorted by speed) with gap of 3+
+    const bySpeed = [...bagDiscs].sort((a, b) => a.speed - b.speed);
+    for (let i = 0; i < bySpeed.length - 1; i++) {
+      const low = bySpeed[i];
+      const high = bySpeed[i + 1];
+      const diff = high.speed - low.speed;
+      if (diff >= 3) {
+        const minS = low.speed + 1;
+        const maxS = high.speed - 1;
+        const sev = diff >= 4 ? 'high' : 'medium';
+        const lowName = low.custom_name || low.mold;
+        const highName = high.custom_name || high.mold;
+        add({
+          key: `speed_${low.id}_${high.id}`,
+          sev,
+          msg: `Speed gap between ${lowName} (speed ${low.speed}) and ${highName} (speed ${high.speed})`,
+          suggest: `Add a disc in the speed ${minS}–${maxS} range`,
+          filterType: 'speed_gap',
+          filterValue: { minSpeed: minS, maxSpeed: maxS },
+          disc1Name: lowName,
+          disc2Name: highName,
+          buySuggestionKey: maxS <= 5 ? 'speed_4_5' : maxS <= 8 ? 'speed_6_8' : 'speed_9_11',
+        });
+      }
+    }
+
+    // 3) Stability coverage per speed tier: need at least one understable and one overstable per tier
+    SPEED_TIERS.forEach(tier => {
+      const inTier = bagDiscs.filter(d => d.speed >= tier.min && d.speed <= tier.max);
+      if (inTier.length === 0) return;
+      const hasUnder = inTier.some(d => classifyStability(d) === 'understable');
+      const hasOver = inTier.some(d => classifyStability(d) === 'overstable');
+      if (!hasUnder) add({
+        key: `stab_${tier.id}_under`,
+        sev: 'medium',
+        msg: `${tier.label}: no understable option`,
+        suggest: `Add an understable disc in the speed ${tier.min}–${tier.max} range`,
+        filterType: 'stability_slot',
+        filterValue: { tier: tier.id, stability: 'understable', minSpeed: tier.min, maxSpeed: tier.max },
+        buySuggestionKey: `stability_${tier.id}_understable`,
+      });
+      if (!hasOver) add({
+        key: `stab_${tier.id}_over`,
+        sev: 'medium',
+        msg: `${tier.label}: no overstable option`,
+        suggest: `Add an overstable disc in the speed ${tier.min}–${tier.max} range`,
+        filterType: 'stability_slot',
+        filterValue: { tier: tier.id, stability: 'overstable', minSpeed: tier.min, maxSpeed: tier.max },
+        buySuggestionKey: `stability_${tier.id}_overstable`,
+      });
     });
+
+    // 4) Missing utility shots
+    const overstableApproach = bagDiscs.some(d => d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3);
+    if (!overstableApproach) add({
+      key: 'utility_overstable_approach',
+      sev: 'medium',
+      msg: 'No overstable approach disc (speed 2–4, fade ≥ 3)',
+      suggest: 'Add a Zone, Harp, or similar for reliable fade upshots',
+      filterType: 'utility',
+      filterValue: 'overstable_approach',
+      buySuggestionKey: 'utility_overstable_approach',
+    });
+    const turnover = bagDiscs.some(d => d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2);
+    if (!turnover) add({
+      key: 'utility_turnover',
+      sev: 'medium',
+      msg: 'No understable turnover disc (speed 6–9, turn ≤ -2)',
+      suggest: 'Add a Leopard3, Roadrunner, or similar for turnover shots',
+      filterType: 'utility',
+      filterValue: 'turnover',
+      buySuggestionKey: 'utility_turnover',
+    });
+    const turn = d => d.turn ?? 0;
+    const fade = d => d.fade ?? 0;
+    const neutralMid = bagDiscs.some(d => d.speed >= 4 && d.speed <= 6 && turn(d) >= -1 && turn(d) <= 0 && fade(d) >= 0 && fade(d) <= 2);
+    if (!neutralMid) add({
+      key: 'utility_neutral_mid',
+      sev: 'medium',
+      msg: 'No straight flying neutral mid (speed 4–6, turn -1 to 0, fade 0–2)',
+      suggest: 'Add a Buzzz, Hex, or Mako3 for dead-straight mid shots',
+      filterType: 'utility',
+      filterValue: 'neutral_mid',
+      buySuggestionKey: 'utility_neutral_mid',
+    });
+
+    // 5) Overlap / redundancy: flight numbers within 0.5 (connected components)
+    const near = (a, b) => Math.abs((a ?? 0) - (b ?? 0)) <= 0.5;
+    const sameFlight = (d1, d2) => near(d1.speed, d2.speed) && near(d1.glide, d2.glide) && near(d1.turn, d2.turn) && near(d1.fade, d2.fade);
+    const redundantGroups = [];
+    const used = new Set();
+    bagDiscs.forEach(seed => {
+      if (used.has(seed.id)) return;
+      const group = [seed];
+      const queue = [seed];
+      used.add(seed.id);
+      while (queue.length) {
+        const d2 = queue.shift();
+        bagDiscs.forEach(other => {
+          if (used.has(other.id) || other.id === d2.id) return;
+          if (sameFlight(d2, other)) {
+            group.push(other);
+            used.add(other.id);
+            queue.push(other);
+          }
+        });
+      }
+      if (group.length >= 2) redundantGroups.push(group);
+    });
+    redundantGroups.forEach((group, idx) => {
+      const names = group.map(d => d.custom_name || d.mold).join(', ');
+      add({
+        key: `redundancy_${idx}`,
+        sev: 'low',
+        msg: 'These discs overlap — consider swapping one for something different',
+        suggest: names,
+        filterType: 'redundancy',
+        filterValue: group.map(d => d.id),
+        discs: group,
+        isRedundancy: true,
+        buySuggestionKey: 'redundancy',
+      });
+    });
+
     return g;
-  }, [typeCounts, stabCounts]);
+  }, [bagDiscs, typeCounts]);
 
   const getLibraryMatches = useCallback((gap) => {
     if (!allDiscs || !bag) return [];
     return allDiscs.filter(d => {
       if (bagDiscIds.includes(d.id)) return false;
-      if (gap.filterType==='disc_type') return d.disc_type===gap.filterValue;
-      if (gap.filterType==='stability') return classifyStability(d)===gap.filterValue;
+      if (gap.filterType === 'disc_type') return d.disc_type === gap.filterValue;
+      if (gap.filterType === 'stability') return classifyStability(d) === gap.filterValue;
+      if (gap.filterType === 'speed_gap') {
+        const { minSpeed, maxSpeed } = gap.filterValue || {};
+        return d.speed >= minSpeed && d.speed <= maxSpeed;
+      }
+      if (gap.filterType === 'stability_slot') {
+        const { tier, minSpeed, maxSpeed, stability } = gap.filterValue || {};
+        if (!tier || !stability) return false;
+        const inRange = d.speed >= minSpeed && d.speed <= maxSpeed;
+        return inRange && classifyStability(d) === stability;
+      }
+      if (gap.filterType === 'utility') {
+        const v = gap.filterValue;
+        if (v === 'overstable_approach') return d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3;
+        if (v === 'turnover') return d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2;
+        if (v === 'neutral_mid') return d.speed >= 4 && d.speed <= 6 && (d.turn ?? 0) >= -1 && (d.turn ?? 0) <= 0 && (d.fade ?? 0) >= 0 && (d.fade ?? 0) <= 2;
+        return false;
+      }
+      if (gap.filterType === 'redundancy') return false;
       return false;
     });
   }, [allDiscs, bagDiscIds, bag]);
 
-  const getBuySuggestions = useCallback(gap => BUY_SUGGESTIONS[gap.filterValue]||[], []);
+  const getBuySuggestions = useCallback((gap) => {
+    const key = gap.buySuggestionKey ?? (gap.filterType === 'disc_type' || gap.filterType === 'stability' ? gap.filterValue : null);
+    if (key && BUY_SUGGESTIONS[key]) return BUY_SUGGESTIONS[key];
+    if (gap.filterType === 'speed_gap' && gap.filterValue) {
+      const { minSpeed, maxSpeed } = gap.filterValue;
+      const k = maxSpeed <= 5 ? 'speed_4_5' : maxSpeed <= 8 ? 'speed_6_8' : 'speed_9_11';
+      return BUY_SUGGESTIONS[k] || [];
+    }
+    return [];
+  }, []);
 
   if (bagDiscs.length===0) return null;
   const maxTC = Math.max(...Object.values(typeCounts),1);
@@ -1153,12 +1385,16 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
               const isExp = expandedGap===g.key;
               const libraryMatches = getLibraryMatches(g);
               const buySuggestions = getBuySuggestions(g);
+              const isRedundancy = g.isRedundancy === true;
+              const cardCls = isRedundancy ? 'bg-sky-500/5 border-sky-500/20' : (g.sev==='high'?'bg-red-500/5 border-red-500/20':'bg-amber-500/5 border-amber-500/15');
+              const iconCls = isRedundancy ? 'text-sky-400' : (g.sev==='high'?'text-red-400':'text-amber-500/70');
+              const titleCls = isRedundancy ? 'text-sky-400' : (g.sev==='high'?'text-red-400':'text-amber-400');
               return (
-                <div key={g.key} className={`rounded-xl border cursor-pointer transition-all overflow-hidden ${g.sev==='high'?'bg-red-500/5 border-red-500/20':'bg-amber-500/5 border-amber-500/15'}`} onClick={() => setExpandedGap(isExp?null:g.key)}>
+                <div key={g.key} className={`rounded-xl border cursor-pointer transition-all overflow-hidden ${cardCls}`} onClick={() => setExpandedGap(isExp?null:g.key)}>
                   <div className="flex items-start gap-2.5 px-3.5 py-3">
-                    <AlertTriangle size={14} className={`mt-0.5 shrink-0 ${g.sev==='high'?'text-red-400':'text-amber-500/70'}`}/>
+                    {isRedundancy ? <Info size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/> : <AlertTriangle size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/>}
                     <div className="flex-1 min-w-0">
-                      <div className={`text-xs font-bold ${g.sev==='high'?'text-red-400':'text-amber-400'}`}>{g.msg}</div>
+                      <div className={`text-xs font-bold ${titleCls}`}>{g.msg}</div>
                       <div className="text-xs text-gray-500 mt-0.5">{g.suggest}</div>
                     </div>
                     <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 shrink-0 ${isExp?'rotate-180':''}`}/>
