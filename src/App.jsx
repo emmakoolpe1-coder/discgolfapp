@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import html2canvas from 'html2canvas';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
   ExternalLink, ChevronRight, Trash2, Package, Edit3, Calendar,
@@ -171,6 +172,7 @@ const getAceRarity = (distance) => {
   return { label:'ACE', border:'linear-gradient(135deg,#9ca3af,#e5e7eb,#6b7280,#9ca3af)', glow:'rgba(156,163,175,0.15)', text:'text-gray-300', bg:'bg-gray-500/10' };
 };
 
+const APP_URL = 'Disc Golf Companion';
 const LS_KEY = 'discgolf_app_v2';
 const TIER_KEY = 'discgolf_user_tier';
 const FREE_DISC_LIMIT = 8;
@@ -1154,6 +1156,8 @@ function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,
 // ═══════════════════════════════════════════════════════
 function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,isPro,onUpgradeClick}) {
   const [expandedGap,setExpandedGap] = useState(null);
+  const [isSharing,setIsSharing] = useState(false);
+  const shareCardRef = useRef(null);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
   const avgWeight = weights.length>0 ? (weights.reduce((a,b)=>a+b,0)/weights.length) : 0;
@@ -1351,12 +1355,159 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
     return [];
   }, []);
 
+  const handleShareBag = useCallback(async () => {
+    if (!shareCardRef.current || isSharing) return;
+    setIsSharing(true);
+    try {
+      await new Promise(r => setTimeout(r, 100));
+      const canvas = await html2canvas(shareCardRef.current, {
+        scale: 2,
+        backgroundColor: '#030712',
+        useCORS: true,
+        logging: false,
+      });
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+      if (!blob) throw new Error('Failed to create image');
+      const file = new File([blob], `${(bag?.name || 'My Bag').replace(/[^a-z0-9]/gi, '-')}-disc-golf-bag.png`, { type: 'image/png' });
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({
+            title: `${bag?.name || 'My Bag'} · Disc Golf Bag`,
+            text: `My disc golf bag: ${bagDiscs.length} discs`,
+            files: [file],
+          });
+        } catch (e) {
+          if (e.name !== 'AbortError') downloadBlob(blob, file.name);
+        }
+      } else {
+        downloadBlob(blob, file.name);
+      }
+    } catch (_) {}
+    setIsSharing(false);
+  }, [bag, bagDiscs.length, isSharing]);
+
+  function downloadBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   if (bagDiscs.length===0) return null;
   const maxTC = Math.max(...Object.values(typeCounts),1);
   const maxSC = Math.max(...Object.values(stabCounts),1);
+  const avgSpeed = bagDiscs.length ? (bagDiscs.reduce((s,d)=>s+d.speed,0)/bagDiscs.length).toFixed(1) : '—';
+  const speedRange = bagDiscs.length ? `${Math.min(...bagDiscs.map(d=>d.speed))}–${Math.max(...bagDiscs.map(d=>d.speed))}` : '—';
+  const bagColor = bag?.bagColor || '#6b7280';
 
   return (
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="space-y-4 mb-6">
+      {/* Bag name + Share */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bagColor}}/>
+          <h2 className="text-lg font-bold text-white truncate">{bag?.name || 'My Bag'}</h2>
+        </div>
+        <motion.button
+          whileHover={{scale:1.02}} whileTap={{scale:0.98}}
+          onClick={handleShareBag}
+          disabled={isSharing}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-700 text-gray-200 hover:border-emerald-500/40 hover:text-emerald-400 transition-all text-sm font-semibold disabled:opacity-60"
+        >
+          {isSharing ? <Loader size={16} className="animate-spin"/> : <Share2 size={16}/>}
+          {isSharing ? 'Creating…' : 'Share My Bag'}
+        </motion.button>
+      </div>
+
+      {/* Hidden card for html2canvas (inline styles for capture) */}
+      <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, pointerEvents: 'none' }}>
+        <div
+          ref={shareCardRef}
+          style={{
+            width: 600,
+            minHeight: 400,
+            background: '#030712',
+            borderRadius: 20,
+            padding: 28,
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            color: '#fff',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <span style={{ width: 14, height: 14, borderRadius: '50%', background: bagColor, flexShrink: 0 }}/>
+            <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{bag?.name || 'My Bag'}</span>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Discs</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '6px 16px', marginBottom: 20, fontSize: 13 }}>
+            {bagDiscs.map(d => (
+              <div key={d.id} style={{ display: 'contents' }}>
+                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{d.custom_name || d.mold}</span>
+                <span style={{ color: '#6b7280', textAlign: 'right' }}>{d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Type breakdown</div>
+              {Object.entries(DT).map(([k, cfg]) => {
+                const ct = typeCounts[k] || 0;
+                const pct = maxTC > 0 ? (ct / maxTC) * 100 : 0;
+                return (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, flexShrink: 0 }}/>
+                    <span style={{ fontSize: 12, color: '#9ca3af', width: 72 }}>{cfg.label}s</span>
+                    <div style={{ flex: 1, height: 8, background: '#1f2937', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: cfg.color, borderRadius: 4, opacity: ct === 0 ? 0.3 : 0.8 }}/>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, width: 20, textAlign: 'right' }}>{ct}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Stability</div>
+              {Object.entries(STAB_META).map(([k, meta]) => {
+                const ct = stabCounts[k] || 0;
+                const pct = maxSC > 0 ? (ct / maxSC) * 100 : 0;
+                return (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: meta.color, width: 12, textAlign: 'center' }}>{meta.icon}</span>
+                    <span style={{ fontSize: 12, color: '#9ca3af', width: 88 }}>{meta.label}</span>
+                    <div style={{ flex: 1, height: 8, background: '#1f2937', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: meta.color, borderRadius: 4, opacity: ct === 0 ? 0.3 : 0.8 }}/>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, width: 20, textAlign: 'right' }}>{ct}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Discs</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{bagDiscs.length}</div>
+            </div>
+            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg speed</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b' }}>{avgSpeed}</div>
+            </div>
+            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Speed range</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#a78bfa' }}>{speedRange}</div>
+            </div>
+            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bag value</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>${totalValue}</div>
+            </div>
+          </div>
+          <div style={{ borderTop: '1px solid #1f2937', paddingTop: 14, fontSize: 10, color: '#4b5563', textAlign: 'center' }}>
+            Built with {APP_URL}
+          </div>
+        </div>
+      </div>
+
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <div className="bg-gradient-to-br from-emerald-950/50 to-gray-900 rounded-xl p-4 border border-emerald-800/30">
