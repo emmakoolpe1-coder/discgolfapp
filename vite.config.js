@@ -3,14 +3,13 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'script-defer',
+      injectRegister: null,
       includeAssets: ['disc-icon.svg'],
       manifest: {
         name: 'Disc Golf Companion',
@@ -20,6 +19,7 @@ export default defineConfig({
         background_color: '#030712',
         display: 'standalone',
         start_url: '/',
+        scope: '/',
         icons: [
           {
             src: '/disc-icon.svg',
@@ -36,7 +36,12 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        globIgnores: ['**/index.html', '**/manifest.webmanifest', '**/manifest.json'],
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
+        navigateFallback: '/index.html',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -44,6 +49,26 @@ export default defineConfig({
             options: {
               cacheName: 'google-fonts-cache',
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate' || request.destination === 'document',
+            handler: 'NetworkOnly',
+            options: { cacheName: 'no-cache-document' },
+          },
+          {
+            urlPattern: /\/manifest\.webmanifest$/,
+            handler: 'NetworkOnly',
+            options: { cacheName: 'no-cache-manifest' },
+          },
+          {
+            urlPattern: /\/assets\/.*\.(js|css)$/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-assets',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 32, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

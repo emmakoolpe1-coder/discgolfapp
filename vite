@@ -1,0 +1,12 @@
+
+
+  VITE v7.3.1  ready in 257 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+grep -r "Destroyer\|Buzzz\|Aviar\|Leo
+grep -r "Destroyer\|Buzzz\|Aviar\|Leopard\|Wraith\|Roc3\|Teebird\|Putter\|
+grep -r "Destroyer\|Buzzz\|Aviar\|Leopard\|Wraith\|Roc3\|Teebird\|Putter\|Driver\|Midrange" src/ --include="*.j
+grep -r "Destroyer\|Buzzz\|Aviar\|Leopard\|Wraith\|Roc3\|Teebird\|Putter\|Driver\|Midrange" src/ --include="*.jsx" --include="*.js" -l
+^C
