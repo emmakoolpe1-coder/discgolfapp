@@ -17,6 +17,7 @@ import {
   Zap, Shield, Copy, Users, Sparkles, Star, Download
 } from 'lucide-react';
 
+import { Analytics } from '@vercel/analytics/react';
 // ── Constants ────────────────────────────────────────
 const MFRS = ['Axiom','Clash','DGA','Discraft','Dynamic Discs','Gateway','Innova','Kastaplast','Latitude 64','Lone Star','Mint','MVP','Prodigy','RPM','Streamline','TSA','Westside'];
 const DT = {
@@ -2349,6 +2350,7 @@ export default function DiscLibrary() {
       <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently? Its ace records will also be removed.`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
       <AnimatePresence>{showPrivacy && <PrivacyPolicyModal open onClose={() => setShowPrivacy(false)}/>}</AnimatePresence>
       <AnimatePresence>{showUpgradeModal && <UpgradeModal open onClose={() => setShowUpgradeModal(false)} onStartTrial={() => setUserTier('pro')}/>}</AnimatePresence>
+      <Analytics />
     </div>
   );
 }
