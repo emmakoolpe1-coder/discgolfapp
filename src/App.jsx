@@ -185,11 +185,6 @@ const USER_PROFILE_PIC_KEY = 'discgolf_user_profile_pic';
 const PROFILE_PIC_MAX_SIZE = 200;
 const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
-const TIER_KEY = 'discgolf_user_tier';
-const FREE_DISC_LIMIT = 8;
-const FREE_BAG_LIMIT = 1;
-const FREE_ACE_LIMIT = 3;
-
 const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
 const PWA_DISMISS_DAYS = 7;
@@ -204,10 +199,6 @@ function loadState() {
 }
 function saveState(data) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) { console.warn('Failed to save', e); }
-}
-
-function getStoredTier() {
-  try { return localStorage.getItem(TIER_KEY) || 'free'; } catch(_) { return 'free'; }
 }
 
 function loadAuth() {
@@ -293,7 +284,7 @@ function decodeGoogleJwt(credential) {
     return {
       email: decoded.email || '',
       displayName: decoded.name || decoded.email || 'Google User',
-      picture: decoded.picture || null,
+      picture: decoded.picture || decoded.photoURL || null,
     };
   } catch (_) { return null; }
 }
@@ -479,7 +470,7 @@ function PrivacyPolicyModal({open,onClose}) {
           <div>
             <h3 className="text-xs font-semibold text-white mb-1">Payments</h3>
             <p className="leading-relaxed text-gray-300">
-              Pro subscriptions are processed by Stripe. We never see or store your full credit card number. Stripe handles all payment data under their own privacy policy. We only receive confirmation of your subscription status.
+              No payment or subscription system is currently in use. If we add one later, we will update this policy.
             </p>
           </div>
           <div>
@@ -566,7 +557,7 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
         {uploading ? (
           <Loader size={iconSize} className="animate-spin text-white/90" />
         ) : src ? (
-          <img src={src} alt="" className="w-full h-full object-cover" />
+          <img src={src} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         ) : (
           <span className="leading-none">{initials}</span>
         )}
@@ -754,73 +745,6 @@ function DeleteAccountModal({ open, onClose, onConfirm }) {
               {deleting ? 'Deleting…' : 'Delete Forever'}
             </button>
           </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-// FREEMIUM: ProBadge & UpgradeModal
-// ═══════════════════════════════════════════════════════
-function ProBadge({ className = '' }) {
-  return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 ${className}`}>
-      PRO
-    </span>
-  );
-}
-
-function UpgradeModal({ open, onClose, onStartTrial }) {
-  if (!open) return null;
-  const benefits = [
-    'Unlimited bags',
-    'Unlimited discs in your library',
-    'Full Gap Finder with buy recommendations',
-    'Unlimited aces in your Trophy Room',
-    'Coming soon: AI Bag Review & Throw Translator',
-  ];
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 80 }}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.98, opacity: 0 }}
-        className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden"
-      >
-        <div className="p-6 pb-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Sparkles size={20} className="text-emerald-400 shrink-0" />
-            <ProBadge />
-          </div>
-          <h2 className="text-xl font-black text-white mt-2">Unlock Your Full Bag Potential</h2>
-          <p className="text-sm text-gray-400 mt-1.5">Get the most out of your disc golf game with Pro.</p>
-          <ul className="mt-5 space-y-2.5">
-            {benefits.map((item, i) => (
-              <li key={i} className="flex items-center gap-2.5 text-sm text-gray-300">
-                <Check size={16} className="text-emerald-400 shrink-0" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-6 flex items-center gap-4 text-sm">
-            <span className="text-gray-500">$2.99<span className="text-gray-600">/month</span></span>
-            <span className="text-gray-600">or</span>
-            <span className="text-emerald-400 font-bold">$24.99<span className="text-emerald-500/80 font-medium">/year</span></span>
-          </div>
-        </div>
-        <div className="px-6 pb-6 flex gap-3">
-          <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors">
-            Maybe later
-          </button>
-          <button
-            type="button"
-            onClick={() => { onStartTrial(); onClose(); }}
-            className="flex-1 py-3 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 transition-colors"
-          >
-            Start Free Trial
-          </button>
         </div>
       </motion.div>
     </motion.div>
@@ -1738,7 +1662,7 @@ function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,
 // ═══════════════════════════════════════════════════════
 // BAG DASHBOARD with GAP FINDER
 // ═══════════════════════════════════════════════════════
-function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,isPro,onUpgradeClick}) {
+function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch}) {
   const [expandedGap,setExpandedGap] = useState(null);
   const shareCardRef = useRef(null);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
@@ -2134,9 +2058,15 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
             const cfg = DT[d.disc_type];
             return (
               <div key={d.id} className="flex items-center gap-2.5 bg-gray-800/60 rounded-lg px-3 py-2.5 group hover:bg-gray-800 transition-colors">
-                <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
-                  <span className="text-xs font-black" style={{color:luma(d.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{d.speed}</span>
-                </div>
+                {d.photo ? (
+                  <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden shadow-md flex items-center justify-center bg-gray-800">
+                    <img src={d.photo} alt={d.mold} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
+                    <span className="text-xs font-black" style={{color:luma(d.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{d.speed}</span>
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5"><span className="text-sm font-bold text-white truncate">{d.custom_name||d.mold}</span><span className={`text-xs font-bold px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`} style={{fontSize:9}}>{cfg.label}</span></div>
                   <span className="text-xs text-gray-500">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
@@ -2189,9 +2119,9 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                           <div className="border-t border-gray-800/50 pt-3"/>
                           {/* From your collection */}
                           {libraryMatches.length > 0 && (
-                            <div className="relative">
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2"><Library size={11}/>From Your Collection ({libraryMatches.length}) {!isPro && <ProBadge />}</h4>
-                              <div className={`space-y-1.5 ${!isPro ? 'select-none pointer-events-none blur-sm' : ''}`}>
+                            <div>
+                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2"><Library size={11}/>From Your Collection ({libraryMatches.length})</h4>
+                              <div className="space-y-1.5">
                                 {libraryMatches.slice(0,4).map(d => (
                                   <div key={d.id} className="flex items-center gap-2.5 bg-gray-800/60 rounded-lg px-3 py-2.5">
                                     <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
@@ -2208,30 +2138,11 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                                   </div>
                                 ))}
                               </div>
-                              {!isPro && (
-                                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-gray-950/80" onClick={onUpgradeClick}>
-                                  <button type="button" className="flex flex-col items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-sm font-bold hover:bg-emerald-500/20 transition-colors">
-                                    <Sparkles size={20}/>
-                                    <span>Upgrade to Pro</span>
-                                    <span className="text-xs font-medium text-gray-400">to see matches from your collection</span>
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           )}
-                          {libraryMatches.length === 0 && isPro && (
+                          {libraryMatches.length === 0 && (
                             <div className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
                               <Library size={13} className="text-gray-600 shrink-0"/><span className="text-xs text-gray-500">No matching discs in your collection</span>
-                            </div>
-                          )}
-                          {!isPro && libraryMatches.length === 0 && (
-                            <div className="relative rounded-lg overflow-hidden">
-                              <div className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5 blur-sm select-none">
-                                <Library size={13} className="text-gray-600 shrink-0"/><span className="text-xs text-gray-500">3 matching discs found in your collection</span>
-                              </div>
-                              <div className="absolute inset-0 flex items-center justify-center bg-gray-950/60" onClick={onUpgradeClick}>
-                                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1"><Sparkles size={12}/>Upgrade to see collection matches</span>
-                              </div>
                             </div>
                           )}
                           {/* Buy suggestions */}
@@ -3079,15 +2990,11 @@ function DiscLibrary() {
   const [duplicateDiscConfirm,setDuplicateDiscConfirm] = useState(null);
   const [shareAce,setShareAce] = useState(null);
   const [showPrivacy,setShowPrivacy] = useState(false);
-  const [userTier,setUserTier] = useState(() => getStoredTier());
-  const [showUpgradeModal,setShowUpgradeModal] = useState(false);
   const [settingsOpen,setSettingsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [addToBagPickerOpen, setAddToBagPickerOpen] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const settingsRef = useRef(null);
-
-  const isPro = userTier === 'pro';
 
   const handleSignOut = useCallback(() => {
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
@@ -3113,7 +3020,6 @@ function DiscLibrary() {
       try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
       try { localStorage.removeItem(AUTH_KEY); } catch(_) {}
       try { localStorage.removeItem(USER_PROFILE_PIC_KEY); } catch(_) {}
-      try { localStorage.removeItem(TIER_KEY); } catch(_) {}
       firestoreSyncUserIdRef.current = null;
       firestoreInitialLoadDoneRef.current = false;
       setDiscs([]);
@@ -3133,10 +3039,6 @@ function DiscLibrary() {
       throw e;
     }
   }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem(TIER_KEY, userTier); } catch(_) {}
-  }, [userTier]);
 
   // Derived data
   const aceMap = useMemo(() => { const m={}; aceHistory.forEach(a=>{m[a.discId]=(m[a.discId]||0)+1;}); return m; }, [aceHistory]);
@@ -3179,10 +3081,9 @@ function DiscLibrary() {
   }, [discs]);
 
   const handleSaveAce = useCallback((aceData,isEdit) => {
-    if (!isEdit && !isPro && aceHistory.length >= FREE_ACE_LIMIT) { setShowUpgradeModal(true); return; }
     if (isEdit) { setAceHistory(p=>p.map(a=>a.id===aceData.id?aceData:a)); setToast('✏️ Ace updated!'); }
     else { setAceHistory(p=>[...p,aceData]); setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800); const d=discs.find(x=>x.id===aceData.discId); setToast(`🏆 Ace logged for ${d?.mold||'disc'}!`); }
-  }, [discs, isPro, aceHistory.length]);
+  }, [discs]);
 
   const handleDeleteAce = useCallback(aceId => { setAceHistory(p=>p.filter(a=>a.id!==aceId)); setToast('🗑️ Ace deleted'); }, []);
 
@@ -3190,34 +3091,24 @@ function DiscLibrary() {
     ReactGA.event({ category: 'Disc', action: 'Add Disc' });
     setDiscs(p=>[...p,{...data,date_acquired:data.date_acquired||td()}]);
     if (optionalAce) {
-      if (!isPro && aceHistory.length >= FREE_ACE_LIMIT) {
-        setShowUpgradeModal(true);
-        setToast(`✅ ${data.mold} added! Upgrade to Pro to log more aces.`);
-      } else {
-        const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
-        setAceHistory(p=>[...p, aceEntry]);
-        setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
-        setToast(`🏆 ${data.mold} added and ace logged!`);
-      }
+      const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
+      setAceHistory(p=>[...p, aceEntry]);
+      setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
+      setToast(`🏆 ${data.mold} added and ace logged!`);
     } else {
       setToast(`✅ ${data.mold} added!`);
     }
     setEditingDisc(null); setFormOpen(false);
-  }, [isPro, aceHistory.length]);
+  }, []);
 
   const handleSaveDisc = useCallback((data, optionalAce) => {
     if (editingDisc) {
       setDiscs(p=>p.map(d=>d.id===data.id?data:d));
       if (optionalAce) {
-        if (!isPro && aceHistory.length >= FREE_ACE_LIMIT) {
-          setShowUpgradeModal(true);
-          setToast(`✅ ${data.mold} updated! Upgrade to Pro to log more aces.`);
-        } else {
-          const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
-          setAceHistory(p=>[...p, aceEntry]);
-          setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
-          setToast(`🏆 ${data.mold} updated and ace logged!`);
-        }
+        const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
+        setAceHistory(p=>[...p, aceEntry]);
+        setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
+        setToast(`🏆 ${data.mold} updated and ace logged!`);
       } else {
         setToast(`✅ ${data.mold} updated!`);
       }
@@ -3232,7 +3123,7 @@ function DiscLibrary() {
       return;
     }
     performAddDisc(data, optionalAce);
-  }, [editingDisc, isPro, aceHistory.length, discs, performAddDisc]);
+  }, [editingDisc, discs, performAddDisc]);
 
   const confirmAddDuplicateDisc = useCallback(() => {
     if (!duplicateDiscConfirm) return;
@@ -3254,13 +3145,11 @@ function DiscLibrary() {
 
   const openEdit = useCallback(disc => { setEditingDisc(disc); setFormOpen(true); }, []);
   const openAdd = useCallback(() => {
-    if (!isPro && discs.length >= FREE_DISC_LIMIT) { setShowUpgradeModal(true); return; }
     setEditingDisc(null); setFormOpen(true);
-  }, [isPro, discs.length]);
+  }, []);
   const createBag = useCallback(({name,bagColor}) => {
-    if (!isPro && bags.length >= FREE_BAG_LIMIT) { setShowUpgradeModal(true); return; }
     setBags(p => [...p, {id:`b${Date.now()}`,name,bagColor,disc_ids:[]}]);
-  }, [isPro, bags.length]);
+  }, []);
   const deleteBag = useCallback(id => { setBags(p=>p.filter(b=>b.id!==id)); if(activeBagId===id)setActiveBagId(null); }, [activeBagId]);
   const requestDeleteBag = useCallback(id => {
     const bag = bags.find(b => b.id === id);
@@ -3321,16 +3210,6 @@ function DiscLibrary() {
             </div>
             {/* Right: actions in one wrap group — Add Disc first for priority, then Synced (tiny), Avatar, Settings */}
             <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
-              {!isPro && (
-                <button type="button" onClick={() => setShowUpgradeModal(true)} className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-all">
-                  <Sparkles size={14}/>Upgrade to Pro
-                </button>
-              )}
-              {isPro && (
-                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  <Sparkles size={12}/>You're on Pro!
-                </span>
-              )}
               <button onClick={() => setShowTrophyRoom(true)} className="flex items-center gap-1.5 p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30 transition-all relative shrink-0">
                 <Trophy size={18}/>{totalAces>0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center" style={{fontSize:9}}>{totalAces}</span>}
               </button>
@@ -3457,7 +3336,7 @@ function DiscLibrary() {
 
       {/* ── BODY ── */}
       <div className="max-w-7xl mx-auto px-4 pt-5">
-        {activeBag && <BagDashboard key={activeBag.id} bagDiscs={bagDiscsForDashboard} bag={activeBag} allDiscs={discs} onAddToBag={addDiscToBag} onRemoveFromBag={removeDiscFromBag} onBuySearch={handleBuySearch} isPro={isPro} onUpgradeClick={() => setShowUpgradeModal(true)}/>}
+        {activeBag && <BagDashboard key={activeBag.id} bagDiscs={bagDiscsForDashboard} bag={activeBag} allDiscs={discs} onAddToBag={addDiscToBag} onRemoveFromBag={removeDiscFromBag} onBuySearch={handleBuySearch}/>}
         {activeBag && discs.length > 0 && (
           <div className="flex justify-end mb-3">
             <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
@@ -3536,7 +3415,7 @@ function DiscLibrary() {
       </div>
 
       {/* ── MODALS ── */}
-      <AnimatePresence>{showTrophyRoom && <TrophyRoomModal open onClose={() => setShowTrophyRoom(false)} aces={isPro ? aceHistory : aceHistory.slice(0, FREE_ACE_LIMIT)} discs={discs} onShare={handleShareAce} onEditAce={ace=>{setShowTrophyRoom(false);setEditingAce(ace);}} onDeleteAce={handleDeleteAce} onLogAce={() => { setShowTrophyRoom(false); setAceLogDisc(discs[0] ?? null); }}/>}</AnimatePresence>
+      <AnimatePresence>{showTrophyRoom && <TrophyRoomModal open onClose={() => setShowTrophyRoom(false)} aces={aceHistory} discs={discs} onShare={handleShareAce} onEditAce={ace=>{setShowTrophyRoom(false);setEditingAce(ace);}} onDeleteAce={handleDeleteAce} onLogAce={() => { setShowTrophyRoom(false); setAceLogDisc(discs[0] ?? null); }}/>}</AnimatePresence>
       <AnimatePresence>{shareAce && <ShareOverlay open ace={shareAce.ace} disc={shareAce.disc} onClose={() => setShareAce(null)}/>}</AnimatePresence>
       <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} aceHistory={aceHistory} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onLogAce={d=>{setDetailDisc(null);setAceLogDisc(d);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} onViewTrophyRoom={() => {setDetailDisc(null);setShowTrophyRoom(true);}} onEditAce={ace=>{setDetailDisc(null);setEditingAce(ace);}}/>}</AnimatePresence>
       <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc}/>
@@ -3559,7 +3438,6 @@ function DiscLibrary() {
       <AnimatePresence>{deleteBagConfirm && <ConfirmDialog key="delBag" open title="Delete this bag?" message="Are you sure you want to delete this bag? All discs will be removed from the bag." danger confirmLabel="Delete" onCancel={() => setDeleteBagConfirm(null)} onConfirm={confirmDeleteBag}/>}</AnimatePresence>
       <AnimatePresence>{showPrivacy && <PrivacyPolicyModal open onClose={() => setShowPrivacy(false)}/>}</AnimatePresence>
       <AnimatePresence>{showDeleteAccount && <DeleteAccountModal open onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} />}</AnimatePresence>
-      <AnimatePresence>{showUpgradeModal && <UpgradeModal open onClose={() => setShowUpgradeModal(false)} onStartTrial={() => setUserTier('pro')}/>}</AnimatePresence>
       <AnimatePresence>{showProfileModal && userAuth && (
         <ProfileModal
           open={showProfileModal}

@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAhNyHfKFXdBbftmAQ_My7Sl7JR8J7q6e8",
-  authDomain: "disc-golf-companion-ee97b.firebaseapp.com",
-  projectId: "disc-golf-companion-ee97b",
-  storageBucket: "disc-golf-companion-ee97b.firebasestorage.app",
-  messagingSenderId: "142280989117",
-  appId: "1:142280989117:web:529b45beff8145cdc2dad4",
-  measurementId: "G-NW82JG6V6R"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
