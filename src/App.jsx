@@ -9,15 +9,15 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore } from './firestoreSync.js';
+import { getAuth, signOut as firebaseSignOut } from 'firebase/auth';
 import ReactGA from 'react-ga4';
-import html2canvas from 'html2canvas';
 import {
-  Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
-  ExternalLink, ChevronRight, Trash2, Package, Edit3, Calendar,
+  Trophy, Plus, Search, X, ChevronDown, ChevronLeft, Check, Minus, Target,
+  ExternalLink, ChevronRight, Trash2, Package, Edit3, Calendar, Backpack,
   MapPin, Hash, ShoppingCart, Loader, LayoutGrid, List, Upload,
-  Camera, Share2, Filter, Ruler, Library, BookOpen, Info,
+  Camera, Filter, Ruler, Library, Info,
   AlertTriangle, TrendingUp, BarChart3, Crosshair, DollarSign,
-  Zap, Shield, Copy, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock
+  Zap, Shield, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock, Award
 } from 'lucide-react';
 
 // ── Constants ────────────────────────────────────────
@@ -48,6 +48,7 @@ const SORT_OPTIONS = [
 ];
 const DISC_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#ffffff','#1e1e1e','#6b7280','#14b8a6'];
 const BAG_COLORS = ['#1e3a5f','#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#7c3aed','#db2777','#475569','#f59e0b','#0ea5e9','#84cc16'];
+const PB_CATEGORIES = ['Lowest Round','Most Birdies','Longest Putt','Best Score','First Under Par','Other'];
 
 const STAB_META = {
   understable:{label:'Understable',color:'#38bdf8',bg:'bg-sky-500/15',text:'text-sky-400',border:'border-sky-500/30',icon:'↗'},
@@ -164,19 +165,82 @@ const BUY_SUGGESTIONS = {
 function wc(l) { return l>=8?'bg-emerald-500':l>=6?'bg-lime-500':l>=4?'bg-amber-500':l>=2?'bg-orange-500':'bg-red-500'; }
 function ww(l) { return l>=9?'Mint':l>=7?'Good':l>=5?'Used':l>=3?'Fair':'Poor'; }
 function td() { return new Date().toISOString().split('T')[0]; }
-function fmtD(d) { try { return new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch { return d; } }
+function fmtD(d) {
+  if (!d) return '—';
+  try {
+    const s = String(d).trim();
+    const parsed = s.includes('T') ? new Date(s) : new Date(s + 'T00:00:00');
+    if (isNaN(parsed.getTime())) return s || '—';
+    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
 function luma(hex) { const c=(hex||'#888').replace('#',''); return (parseInt(c.substr(0,2),16)*299+parseInt(c.substr(2,2),16)*587+parseInt(c.substr(4,2),16)*114)/1000; }
 function classifyStability(d) { const net=(d.turn||0)+(d.fade||0); if(d.turn<=-2||net<=0) return 'understable'; if(d.fade>=3||net>=3) return 'overstable'; return 'stable'; }
 
 function getAceRarity(distance) {
-  if(distance>=350) return { label:'LEGENDARY', border:'linear-gradient(135deg,#a855f7,#ec4899,#f59e0b,#a855f7)', glow:'rgba(168,85,247,0.3)', text:'text-purple-300', bg:'bg-purple-500/10' };
-  if(distance>=300) return { label:'EPIC', border:'linear-gradient(135deg,#fbbf24,#fef08a,#f59e0b,#fbbf24)', glow:'rgba(251,191,36,0.3)', text:'text-amber-300', bg:'bg-amber-500/10' };
-  if(distance>=200) return { label:'RARE', border:'linear-gradient(135deg,#38bdf8,#a5f3fc,#0ea5e9,#38bdf8)', glow:'rgba(56,189,248,0.25)', text:'text-sky-300', bg:'bg-sky-500/10' };
-  return { label:'ACE', border:'linear-gradient(135deg,#9ca3af,#e5e7eb,#6b7280,#9ca3af)', glow:'rgba(156,163,175,0.15)', text:'text-gray-300', bg:'bg-gray-500/10' };
+  if(distance>=350) return { label:'LEGENDARY', badge:'ACE', border:'linear-gradient(135deg,#a855f7,#ec4899,#f59e0b,#a855f7)', glow:'rgba(168,85,247,0.3)', text:'text-purple-300', bg:'bg-purple-500/10' };
+  if(distance>=300) return { label:'EPIC', badge:'ACE', border:'linear-gradient(135deg,#fbbf24,#fef08a,#f59e0b,#fbbf24)', glow:'rgba(251,191,36,0.3)', text:'text-amber-300', bg:'bg-amber-500/10' };
+  if(distance>=200) return { label:'RARE', badge:'ACE', border:'linear-gradient(135deg,#38bdf8,#a5f3fc,#0ea5e9,#38bdf8)', glow:'rgba(56,189,248,0.25)', text:'text-sky-300', bg:'bg-sky-500/10' };
+  return { label:'ACE', badge:'ACE', border:'linear-gradient(135deg,#fbbf24,#fef08a,#e5e7eb,#fbbf24)', glow:'rgba(251,191,36,0.2)', text:'text-amber-300', bg:'bg-amber-500/10' };
+}
+// Theme borders for achievement cards (royal blue/silver, fiery, emerald)
+const THEME_TOURNAMENT = { border:'linear-gradient(135deg,#4169E1,#C0C0C0,#1E3A5F,#4169E1)', primary:'#4169E1', silver:'#C0C0C0', dark:'#1E3A5F' };
+const THEME_LONGEST = { border:'linear-gradient(135deg,#FF4500,#FF6347,#DC143C,#FF4500)', primary:'#FF4500', mid:'#FF6347', dark:'#DC143C' };
+const THEME_PB = { border:'linear-gradient(135deg,#50C878,#2E8B57,#00FF7F,#50C878)', primary:'#50C878', mid:'#2E8B57', light:'#00FF7F' };
+
+function getTournamentRarity(placement) {
+  const p = typeof placement === 'number' ? placement : parseInt(String(placement), 10);
+  if (p === 1) {
+    return {
+      label:'1ST PLACE',
+      border: THEME_TOURNAMENT.border,
+      text:'text-sky-100',
+      bg:'bg-sky-900/60',
+      medalColor:'#FFD700',
+      medalEmoji:'🥇',
+    };
+  }
+  if (p === 2) {
+    return {
+      label:'2ND PLACE',
+      border: THEME_TOURNAMENT.border,
+      text:'text-sky-100',
+      bg:'bg-sky-900/60',
+      medalColor:'#C0C0C0',
+      medalEmoji:'🥈',
+    };
+  }
+  if (p === 3) {
+    return {
+      label:'3RD PLACE',
+      border: THEME_TOURNAMENT.border,
+      text:'text-sky-100',
+      bg:'bg-sky-900/60',
+      medalColor:'#CD7F32',
+      medalEmoji:'🥉',
+    };
+  }
+  return {
+    label:'TOURNAMENT',
+    border: THEME_TOURNAMENT.border,
+    text:'text-sky-300',
+    bg:'bg-sky-900/40',
+    medalColor: THEME_TOURNAMENT.silver,
+    medalEmoji:'🎗️',
+  };
+}
+function getLongestThrowRarity(distanceFeet) {
+  if ((distanceFeet || 0) >= 400) return { label:'CANNON', border: THEME_LONGEST.border, text:'text-orange-300', bg:'bg-orange-500/10' };
+  if ((distanceFeet || 0) >= 300) return { label:'BOMBER', border: THEME_LONGEST.border, text:'text-rose-300', bg:'bg-rose-500/10' };
+  return { label:'LONG', border: THEME_LONGEST.border, text:'text-rose-400/80', bg:'bg-rose-900/20' };
+}
+function getPBRarity() {
+  return { label:'PB', border: THEME_PB.border, text:'text-emerald-300', bg:'bg-emerald-500/10' };
 }
 
 const APP_URL = 'Disc Golf Companion';
-const SHARE_APP_URL = 'https://discgolfcompanion.vercel.app';
 const GUEST_MODE_KEY = 'discgolf_guest_mode';
 const AUTH_KEY = 'discgolf_auth';
 const GOOGLE_CLIENT_ID = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID ? import.meta.env.VITE_GOOGLE_CLIENT_ID : '';
@@ -193,12 +257,27 @@ const PWA_SHOW_DELAY_MS = 30_000;
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.discs) {
+        console.log('[loadState] loaded discs from localStorage:', parsed.discs.length, 'example disc:', parsed.discs[0], 'hasPhoto:', !!parsed.discs[0]?.photo);
+      }
+      return parsed;
+    }
   } catch(e) { console.warn('Failed to load state', e); }
   return null;
 }
 function saveState(data) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch(e) { console.warn('Failed to save', e); }
+  try {
+    console.log('[saveState] saving discs to localStorage...', {
+      count: data?.discs?.length ?? 0,
+      example: data?.discs?.[0],
+      hasPhoto: !!data?.discs?.[0]?.photo,
+      photoBytes: typeof data?.discs?.[0]?.photo === 'string' ? data.discs[0].photo.length : 0,
+    });
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+    console.log('[saveState] localStorage save SUCCESS');
+  } catch(e) { console.warn('Failed to save', e); }
 }
 
 function loadAuth() {
@@ -259,6 +338,64 @@ function resizeImageToDataUrl(file, maxSize) {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
     img.src = url;
   });
+}
+
+const MAX_UPLOAD_WIDTH = 400;
+const UPLOAD_JPEG_QUALITY = 0.3;
+const UPLOAD_TARGET_MAX_BYTES = 200 * 1024;
+
+function compressImageFileToBlob(file, maxWidth = MAX_UPLOAD_WIDTH, quality = UPLOAD_JPEG_QUALITY) {
+  return new Promise((resolve, reject) => {
+    console.log('[ImageCompress] Photo selected', { name: file.name, size: file.size, type: file.type });
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) { reject(new Error('Invalid image dimensions')); return; }
+      const scale = w > maxWidth ? maxWidth / w : 1;
+      const tw = Math.round(w * scale);
+      const th = Math.round(h * scale);
+      console.log('[ImageCompress] Compressing photo...', { originalWidth: w, originalHeight: h, targetWidth: tw, targetHeight: th });
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('No canvas context')); return; }
+      ctx.drawImage(img, 0, 0, tw, th);
+      const tryEncode = (q, allowSecondPass) => {
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('Image encode failed')); return; }
+          console.log('[ImageCompress] Compression attempt done', { quality: q, size: blob.size });
+          if (blob.size > UPLOAD_TARGET_MAX_BYTES && allowSecondPass) {
+            // One extra pass at a lower quality if still too large
+            tryEncode(Math.max(0.35, q - 0.15), false);
+          } else {
+            resolve(blob);
+          }
+        }, 'image/jpeg', q);
+      };
+      tryEncode(quality, true);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function compressImageFileToDataUrl(file, maxWidth = MAX_UPLOAD_WIDTH, quality = UPLOAD_JPEG_QUALITY) {
+  const blob = await compressImageFileToBlob(file, maxWidth, quality);
+  if (!blob) throw new Error('Failed to compress image');
+  return blobToDataUrl(blob);
 }
 
 function getInitials(displayName) {
@@ -325,13 +462,51 @@ function Toast({message,onDone}) {
 }
 
 function Stepper({value,onChange,min,max,step=1,label}) {
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState(String(value));
+  useEffect(() => { setInputVal(String(value)); }, [value]);
+  const clamp = (v) => Math.max(min, Math.min(max, +(Number(v).toFixed(1))));
+  const inc = () => { setEditing(false); onChange(clamp(+(value + step).toFixed(1))); };
+  const dec = () => { setEditing(false); onChange(clamp(+(value - step).toFixed(1))); };
+  const commit = (v) => {
+    setEditing(false);
+    const n = parseFloat(String(v).trim());
+    if (v !== '' && v !== '-' && !isNaN(n)) onChange(clamp(n));
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowUp') { e.preventDefault(); inc(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); dec(); }
+    else if (e.key === 'Enter') { e.preventDefault(); commit(e.target.value); }
+  };
+  const handleChange = (e) => {
+    const v = e.target.value;
+    setInputVal(v);
+    if (v !== '' && v !== '-' && v !== '.') {
+      const n = parseFloat(v);
+      if (!isNaN(n)) onChange(clamp(n));
+    }
+  };
+  const handleFocus = () => { setEditing(true); setInputVal(String(value)); };
+  const handleBlur = () => commit(inputVal);
+  const displayVal = editing ? inputVal : value;
   return (
     <div>
       <label className="block text-xs text-gray-400 mb-1 font-medium">{label}</label>
-      <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700">
-        <button type="button" onClick={() => onChange(Math.max(min,+(value-step).toFixed(1)))} className="px-2 py-2 text-gray-400 hover:text-white transition rounded-l-lg"><Minus size={12}/></button>
-        <span className="flex-1 text-center text-white font-semibold text-sm">{value}</span>
-        <button type="button" onClick={() => onChange(Math.min(max,+(value+step).toFixed(1)))} className="px-2 py-2 text-gray-400 hover:text-white transition rounded-r-lg"><Plus size={12}/></button>
+      <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-600 active:border-emerald-500/50 transition-colors">
+        <button type="button" onClick={dec} className="px-2 py-2.5 sm:px-2 sm:py-2 text-gray-400 hover:text-white active:text-emerald-400 transition rounded-l-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Decrease ${label}`}><Minus size={14} /></button>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={displayVal}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          placeholder="—"
+          title="Tap to type or use +/−"
+          className="flex-1 min-w-[2.5rem] bg-gray-700/40 text-center text-white font-semibold text-base sm:text-sm py-2.5 sm:py-2 cursor-text placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:bg-gray-700/60 rounded min-h-[44px] touch-manipulation tabular-nums"
+        />
+        <button type="button" onClick={inc} className="px-2 py-2.5 sm:px-2 sm:py-2 text-gray-400 hover:text-white active:text-emerald-400 transition rounded-r-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Increase ${label}`}><Plus size={14} /></button>
       </div>
     </div>
   );
@@ -547,12 +722,12 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
   return (
     <div className={`relative shrink-0 ${className}`}>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-      <button
-        type="button"
+      <div
         onClick={onUpload ? handleClick : undefined}
         className={`${sizeCls} rounded-full overflow-hidden border-2 border-gray-700 flex items-center justify-center text-white font-bold text-sm select-none transition-all ${onUpload ? 'cursor-pointer hover:border-emerald-500/50 hover:ring-2 hover:ring-emerald-500/20' : 'cursor-default'}`}
         style={!src ? { backgroundColor: bgColor } : undefined}
         aria-label={onUpload ? 'Change profile picture' : 'Profile picture'}
+        role={onUpload ? 'button' : undefined}
       >
         {uploading ? (
           <Loader size={iconSize} className="animate-spin text-white/90" />
@@ -561,7 +736,7 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
         ) : (
           <span className="leading-none">{initials}</span>
         )}
-      </button>
+      </div>
       {onUpload && !uploading && (
         <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-gray-800 border-2 border-gray-950 flex items-center justify-center" aria-hidden="true">
           <Camera size={iconSize - 4} className="text-emerald-400" />
@@ -953,24 +1128,14 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
 // ═══════════════════════════════════════════════════════
 // DISC FORM MODAL (Add / Edit)
 // ═══════════════════════════════════════════════════════
-function DiscFormModal({open,onClose,onSave,editDisc}) {
+function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
   const [f,setF] = useState({...EMPTY_DISC});
   const fileRef = useRef(null);
   const isEdit = !!editDisc;
-  const [logAceWithDisc,setLogAceWithDisc] = useState(false);
-  const [aceCourse,setAceCourse] = useState('');
-  const [aceHole,setAceHole] = useState('');
-  const [aceDate,setAceDate] = useState(td());
-  const [aceNotes,setAceNotes] = useState('');
-  const [aceDistance,setAceDistance] = useState('');
 
   useEffect(() => {
     if (open) {
       setF(editDisc ? {...editDisc, story:editDisc.story||'', estimated_value:editDisc.estimated_value||18} : {...EMPTY_DISC, date_acquired:td()});
-      if (!editDisc) {
-        setLogAceWithDisc(false);
-        setAceCourse(''); setAceHole(''); setAceDate(td()); setAceNotes(''); setAceDistance('');
-      }
     }
   }, [open, editDisc]);
 
@@ -979,22 +1144,29 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
   const save = () => {
     const discId = isEdit ? f.id : Date.now().toString();
     const discPayload = {...f, ...(isEdit?{}:{id:discId})};
-    const acePayload = logAceWithDisc ? {
-      course: aceCourse.trim() || 'Unknown Course',
-      hole: parseInt(aceHole) || 0,
-      date: aceDate,
-      distance: parseInt(aceDistance) || 0,
-      notes: aceNotes.trim() || ''
-    } : null;
-    onSave(discPayload, acePayload);
+    onSave(discPayload);
   };
 
-  const handlePhoto = e => {
+  const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const r = new FileReader();
-    r.onloadend = () => s('photo', r.result);
-    r.readAsDataURL(file);
+    if (!file || !file.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      console.log('[DiscFormModal] Photo selected', { name: file.name, size: file.size, type: file.type });
+      let photoValue = null;
+      if (uploadImage) {
+        photoValue = await uploadImage(file, 'discs');
+      } else {
+        photoValue = await compressImageFileToDataUrl(file);
+      }
+      if (photoValue) {
+        console.log('[DiscFormModal] compressed disc photo, bytes:', typeof photoValue === 'string' ? photoValue.length : 0);
+        s('photo', photoValue);
+        console.log('[DiscFormModal] Photo saved to state');
+      }
+    } catch (err) {
+      console.warn('[DiscFormModal] failed to process disc photo', err);
+    }
   };
 
   return (
@@ -1035,11 +1207,6 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
                 <input value={f.custom_name} onChange={e=>s('custom_name',e.target.value)} placeholder="Nickname (optional)" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
               </div>
             </section>
-            {/* Story */}
-            <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Personal Story</h3>
-              <textarea value={f.story} onChange={e=>s('story',e.target.value)} placeholder="What's the story behind this disc?" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 resize-none"/>
-            </section>
             {/* Type & Status */}
             <section>
               <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Type & Status</h3>
@@ -1060,8 +1227,9 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
             </section>
             {/* Flight Numbers */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Flight Numbers</h3>
-              <div className="grid grid-cols-4 gap-2">
+              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Flight Numbers</h3>
+              <p className="text-xs text-gray-500 mb-2 sm:text-[10px]">Tap to type or use +/− buttons</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Stepper label="Speed" value={f.speed} onChange={v=>s('speed',v)} min={1} max={15} step={0.5}/>
                 <Stepper label="Glide" value={f.glide} onChange={v=>s('glide',v)} min={1} max={7} step={0.5}/>
                 <Stepper label="Turn" value={f.turn} onChange={v=>s('turn',v)} min={-5} max={1} step={0.5}/>
@@ -1104,47 +1272,6 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
               <input type="range" min={1} max={10} value={f.wear_level} onChange={e=>s('wear_level',parseInt(e.target.value))} className="w-full accent-emerald-500"/>
               <p className="text-xs text-gray-400 mt-1">1 = Poor (heavily used) → 10 = Mint (brand new)</p>
             </section>
-            {/* Log an Ace with this disc (add-only) */}
-            {(
-              <section>
-                <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-2">{isEdit ? 'Log an Ace' : 'Optional'}</h3>
-                <button type="button" onClick={() => setLogAceWithDisc(!logAceWithDisc)}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${logAceWithDisc?'bg-amber-500/10 border-amber-500/30':'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
-                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${logAceWithDisc?'bg-amber-500 border-amber-500':'border-gray-600'}`}>
-                    {logAceWithDisc && <Check size={14} className="text-white"/>}
-                  </div>
-                  <div className="flex-1">
-                    <span className={`text-sm font-semibold ${logAceWithDisc?'text-amber-400':'text-white'}`}>Log an Ace with this disc?</span>
-                    <p className="text-xs text-gray-500 mt-0.5">{isEdit ? 'Log a new ace for this disc.' : 'Record your first ace for this disc when you add it.'}</p>
-                  </div>
-                  {logAceWithDisc && <Trophy size={18} className="text-amber-400 shrink-0"/>}
-                </button>
-                {logAceWithDisc && (
-                  <div className="mt-4 space-y-3 pl-1">
-                    <div>
-                      <label className="text-xs text-gray-400 font-medium mb-1 block">Course name</label>
-                      <input value={aceCourse} onChange={e=>setAceCourse(e.target.value)} placeholder="e.g. Maple Hill" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 font-medium mb-1 block">Hole number</label>
-                      <input type="number" value={aceHole} onChange={e=>setAceHole(e.target.value)} placeholder="7" min={1} max={36} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 font-medium mb-1 block">Distance (ft)</label>
-                      <input type="number" value={aceDistance} onChange={e=>setAceDistance(e.target.value)} placeholder="250" min={50} max={600} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 font-medium mb-1 block">Date</label>
-                      <input type="date" value={aceDate} onChange={e=>setAceDate(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"/>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 font-medium mb-1 block">Notes (optional)</label>
-                      <input value={aceNotes} onChange={e=>setAceNotes(e.target.value)} placeholder="Any details…" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
-                    </div>
-                  </div>
-                )}
-              </section>
-            )}
           </div>
           <div className="p-5 border-t border-gray-800 shrink-0 flex gap-3">
             <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm">Cancel</button>
@@ -1161,13 +1288,16 @@ function DiscFormModal({open,onClose,onSave,editDisc}) {
 // ═══════════════════════════════════════════════════════
 // ACE FORM MODAL (Log / Edit Ace)
 // ═══════════════════════════════════════════════════════
-function AceFormModal({open,disc,existingAce,discs,onClose,onSave}) {
+function AceFormModal({open,disc,existingAce,discs,onClose,onSave,uploadImage}) {
   const [date,setDate] = useState(td());
   const [course,setCourse] = useState('');
   const [hole,setHole] = useState('');
   const [distance,setDistance] = useState(250);
   const [selectedDiscId,setSelectedDiscId] = useState('');
   const [witnessed,setWitnessed] = useState(false);
+  const [witnessNames,setWitnessNames] = useState('');
+  const [notes,setNotes] = useState('');
+  const [photo,setPhoto] = useState(null);
   const [discPickerOpen,setDiscPickerOpen] = useState(false);
   const isEdit = !!existingAce;
 
@@ -1177,9 +1307,10 @@ function AceFormModal({open,disc,existingAce,discs,onClose,onSave}) {
         setDate(existingAce.date||td()); setCourse(existingAce.course||'');
         setHole(existingAce.hole?String(existingAce.hole):''); setDistance(existingAce.distance||250);
         setSelectedDiscId(existingAce.discId||''); setWitnessed(existingAce.witnessed||false);
+        setWitnessNames(existingAce.witnessNames||''); setNotes(existingAce.notes||''); setPhoto(existingAce.photo||null);
       } else {
         setDate(td()); setCourse(''); setHole(''); setDistance(250);
-        setSelectedDiscId(disc?.id||''); setWitnessed(false);
+        setSelectedDiscId(disc?.id||''); setWitnessed(false); setWitnessNames(''); setNotes(''); setPhoto(null);
       }
       setDiscPickerOpen(false);
     }
@@ -1196,9 +1327,33 @@ function AceFormModal({open,disc,existingAce,discs,onClose,onSave}) {
       id: existingAce?.id || `a${Date.now()}`,
       discId: selectedDiscId || disc?.id || '',
       date, course: course.trim()||'Unknown Course',
-      hole: parseInt(hole)||0, distance: parseInt(distance)||0, witnessed
+      hole: parseInt(hole)||0, distance: parseInt(distance)||0, witnessed,
+      witnessNames: witnessed ? (witnessNames||'').trim() : '',
+      notes: (notes||'').trim() || '',
+      ...(photo != null ? { photo } : {}),
     }, isEdit);
     onClose();
+  };
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      console.log('[AceFormModal] Photo selected', { name: file.name, size: file.size, type: file.type });
+      let photoValue = null;
+      if (uploadImage) {
+        photoValue = await uploadImage(file, 'aces');
+      } else {
+        photoValue = await compressImageFileToDataUrl(file);
+      }
+      if (photoValue) {
+        console.log('[AceFormModal] compressed ace photo, bytes:', typeof photoValue === 'string' ? photoValue.length : 0);
+        setPhoto(photoValue);
+        console.log('[AceFormModal] Photo saved to state');
+      }
+    } catch (err) {
+      console.warn('[AceFormModal] failed to process ace photo', err);
+    }
   };
 
   return (
@@ -1292,6 +1447,31 @@ function AceFormModal({open,disc,existingAce,discs,onClose,onSave}) {
             </div>
             {witnessed && <Shield size={16} className="text-emerald-400 shrink-0" fill="currentColor"/>}
           </button>
+          {witnessed && (
+            <div>
+              <label className="text-xs text-gray-400 font-medium mb-1 block">Witness names</label>
+              <input value={witnessNames} onChange={e=>setWitnessNames(e.target.value)} placeholder="Who witnessed it? (e.g. John, Sarah)" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+            </div>
+          )}
+          <div>
+            <label className="text-xs text-gray-500 font-medium mb-1 block">Notes (optional)</label>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 resize-none"/>
+          </div>
+          {/* Photo upload */}
+          <div>
+            <label className="text-xs text-gray-500 font-medium mb-1.5 block">Photo</label>
+            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-amber-500/40 cursor-pointer">
+              <Camera size={18} className="text-gray-400"/>
+              <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload}/>
+            </label>
+            {photo && (
+              <div className="mt-2 flex items-center gap-2">
+                <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
+                <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="p-5 border-t border-gray-800 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm">Cancel</button>
@@ -1327,90 +1507,90 @@ function AceEmblem({size=80}) {
   );
 }
 
-function AceTradingCard({ace,disc,index,totalAces,onShare,onEdit,onDelete}) {
+const GOLD_ACE_BORDER = 'linear-gradient(135deg,#FFD700,#FFA500,#B8860B,#FFD700)';
+function AceTradingCard({ace,disc,index,totalAces,onEdit,onDelete}) {
   const rarity = getAceRarity(ace.distance||0);
   const [hovered,setHovered] = useState(false);
+  const hasPhoto = !!(ace.photo);
   return (
     <motion.div layout initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{duration:0.5,delay:index*0.08,type:'spring',damping:25}}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} className="relative group">
-      <motion.div className="absolute -inset-1 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg" style={{background:rarity.border}}/>
-      <div className="relative rounded-2xl overflow-hidden" style={{padding:'1.5px',background:rarity.border}}>
-        <div className="relative bg-gray-950 rounded-2xl overflow-hidden">
-          {/* Holographic shimmer */}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} className="relative group h-full min-h-0 flex flex-col">
+      <motion.div className="absolute -inset-1 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg" style={{background:GOLD_ACE_BORDER}}/>
+      <div className="relative rounded-2xl overflow-hidden flex-1 min-h-0 flex flex-col" style={{padding:'1.5px',background:GOLD_ACE_BORDER}}>
+        <div className="relative rounded-2xl overflow-hidden h-full min-h-0 flex flex-col bg-gray-950" style={{background:'linear-gradient(180deg,rgba(26,25,24,0.98),rgba(38,36,33,0.95))'}}>
           <motion.div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{zIndex:5,background:'linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.03) 40%,rgba(255,255,255,0.08) 45%,rgba(255,255,255,0.03) 50%,transparent 55%)',backgroundSize:'250% 100%'}}
+            style={{zIndex:5,background:'linear-gradient(105deg,transparent 35%,rgba(255,215,0,0.06) 40%,rgba(255,255,255,0.08) 45%,rgba(255,215,0,0.06) 50%,transparent 55%)',backgroundSize:'250% 100%'}}
             animate={hovered?{backgroundPosition:['200% 0','-100% 0']}:{}} transition={{duration:1.5,repeat:Infinity,ease:'linear'}}/>
-          {/* Top banner */}
-          <div className="relative px-4 py-3" style={{background:'linear-gradient(135deg,rgba(0,0,0,0.6),rgba(0,0,0,0.3))'}}>
-            <div className="absolute inset-0 opacity-20" style={{background:rarity.border}}/>
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-black tracking-widest uppercase ${rarity.text}`}>✦ Ace #{totalAces-index}</span>
-                <span className={`text-xs font-black px-2 py-0.5 rounded-full ${rarity.bg} ${rarity.text}`} style={{fontSize:9,border:'1px solid currentColor',opacity:0.6}}>{rarity.label}</span>
+          {/* Photo hero or compact header — fixed height, shrink-0 */}
+          {hasPhoto ? (
+            <div className="relative w-full shrink-0 h-[180px]">
+              <img src={ace.photo} alt="" className="w-full h-full object-cover rounded-t-2xl"/>
+              <div className="absolute inset-0 rounded-t-2xl pointer-events-none" style={{background:'linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 50%)'}}/>
+              <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-widest uppercase text-amber-300">
+                  <Trophy size={14} className="text-amber-400"/>
+                  <span>Ace #{totalAces-index}</span>
+                </span>
+                <span className="ml-3 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">{rarity.label}</span>
               </div>
+            </div>
+          ) : (
+            <div className="relative px-3 pt-3 pb-2.5 shrink-0 flex flex-col items-center text-center gap-1.5" style={{background:'linear-gradient(135deg,rgba(255,215,0,0.08),rgba(184,134,11,0.04))'}}>
+              <div className="flex items-center justify-between w-full gap-3">
+                <div className="inline-flex items-center gap-1.5">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-400/50 flex items-center justify-center">
+                    <Trophy size={14} className="text-amber-300"/>
+                  </div>
+                  <span className="text-[11px] font-black tracking-widest uppercase text-amber-400">Ace #{totalAces-index}</span>
+                </div>
+                <span className="ml-auto text-[9px] font-black px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/50 whitespace-nowrap">{rarity.label}</span>
+              </div>
+              <h3 className="text-[12px] font-black text-white leading-tight truncate w-full mt-0.5">
+                {disc?.custom_name || disc?.mold || 'Unknown Disc'}
+              </h3>
+              <p className="text-[10px] text-gray-400 font-medium truncate w-full">
+                {disc?.manufacturer || ''}{disc?.plastic_type ? ` · ${disc.plastic_type}` : ''}
+              </p>
               {ace.witnessed && (
-                <motion.div initial={{scale:0}} animate={{scale:1}} transition={{delay:0.3,type:'spring'}} className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-2 py-0.5">
-                  <Shield size={10} className="text-emerald-400" fill="currentColor"/>
-                  <span className="text-xs font-bold text-emerald-400" style={{fontSize:9}}>VERIFIED</span>
+                <motion.div initial={{scale:0}} animate={{scale:1}} className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-1.5 py-0.5 mt-1">
+                  <Shield size={8} className="text-emerald-400" fill="currentColor"/>
+                  <span className="text-[9px] font-bold text-emerald-400">VERIFIED</span>
                 </motion.div>
               )}
             </div>
-          </div>
-          {/* Emblem + Disc */}
-          <div className="relative px-5 pt-5 pb-3">
-            <div className="relative flex flex-col items-center">
-              <AceEmblem size={64}/>
-              <div className="mt-2">
-                <div className="relative">
-                  <div className="absolute -inset-1 rounded-full blur-md" style={{backgroundColor:disc?.color||'#6b7280',opacity:0.3}}/>
-                  <DiscVisual disc={disc||{color:'#6b7280',mold:'?',manufacturer:'?',wear_level:10}} size="lg"/>
-                </div>
-              </div>
-              <div className="text-center mt-2 w-full">
-                <h3 className="text-base font-black text-white leading-tight truncate">{disc?.custom_name||disc?.mold||'Unknown Disc'}</h3>
-                <p className="text-xs text-gray-500 font-medium mt-0.5">{disc?.manufacturer||''}{disc?.plastic_type?` · ${disc.plastic_type}`:''}</p>
-              </div>
+          )}
+          {hasPhoto && (
+            <div className="relative px-3 py-1 flex items-center justify-between shrink-0 border-b border-white/5">
+              <span className="text-[10px] font-black text-amber-400">{rarity.label}</span>
+              {ace.witnessed && <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5"><Shield size={8} fill="currentColor"/>VERIFIED</span>}
             </div>
-          </div>
-          {/* Divider */}
-          <div className="mx-5 h-px" style={{background:rarity.border,opacity:0.3}}/>
-          {/* Stats */}
-          <div className="px-5 py-4 space-y-2.5">
+          )}
+          {/* Stats — scrollable if needed, no flex-1 grow */}
+          <div className="px-3 py-2 space-y-1 min-h-0 overflow-y-auto flex-1" style={{minHeight:0}}>
             {ace.distance>0 && (
-              <div className="flex items-center justify-center gap-2 mb-1">
-                <div className="flex items-center gap-2 rounded-xl px-4 py-2" style={{background:'linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05))',border:'1px solid rgba(251,191,36,0.2)'}}>
-                  <Ruler size={14} className="text-amber-400"/>
-                  <span className="text-2xl font-black text-amber-400">{ace.distance}</span>
-                  <span className="text-xs text-amber-500/70 font-bold uppercase">ft</span>
+              <div className="flex justify-center">
+                <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-0.5" style={{background:'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(184,134,11,0.06))',border:'1px solid rgba(255,215,0,0.25)'}}>
+                  <Ruler size={11} className="text-amber-400"/>
+                  <span className="text-base font-black text-amber-400">{ace.distance}</span>
+                  <span className="text-[10px] text-amber-500/80 font-bold uppercase">ft</span>
                 </div>
               </div>
             )}
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0"><MapPin size={13} className="text-emerald-400"/></div>
-              <div className="flex-1 min-w-0"><span className="text-xs text-gray-600">Course</span><div className="text-sm text-white font-semibold truncate">{ace.course}</div></div>
+            <div className="flex items-center gap-2">
+              <MapPin size={10} className="text-amber-500/70 shrink-0"/>
+              <div className="flex-1 min-w-0"><span className="text-[10px] text-gray-500">Course</span><div className="text-xs text-white font-semibold truncate">{ace.course}</div></div>
             </div>
-            <div className="flex items-center gap-3">
-              {ace.hole>0 && (
-                <div className="flex items-center gap-2 flex-1">
-                  <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0"><Target size={13} className="text-sky-400"/></div>
-                  <div><span className="text-xs text-gray-600">Hole</span><div className="text-sm text-white font-bold">#{ace.hole}</div></div>
-                </div>
-              )}
-              <div className="flex items-center gap-2 flex-1">
-                <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0"><Calendar size={13} className="text-purple-400"/></div>
-                <div><span className="text-xs text-gray-600">Date</span><div className="text-sm text-white font-semibold">{fmtD(ace.date)}</div></div>
-              </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {ace.hole>0 && <div><span className="text-[10px] text-gray-500">Hole</span><div className="text-xs text-white font-bold">#{ace.hole}</div></div>}
+              <div><span className="text-[10px] text-gray-500">Date</span><div className="text-xs text-white font-semibold">{fmtD(ace.date)}</div></div>
             </div>
+            {ace.witnessNames && <p className="text-[10px] text-amber-200/90 truncate" title={ace.witnessNames}>Witnessed by: {ace.witnessNames}</p>}
+            {ace.notes && <p className="text-[10px] text-gray-500 italic line-clamp-2" title={ace.notes}>"{ace.notes}"</p>}
           </div>
-          {/* Actions */}
-          <div className="px-4 pb-4 flex items-center gap-2">
-            <motion.button whileHover={{scale:1.03}} whileTap={{scale:0.97}} onClick={e=>{e.stopPropagation();onShare(ace,disc);}}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold"
-              style={{background:'linear-gradient(135deg,rgba(251,191,36,0.15),rgba(217,119,6,0.1))',border:'1px solid rgba(251,191,36,0.25)',color:'#fbbf24'}}>
-              <Share2 size={13}/>Share to Social
-            </motion.button>
-            <button onClick={e=>{e.stopPropagation();onEdit(ace);}} className="p-2.5 rounded-xl bg-gray-800/80 text-gray-500 hover:text-sky-400 border border-gray-700/50"><Edit3 size={13}/></button>
-            <button onClick={e=>{e.stopPropagation();onDelete(ace.id);}} className="p-2.5 rounded-xl bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={13}/></button>
+          {/* Actions — always visible at bottom */}
+          <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
+            <button onClick={e=>{e.stopPropagation();onEdit(ace);}} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold bg-gray-800/80 text-gray-500 hover:text-sky-400 border border-gray-700/50"><Edit3 size={12}/>Edit</button>
+            <button onClick={e=>{e.stopPropagation();onDelete(ace.id);}} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
           </div>
         </div>
       </div>
@@ -1418,157 +1598,7 @@ function AceTradingCard({ace,disc,index,totalAces,onShare,onEdit,onDelete}) {
   );
 }
 
-// Platform icon SVGs (brand-style; function declarations so hoisted and safe with minification)
-function IconInstagram() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.268 4.771 1.691 5.077 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.299 3.225-1.825 4.771-5.077 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.691-4.919-5.077-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-  );
-}
-function IconFacebook() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-  );
-}
-function IconX() {
-  return (
-    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-  );
-}
-
-function ShareMenuModal({ open, onClose, shareType, message, url, ace, disc, getImageBlob }) {
-  const [copied, setCopied] = useState(false);
-  const [creatingImage, setCreatingImage] = useState(false);
-  const aceCardRef = useRef(null);
-  const fullMessage = message + ' ' + (url || SHARE_APP_URL);
-  const shareUrl = url || SHARE_APP_URL;
-  const hasNativeShare = typeof navigator !== 'undefined' && navigator.share;
-
-  const downloadBlob = (blob, filename) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  const handleInstagram = async () => {
-    setCreatingImage(true);
-    try {
-      if (shareType === 'ace' && ace && aceCardRef.current) {
-        const canvas = await html2canvas(aceCardRef.current, { scale: 2, backgroundColor: '#0a0a0a', useCORS: true, logging: false });
-        const blob = await new Promise(r => canvas.toBlob(r, 'image/png', 1));
-        if (blob) downloadBlob(blob, `ace-${ace.course.replace(/\s/g, '-')}-${ace.date}.png`);
-      } else if (shareType === 'bag' && getImageBlob) {
-        const blob = await getImageBlob();
-        if (blob) downloadBlob(blob, `disc-golf-bag-${Date.now()}.png`);
-      }
-    } catch (_) {}
-    setCreatingImage(false);
-  };
-
-  const handleFacebook = () => {
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}&quote=${encodeURIComponent(message)}`, '_blank', 'width=600,height=400');
-  };
-  const handleTwitter = () => {
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(message)}&url=${encodeURIComponent(shareUrl)}`, '_blank', 'width=550,height=420');
-  };
-  const handleSMS = () => {
-    window.location.href = `sms:?&body=${encodeURIComponent(fullMessage)}`;
-  };
-  const handleCopyLink = () => {
-    try {
-      navigator.clipboard.writeText(fullMessage);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (_) {}
-  };
-  const handleNativeShare = async () => {
-    try {
-      await navigator.share({ title: 'Disc Golf Companion', text: message, url: shareUrl });
-      onClose();
-    } catch (e) { if (e.name !== 'AbortError') {} }
-  };
-
-  if (!open) return null;
-
-  const title = shareType === 'ace' ? 'Share your ace' : 'Share your bag';
-
-  return (
-    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.2}} className="fixed inset-0 flex items-center justify-center p-4 z-[75]" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md"/>
-      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} exit={{scale:0.95,opacity:0}} transition={{type:'spring',damping:25}} onClick={e=>e.stopPropagation()} className="relative w-full max-w-sm bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
-        <div className="p-5 border-b border-gray-800">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">{title}</h2>
-            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-800 text-gray-400"><X size={20}/></button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">Choose how to share</p>
-        </div>
-        <div className="p-4 space-y-2 max-h-[70vh] overflow-y-auto">
-          {/* Instagram - save image */}
-          {(shareType === 'ace' && ace) || (shareType === 'bag' && getImageBlob) ? (
-            <button type="button" onClick={handleInstagram} disabled={creatingImage} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm text-white transition-all hover:opacity-90 disabled:opacity-60" style={{background:'linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)'}}>
-              {creatingImage ? <Loader size={20} className="animate-spin shrink-0"/> : <IconInstagram/>}
-              {creatingImage ? 'Creating image…' : 'Save image for Instagram'}
-            </button>
-          ) : null}
-          <button type="button" onClick={handleFacebook} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm text-white transition-all hover:opacity-90" style={{backgroundColor:'#1877f2'}}>
-            <IconFacebook/> Share on Facebook
-          </button>
-          <button type="button" onClick={handleTwitter} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm text-white transition-all hover:opacity-90 bg-black">
-            <IconX/> Post on X (Twitter)
-          </button>
-          <button type="button" onClick={handleSMS} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm text-white transition-all hover:opacity-90" style={{backgroundColor:'#34c759'}}>
-            <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
-            iMessage / SMS
-          </button>
-          <button type="button" onClick={handleCopyLink} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm bg-gray-800 border border-gray-700 text-gray-200 hover:border-gray-600 transition-all">
-            {copied ? <Check size={20} className="shrink-0 text-emerald-400"/> : <Copy size={20} className="shrink-0 text-gray-400"/>}
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
-          {hasNativeShare && (
-            <button type="button" onClick={handleNativeShare} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-semibold text-sm bg-gray-800 border border-gray-700 text-gray-200 hover:border-gray-600 transition-all">
-              <Share2 size={20} className="shrink-0 text-gray-400"/> More…
-            </button>
-          )}
-        </div>
-        {/* Hidden ace card for Instagram capture (ace share only) */}
-        {shareType === 'ace' && ace && disc && (
-          <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, pointerEvents: 'none' }}>
-            <div ref={aceCardRef} style={{ width: 520, minHeight: 380, background: '#0a0a0a', borderRadius: 16, padding: 24, fontFamily: 'system-ui, sans-serif', color: '#fff', boxSizing: 'border-box' }}>
-              <div style={{ textAlign: 'center', padding: '16px 0', background: 'linear-gradient(135deg,rgba(251,191,36,0.15),rgba(217,119,6,0.08))', margin: '-24px -24px 20px -24px', borderRadius: '16px 16px 0 0' }}>
-                <span style={{ fontSize: 18, fontWeight: 800, color: '#fbbf24' }}>NEW ACE LOGGED!</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: disc.color || '#6b7280', marginBottom: 12 }}/>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{disc.custom_name || disc.mold || 'Unknown'}</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 16 }}>{disc.manufacturer || ''}{disc.plastic_type ? ` · ${disc.plastic_type}` : ''}</div>
-                <div style={{ width: '100%', height: 1, background: 'rgba(251,191,36,0.3)', marginBottom: 12 }}/>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 8 }}>{ace.course}</div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>
-                  {ace.hole > 0 && <span>Hole #{ace.hole}</span>}
-                  {ace.distance > 0 && <span style={{ color: '#fbbf24', fontWeight: 700 }}>{ace.distance} ft</span>}
-                </div>
-                <div style={{ fontSize: 11, color: '#6b7280' }}>{fmtD(ace.date)}</div>
-              </div>
-              <div style={{ marginTop: 20, fontSize: 10, color: '#4b5563', textAlign: 'center' }}>Disc Golf Companion · discgolfcompanion.vercel.app</div>
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </motion.div>
-  );
-}
-
-function ShareOverlay({open,ace,disc,onClose}) {
-  if (!open || !ace) return null;
-  const message = `Check out my ace on Disc Golf Companion! 🥏`;
-  return (
-    <ShareMenuModal open={open} onClose={onClose} shareType="ace" message={message} ace={ace} disc={disc}/>
-  );
-}
-
-function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,onLogAce}) {
+function TrophyRoomModal({open,onClose,aces,discs,onEditAce,onDeleteAce,onLogAce}) {
   const [confirmDelete,setConfirmDelete] = useState(null);
   if (!open) return null;
   const sorted = [...aces].sort((a,b) => b.date.localeCompare(a.date));
@@ -1643,7 +1673,7 @@ function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
               {sorted.map((a,i) => (
                 <AceTradingCard key={a.id} ace={a} disc={dm[a.discId]} index={i} totalAces={sorted.length}
-                  onShare={onShare} onEdit={onEditAce} onDelete={id=>setConfirmDelete(id)}/>
+                  onEdit={onEditAce} onDelete={id=>setConfirmDelete(id)}/>
               ))}
             </div>
           )}
@@ -1662,9 +1692,31 @@ function TrophyRoomModal({open,onClose,aces,discs,onShare,onEditAce,onDeleteAce,
 // ═══════════════════════════════════════════════════════
 // BAG DASHBOARD with GAP FINDER
 // ═══════════════════════════════════════════════════════
-function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch}) {
+function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState(BAG_COLORS[0]);
+  useEffect(() => { if (open && bag) { setName(bag.name); setColor(bag.bagColor || BAG_COLORS[0]); } }, [open, bag]);
+  if (!open || !bag) return null;
+  const save = () => { if (name.trim()) onSave(bag.id, { name: name.trim(), bagColor: color }); onClose(); };
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-gray-800 p-5">
+        <h2 className="text-lg font-bold text-white mb-4">Edit Bag</h2>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && save()} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 mb-3"/>
+        <div className="mb-4"><label className="block text-xs text-gray-500 mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-white scale-110' : 'border-gray-600'}`} style={{ backgroundColor: c }}/>))}</div></div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { onDelete(bag.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20">Delete</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
+          <button onClick={save} disabled={!name.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${name.trim() ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>Save</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,slotAboveGapFinder}) {
   const [expandedGap,setExpandedGap] = useState(null);
-  const shareCardRef = useRef(null);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
   const avgWeight = weights.length>0 ? (weights.reduce((a,b)=>a+b,0)/weights.length) : 0;
@@ -1862,20 +1914,6 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
     return [];
   }, []);
 
-  const [shareMenuOpen, setShareMenuOpen] = useState(false);
-
-  const getBagImageBlob = useCallback(async () => {
-    if (!shareCardRef.current) return null;
-    await new Promise(r => setTimeout(r, 100));
-    const canvas = await html2canvas(shareCardRef.current, {
-      scale: 2,
-      backgroundColor: '#030712',
-      useCORS: true,
-      logging: false,
-    });
-    return new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
-  }, []);
-
   if (bagDiscs.length===0) return null;
   const maxTC = Math.max(...Object.values(typeCounts),1);
   const maxSC = Math.max(...Object.values(stabCounts),1);
@@ -1886,107 +1924,10 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
   return (
     <>
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="space-y-4 mb-6">
-      {/* Bag name + Share */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bagColor}}/>
-          <h2 className="text-lg font-bold text-white truncate">{bag?.name || 'My Bag'}</h2>
-        </div>
-        <motion.button
-          whileHover={{scale:1.02}} whileTap={{scale:0.98}}
-          onClick={() => setShareMenuOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 border border-gray-700 text-gray-200 hover:border-emerald-500/40 hover:text-emerald-400 transition-all text-sm font-semibold"
-        >
-          <Share2 size={16}/>Share My Bag
-        </motion.button>
-      </div>
-
-      {/* Hidden card for html2canvas (inline styles for capture) */}
-      <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1, pointerEvents: 'none' }}>
-        <div
-          ref={shareCardRef}
-          style={{
-            width: 600,
-            minHeight: 400,
-            background: '#030712',
-            borderRadius: 20,
-            padding: 28,
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            color: '#fff',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <span style={{ width: 14, height: 14, borderRadius: '50%', background: bagColor, flexShrink: 0 }}/>
-            <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>{bag?.name || 'My Bag'}</span>
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Discs</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '6px 16px', marginBottom: 20, fontSize: 13 }}>
-            {bagDiscs.map(d => (
-              <div key={d.id} style={{ display: 'contents' }}>
-                <span style={{ color: '#e5e7eb', fontWeight: 600 }}>{d.custom_name || d.mold}</span>
-                <span style={{ color: '#6b7280', textAlign: 'right' }}>{d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Type breakdown</div>
-              {Object.entries(DT).map(([k, cfg]) => {
-                const ct = typeCounts[k] || 0;
-                const pct = maxTC > 0 ? (ct / maxTC) * 100 : 0;
-                return (
-                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, flexShrink: 0 }}/>
-                    <span style={{ fontSize: 12, color: '#9ca3af', width: 72 }}>{cfg.label}s</span>
-                    <div style={{ flex: 1, height: 8, background: '#1f2937', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: cfg.color, borderRadius: 4, opacity: ct === 0 ? 0.3 : 0.8 }}/>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: cfg.color, width: 20, textAlign: 'right' }}>{ct}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Stability</div>
-              {Object.entries(STAB_META).map(([k, meta]) => {
-                const ct = stabCounts[k] || 0;
-                const pct = maxSC > 0 ? (ct / maxSC) * 100 : 0;
-                return (
-                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: meta.color, width: 12, textAlign: 'center' }}>{meta.icon}</span>
-                    <span style={{ fontSize: 12, color: '#9ca3af', width: 88 }}>{meta.label}</span>
-                    <div style={{ flex: 1, height: 8, background: '#1f2937', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: meta.color, borderRadius: 4, opacity: ct === 0 ? 0.3 : 0.8 }}/>
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: meta.color, width: 20, textAlign: 'right' }}>{ct}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Discs</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{bagDiscs.length}</div>
-            </div>
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg speed</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#f59e0b' }}>{avgSpeed}</div>
-            </div>
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Speed range</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#a78bfa' }}>{speedRange}</div>
-            </div>
-            <div style={{ background: '#0f172a', borderRadius: 12, padding: '12px 14px', border: '1px solid #1e293b' }}>
-              <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bag value</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>${totalValue}</div>
-            </div>
-          </div>
-          <div style={{ borderTop: '1px solid #1f2937', paddingTop: 14, fontSize: 10, color: '#4b5563', textAlign: 'center' }}>
-            Built with {APP_URL}
-          </div>
-        </div>
+      {/* Bag name */}
+      <div className="flex items-center gap-2.5">
+        <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bagColor}}/>
+        <h2 className="text-lg font-bold text-white truncate">{bag?.name || 'My Bag'}</h2>
       </div>
 
       {/* Summary stats */}
@@ -2052,7 +1993,7 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       </div>
       {/* Discs in bag */}
       <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-800/50">
-        <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Package size={12}/>Discs in Bag ({bagDiscs.length})</h3>
+        <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Backpack size={12}/>Discs in Bag ({bagDiscs.length})</h3>
         <div className="space-y-1.5">
           {bagDiscs.map(d => {
             const cfg = DT[d.disc_type];
@@ -2080,6 +2021,7 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           })}
         </div>
       </div>
+      {slotAboveGapFinder}
       {/* GAP FINDER */}
       <div className="bg-gradient-to-r from-amber-950/30 to-gray-900/50 rounded-xl p-4 border border-amber-800/25">
         <h3 className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">
@@ -2180,105 +2122,860 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
         )}
       </div>
     </motion.div>
-    <AnimatePresence>{shareMenuOpen && <ShareMenuModal key="bagShare" open onClose={() => setShareMenuOpen(false)} shareType="bag" message="Check out my disc golf bag on Disc Golf Companion! 🥏" getImageBlob={getBagImageBlob}/>}</AnimatePresence>
     </>
   );
 }
 
 // ═══════════════════════════════════════════════════════
-// BAG SIDEBAR
+// CREATE BAG MODAL & MY BAGS GRID PAGE
 // ═══════════════════════════════════════════════════════
-function BagSidebar({open,onClose,bags,discs,activeBagId,setActiveBagId,onCreateBag,onRemoveDisc,onDeleteBag,onUpdateBag}) {
-  const [creating,setCreating] = useState(false);
-  const [newName,setNewName] = useState('');
-  const [newColor,setNewColor] = useState(BAG_COLORS[0]);
-  const [expanded,setExpanded] = useState(null);
-  const [editingId,setEditingId] = useState(null);
-  const [editName,setEditName] = useState('');
-  const [editColor,setEditColor] = useState('');
-
-  const create = () => { if(!newName.trim())return; onCreateBag({name:newName.trim(),bagColor:newColor}); setNewName(''); setCreating(false); };
-  const startEdit = b => { setEditingId(b.id); setEditName(b.name); setEditColor(b.bagColor||BAG_COLORS[0]); };
-  const saveEdit = () => { if(editName.trim()) onUpdateBag(editingId,{name:editName.trim(),bagColor:editColor}); setEditingId(null); };
-
+function CreateBagModal({ open, onClose, onCreate }) {
+  const [newName, setNewName] = useState('');
+  const [newColor, setNewColor] = useState(BAG_COLORS[0]);
+  useEffect(() => { if (open) { setNewName(''); setNewColor(BAG_COLORS[0]); } }, [open]);
+  const create = () => { if (!newName.trim()) return; onCreate({ name: newName.trim(), bagColor: newColor }); onClose(); };
+  if (!open) return null;
   return (
-    <AnimatePresence>{open && (
-      <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-40">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}/>
-        <motion.div initial={{x:-320}} animate={{x:0}} exit={{x:-320}} transition={{type:'spring',damping:30,stiffness:350}}
-          className="absolute left-0 top-0 bottom-0 w-80 bg-gray-950 border-r border-gray-800 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between p-5 border-b border-gray-800 shrink-0">
-            <div><h2 className="text-lg font-bold text-white">My Bags</h2><p className="text-xs text-gray-500 mt-0.5">{bags.length} bag{bags.length!==1?'s':''}</p></div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-400"><X size={20}/></button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {/* All Discs button */}
-            <button onClick={() => {setActiveBagId(null);onClose();}}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${!activeBagId?'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400':'bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-700'}`}>
-              <Target size={18}/><div className="text-left flex-1"><div className="font-semibold text-sm">All Discs</div><div className="text-xs text-gray-500">{discs.length} total</div></div>{!activeBagId&&<Check size={16}/>}
-            </button>
-            {/* Bag list */}
-            {bags.map(bag => {
-              const active = activeBagId===bag.id;
-              const exp = expanded===bag.id;
-              const bd = discs.filter(d => bag.disc_ids.includes(d.id));
-              const bc = bag.bagColor||'#6b7280';
-              const isEditing = editingId===bag.id;
-              return (
-                <div key={bag.id} className="rounded-xl border transition-all" style={{borderColor:active?bc+'66':'rgb(31,41,55)',backgroundColor:active?bc+'15':'rgb(17,24,39)'}}>
-                  {isEditing ? (
-                    <div className="p-3 space-y-2">
-                      <input value={editName} onChange={e=>setEditName(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500" autoFocus/>
-                      <div className="flex flex-wrap gap-1.5">{BAG_COLORS.map(c => (<button key={c} onClick={() => setEditColor(c)} className={`w-5 h-5 rounded-full border-2 ${editColor===c?'border-white scale-110':'border-gray-600'}`} style={{backgroundColor:c}}/>))}</div>
-                      <div className="flex gap-2"><button onClick={() => setEditingId(null)} className="flex-1 py-1.5 rounded-lg bg-gray-800 text-gray-400 text-xs font-semibold">Cancel</button><button onClick={saveEdit} className="flex-1 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold">Save</button></div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3 px-4 py-3">
-                        <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bc}}/>
-                        <button onClick={() => {setActiveBagId(active?null:bag.id);onClose();}} className="text-left flex-1 min-w-0">
-                          <div className="font-semibold text-sm truncate" style={{color:active?bc:'rgb(209,213,219)'}}>{bag.name}</div>
-                          <div className="text-xs text-gray-500">{bd.length} disc{bd.length!==1?'s':''}</div>
-                        </button>
-                        <button onClick={() => setExpanded(exp?null:bag.id)} className="p-1 text-gray-500 hover:text-white"><ChevronRight size={14} className={`transition-transform ${exp?'rotate-90':''}`}/></button>
-                        <button onClick={() => startEdit(bag)} className="p-1 text-gray-600 hover:text-emerald-400"><Edit3 size={13}/></button>
-                        <button onClick={() => onDeleteBag(bag.id)} className="p-1 text-gray-600 hover:text-red-400"><Trash2 size={13}/></button>
-                      </div>
-                      <AnimatePresence>{exp && (
-                        <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}} className="overflow-hidden">
-                          <div className="px-4 pb-3 space-y-1">
-                            {bd.length===0 && <p className="text-xs text-gray-600 py-1">Empty — assign discs from library</p>}
-                            {bd.map(d => (
-                              <div key={d.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-gray-800/50">
-                                <span className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:d.color}}/>
-                                <span className="text-xs text-gray-300 flex-1 truncate">{d.custom_name||d.mold}</span>
-                                <button onClick={() => onRemoveDisc(bag.id,d.id)} className="text-gray-600 hover:text-red-400 shrink-0"><X size={12}/></button>
-                              </div>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}</AnimatePresence>
-                    </>
-                  )}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-gray-800 p-5">
+        <h2 className="text-lg font-bold text-white mb-4">New Bag</h2>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && create()} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 mb-3"/>
+        <div className="mb-4"><label className="block text-xs text-gray-500 mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setNewColor(c)} className={`w-7 h-7 rounded-full border-2 ${newColor === c ? 'border-white scale-110' : 'border-gray-600'}`} style={{ backgroundColor: c }}/>))}</div></div>
+        <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button><button onClick={create} disabled={!newName.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${newName.trim() ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>Create</button></div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function MyBagsGridPage({ bags, discs, onSelectBag, onCreateBag }) {
+  const [createOpen, setCreateOpen] = useState(false);
+  const typeCountsForBag = (bag) => {
+    const bd = discs.filter(d => bag.disc_ids.includes(d.id));
+    const c = {}; Object.keys(DT).forEach(t => { c[t] = bd.filter(d => d.disc_type === t).length; }); return c;
+  };
+  return (
+    <div className="pb-24">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {bags.map(bag => {
+          const bd = discs.filter(d => bag.disc_ids.includes(d.id));
+          const tc = typeCountsForBag(bag);
+          const bc = bag.bagColor || '#6b7280';
+          const drivers = (tc.fairway_driver || 0) + (tc.distance_driver || 0);
+          const mids = tc.midrange || 0;
+          const putters = tc.putter || 0;
+          return (
+            <motion.button key={bag.id} type="button" onClick={() => onSelectBag(bag.id)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+              className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-emerald-600/40 transition-colors text-left">
+              <div className="h-2" style={{ backgroundColor: bc }}/>
+              <div className="p-4 flex items-start gap-3">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-gray-800/80" style={{ border: `2px solid ${bc}40` }}>
+                  <Backpack size={24} className="text-gray-400" style={{ color: bc }}/>
                 </div>
-              );
-            })}
-            {/* Create new bag */}
-            {creating ? (
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
-                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Bag name…" autoFocus className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" onKeyDown={e=>e.key==='Enter'&&create()}/>
-                <div><label className="block text-xs text-gray-500 mb-1.5 font-medium">Color</label><div className="flex flex-wrap gap-1.5">{BAG_COLORS.map(c => (<button key={c} onClick={() => setNewColor(c)} className={`w-6 h-6 rounded-full border-2 ${newColor===c?'border-white scale-110':'border-gray-600'}`} style={{backgroundColor:c}}/>))}</div></div>
-                <div className="flex gap-2"><button onClick={() => setCreating(false)} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-400 text-xs font-semibold">Cancel</button><button onClick={create} disabled={!newName.trim()} className={`flex-1 py-2 rounded-lg text-xs font-semibold ${newName.trim()?'bg-emerald-600 text-white':'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>Create</button></div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-white truncate">{bag.name}</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">{bd.length} disc{bd.length !== 1 ? 's' : ''}</p>
+                  <div className="flex flex-wrap gap-1.5 mt-2 text-xs">
+                    {putters > 0 && <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">{putters} putter{putters !== 1 ? 's' : ''}</span>}
+                    {mids > 0 && <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">{mids} mid{mids !== 1 ? 's' : ''}</span>}
+                    {drivers > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">{drivers} driver{drivers !== 1 ? 's' : ''}</span>}
+                  </div>
+                </div>
               </div>
+            </motion.button>
+          );
+        })}
+        <motion.button type="button" onClick={() => setCreateOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+          className="bg-gray-900/60 rounded-2xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 flex flex-col items-center justify-center min-h-[120px] text-gray-500 hover:text-emerald-400 transition-colors">
+          <Plus size={28} className="mb-2"/>
+          <span className="text-sm font-semibold">Add New Bag</span>
+        </motion.button>
+      </div>
+      <AnimatePresence>{createOpen && <CreateBagModal open onClose={() => setCreateOpen(false)} onCreate={onCreateBag}/>}</AnimatePresence>
+    </div>
+  );
+}
+
+function RoundsPlaceholder() {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+      <div className="w-20 h-20 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4"><Calendar size={36} className="text-gray-500"/></div>
+      <h2 className="text-xl font-bold text-white mb-2">Rounds</h2>
+      <p className="text-gray-400 text-sm">Round tracking coming soon</p>
+    </div>
+  );
+}
+
+// ── HALL OF FAME: Achievement category cards + trading cards ──
+const HOF_CATEGORIES = [
+  { id: 'aces', label: 'Aces', icon: Trophy, count: (a,t,lt,pb) => a.length, accent: 'from-amber-500/20 to-amber-600/10 border-amber-500/30' },
+  { id: 'tournaments', label: 'Tournaments', icon: Award, count: (a,t,lt,pb) => t.length, accent: 'from-sky-500/20 to-sky-600/10 border-sky-500/30' },
+  { id: 'longest', label: 'Longest Throw', icon: Target, count: (a,t,lt,pb) => lt.length, accent: 'from-rose-500/20 to-rose-600/10 border-rose-500/30' },
+  { id: 'pbs', label: 'Personal Bests', icon: Star, count: (a,t,lt,pb) => pb.length, accent: 'from-purple-500/20 to-purple-600/10 border-purple-500/30' },
+];
+
+function AchievementCardWrapper({ children, rarity, index, aspectRatio = 'aspect-[2.5/3.5]' }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.04 }} className={`relative group h-full min-h-0 flex ${aspectRatio}`} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <motion.div className="absolute -inset-0.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md" style={{ background: rarity.border }}/>
+      <motion.div className="relative flex-1 min-h-0 rounded-2xl overflow-hidden transition-shadow duration-300" style={{ padding: '1.5px', background: rarity.border }} whileHover={{ scale: 1.02, boxShadow: '0 20px 40px -12px rgba(0,0,0,0.5)' }} whileTap={{ scale: 0.99 }}>
+        <div className="h-full min-h-0 w-full rounded-xl bg-gray-950 overflow-hidden relative flex flex-col">
+          <motion.div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ zIndex: 2, background: 'linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.04) 50%,transparent 60%)', backgroundSize: '200% 100%' }} animate={hovered ? { backgroundPosition: ['100% 0', '-100% 0'] } : {}} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}/>
+          {children}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uploadImage }) {
+  const [name, setName] = useState('');
+  const [date, setDate] = useState('');
+  const [course, setCourse] = useState('');
+  const [division, setDivision] = useState('');
+  const [placement, setPlacement] = useState('');
+  const [numberOfPlayers, setNumberOfPlayers] = useState('');
+  const [numberOfTeams, setNumberOfTeams] = useState('');
+  const [tournamentType, setTournamentType] = useState('singles'); // 'singles' | 'doubles'
+  const [partnerName, setPartnerName] = useState('');
+  const [teamName, setTeamName] = useState('');
+  const [rounds, setRounds] = useState('');
+  const [withWho, setWithWho] = useState('');
+  const [notes, setNotes] = useState('');
+  const [photo, setPhoto] = useState(null);
+  useEffect(() => {
+    if (open) {
+      if (tournament) {
+        setName(tournament.name || '');
+        setDate(tournament.date || '');
+        setCourse(tournament.course || '');
+        setDivision(tournament.division || '');
+        setPlacement(String(tournament.placement ?? ''));
+        setNumberOfPlayers(String(tournament.numberOfPlayers ?? ''));
+        setNumberOfTeams(String(tournament.numberOfTeams ?? ''));
+        setTournamentType(tournament.type === 'doubles' ? 'doubles' : 'singles');
+        setPartnerName(tournament.partnerName || '');
+        setTeamName(tournament.teamName || '');
+        setRounds(tournament.rounds != null ? String(tournament.rounds) : '');
+        setWithWho(tournament.withWho || '');
+        setNotes(tournament.notes || '');
+        setPhoto(tournament.photo || null);
+      } else {
+        setName('');
+        setDate(td());
+        setCourse('');
+        setDivision('');
+        setPlacement('');
+        setNumberOfPlayers('');
+        setNumberOfTeams('');
+        setTournamentType('singles');
+        setPartnerName('');
+        setTeamName('');
+        setRounds('');
+        setWithWho('');
+        setNotes('');
+        setPhoto(null);
+      }
+    }
+  }, [open, tournament]);
+  const save = () => {
+    const p = parseInt(placement, 10);
+    const placementValue = isNaN(p) ? (tournament?.placement ?? 1) : p;
+    const players = parseInt(numberOfPlayers, 10);
+    const teams = parseInt(numberOfTeams, 10);
+    const roundsNum = parseInt(rounds, 10);
+
+    const base = tournament ? { ...tournament } : { id: `t${Date.now()}` };
+    const payload = {
+      ...base,
+      name,
+      date,
+      course,
+      division,
+      placement: placementValue,
+      type: tournamentType,
+      numberOfPlayers: tournamentType === 'singles' ? (isNaN(players) ? 0 : players) : (base.numberOfPlayers ?? 0),
+      numberOfTeams: tournamentType === 'doubles' ? (isNaN(teams) ? 0 : teams) : (base.numberOfTeams ?? 0),
+      partnerName: tournamentType === 'doubles' ? partnerName.trim() : '',
+      teamName: tournamentType === 'doubles' ? teamName.trim() : '',
+      rounds: isNaN(roundsNum) ? 0 : Math.max(0, roundsNum),
+      withWho: withWho.trim(),
+      notes,
+    };
+    if (photo != null) payload.photo = photo;
+    onSave(payload);
+    onClose();
+  };
+  const handlePhoto = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      let photoValue = null;
+      if (uploadImage) {
+        photoValue = await uploadImage(f, 'tournaments');
+      } else {
+        photoValue = await compressImageFileToDataUrl(f);
+      }
+      if (photoValue) setPhoto(photoValue);
+    } catch (err) {
+      console.warn('[TournamentFormModal] failed to process photo', err);
+    }
+  };
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-white mb-4">{tournament ? 'Edit Tournament' : 'Add Tournament'}</h2>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-sky-500/40 cursor-pointer w-full">
+            <Camera size={16} className="text-gray-400"/>
+            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
+          </label>
+          {photo && (
+            <div className="mt-2 flex items-center gap-2">
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+            </div>
+          )}
+        </div>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tournament name" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={division} onChange={e=>setDivision(e.target.value)} placeholder="Division" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 font-medium mb-1">Tournament type</label>
+          <select
+            value={tournamentType}
+            onChange={e=>setTournamentType(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white"
+          >
+            <option value="singles">Singles</option>
+            <option value="doubles">Doubles</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs text-gray-500 font-medium mb-1">Placement</label>
+            <input value={placement} onChange={e=>setPlacement(e.target.value)} type="number" min="1" placeholder="1" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"/>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 font-medium mb-1">
+              {tournamentType === 'doubles' ? '# Teams' : '# Players'}
+            </label>
+            {tournamentType === 'doubles' ? (
+              <input
+                value={numberOfTeams}
+                onChange={e=>setNumberOfTeams(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              />
             ) : (
-              <button onClick={() => setCreating(true)} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-gray-700 text-gray-500 hover:border-emerald-500/50 hover:text-emerald-400 transition-all text-sm font-medium">
-                <Plus size={16}/>Create New Bag
-              </button>
+              <input
+                value={numberOfPlayers}
+                onChange={e=>setNumberOfPlayers(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              />
             )}
           </div>
-        </motion.div>
+        </div>
+        {tournamentType === 'doubles' && (
+          <>
+            <div className="mb-3">
+              <label className="block text-xs text-gray-500 font-medium mb-1">Partner / Teammate</label>
+              <input
+                value={partnerName}
+                onChange={e=>setPartnerName(e.target.value)}
+                placeholder="Your teammate's name"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              />
+            </div>
+            <div className="mb-3">
+              <label className="block text-xs text-gray-500 font-medium mb-1">Team name</label>
+              <input
+                value={teamName}
+                onChange={e=>setTeamName(e.target.value)}
+                placeholder="e.g. Disc Dynasty"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              />
+            </div>
+          </>
+        )}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs text-gray-500 font-medium mb-1">Number of rounds</label>
+            <input
+              value={rounds}
+              onChange={e=>setRounds(e.target.value)}
+              type="number"
+              min="1"
+              placeholder="1"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 font-medium mb-1">Who were you with?</label>
+            <input
+              value={withWho}
+              onChange={e=>setWithWho(e.target.value)}
+              placeholder="Friends, card mates, etc."
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+            />
+          </div>
+        </div>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <div className="flex gap-2">
+          {tournament && <button type="button" onClick={() => { onDelete(tournament.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+        </div>
       </motion.div>
-    )}</AnimatePresence>
+    </motion.div>
+  );
+}
+
+function LongestThrowFormModal({ open, throwRecord, discs, onClose, onSave, onDelete, uploadImage }) {
+  const [distanceFeet, setDistanceFeet] = useState('');
+  const [discId, setDiscId] = useState('');
+  const [course, setCourse] = useState('');
+  const [date, setDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [photo, setPhoto] = useState(null);
+  useEffect(() => {
+    if (open) {
+      if (throwRecord) {
+        setDistanceFeet(String(throwRecord.distanceFeet ?? '')); setDiscId(throwRecord.discId || ''); setCourse(throwRecord.course || ''); setDate(throwRecord.date || ''); setNotes(throwRecord.notes || ''); setPhoto(throwRecord.photo || null);
+      } else {
+        setDistanceFeet(''); setDiscId(discs[0]?.id || ''); setCourse(''); setDate(td()); setNotes(''); setPhoto(null);
+      }
+    }
+  }, [open, throwRecord, discs]);
+  const save = () => {
+    const d = parseInt(distanceFeet, 10);
+    const payload = throwRecord ? { ...throwRecord, distanceFeet: isNaN(d) ? 0 : d, discId, course, date, notes } : { id: `lt${Date.now()}`, distanceFeet: isNaN(d) ? 0 : d, discId, course, date, notes };
+    if (photo != null) payload.photo = photo;
+    onSave(payload);
+    onClose();
+  };
+  const handlePhoto = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      let photoValue = null;
+      if (uploadImage) {
+        photoValue = await uploadImage(f, 'longest');
+      } else {
+        photoValue = await compressImageFileToDataUrl(f);
+      }
+      if (photoValue) setPhoto(photoValue);
+    } catch (err) {
+      console.warn('[LongestThrowFormModal] failed to process photo', err);
+    }
+  };
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-white mb-4">{throwRecord ? 'Edit Longest Throw' : 'Add Longest Throw'}</h2>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-rose-500/40 cursor-pointer w-full">
+            <Camera size={16} className="text-gray-400"/>
+            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
+          </label>
+          {photo && (
+            <div className="mt-2 flex items-center gap-2">
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+            </div>
+          )}
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">Distance (feet)</label>
+          <input value={distanceFeet} onChange={e=>setDistanceFeet(e.target.value)} type="number" min="0" placeholder="e.g. 350" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"/>
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">Disc</label>
+          <select value={discId} onChange={e=>setDiscId(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            {discs.map(d => <option key={d.id} value={d.id}>{d.custom_name || d.mold} ({d.manufacturer})</option>)}
+          </select>
+        </div>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course / location" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <div className="flex gap-2">
+          {throwRecord && <button type="button" onClick={() => { onDelete(throwRecord.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function PersonalBestFormModal({ open, pb, onClose, onSave, onDelete, uploadImage }) {
+  const [category, setCategory] = useState(PB_CATEGORIES[0]);
+  const [value, setValue] = useState('');
+  const [course, setCourse] = useState('');
+  const [date, setDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [photo, setPhoto] = useState(null);
+  useEffect(() => {
+    if (open) {
+      if (pb) {
+        setCategory(pb.category || PB_CATEGORIES[0]); setValue(pb.value || ''); setCourse(pb.course || ''); setDate(pb.date || ''); setNotes(pb.notes || ''); setPhoto(pb.photo || null);
+      } else {
+        setCategory(PB_CATEGORIES[0]); setValue(''); setCourse(''); setDate(td()); setNotes(''); setPhoto(null);
+      }
+    }
+  }, [open, pb]);
+  const save = () => {
+    const payload = pb ? { ...pb, category, value, course, date, notes } : { id: `pb${Date.now()}`, category, value, course, date, notes };
+    if (photo != null) payload.photo = photo;
+    onSave(payload);
+    onClose();
+  };
+  const handlePhoto = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !f.type.startsWith('image/')) return;
+    e.target.value = '';
+    try {
+      let photoValue = null;
+      if (uploadImage) {
+        photoValue = await uploadImage(f, 'personal-bests');
+      } else {
+        photoValue = await compressImageFileToDataUrl(f);
+      }
+      if (photoValue) setPhoto(photoValue);
+    } catch (err) {
+      console.warn('[PersonalBestFormModal] failed to process photo', err);
+    }
+  };
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-white mb-4">{pb ? 'Edit Personal Best' : 'Add Personal Best'}</h2>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-purple-500/40 cursor-pointer w-full">
+            <Camera size={16} className="text-gray-400"/>
+            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
+          </label>
+          {photo && (
+            <div className="mt-2 flex items-center gap-2">
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+            </div>
+          )}
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs text-gray-500 mb-1">Category</label>
+          <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            {PB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <input value={value} onChange={e=>setValue(e.target.value)} placeholder="Value / score" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <div className="flex gap-2">
+          {pb && <button type="button" onClick={() => { onDelete(pb.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function TrophyCasePage({
+  aces, discs, tournaments, longestThrows, personalBests,
+  onEditAce, onDeleteAce, onLogAce,
+  addTournament, updateTournament, deleteTournament,
+  addLongestThrow, updateLongestThrow, deleteLongestThrow,
+  addPersonalBest, updatePersonalBest, deletePersonalBest,
+  uploadImage,
+}) {
+  const [category, setCategory] = useState('aces');
+  const [sortBy, setSortBy] = useState('newest');
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editingTournament, setEditingTournament] = useState(null);
+  const [editingLongestThrow, setEditingLongestThrow] = useState(null);
+  const [editingPersonalBest, setEditingPersonalBest] = useState(null);
+  const [tournamentFormOpen, setTournamentFormOpen] = useState(false);
+  const [longestThrowFormOpen, setLongestThrowFormOpen] = useState(false);
+  const [pbFormOpen, setPbFormOpen] = useState(false);
+
+  const dm = useMemo(() => { const m = {}; discs.forEach(d => { m[d.id] = d; }); return m; }, [discs]);
+  const maxLongest = useMemo(() => longestThrows.length ? Math.max(...longestThrows.map(t => t.distanceFeet || 0)) : 0, [longestThrows]);
+
+  const sortedAces = useMemo(() => {
+    const s = [...aces].sort((a, b) => b.date.localeCompare(a.date));
+    if (sortBy === 'oldest') return s.reverse();
+    if (sortBy === 'rarity') return s.sort((a, b) => (b.distance || 0) - (a.distance || 0));
+    return s;
+  }, [aces, sortBy]);
+
+  const sortedTournaments = useMemo(() => {
+    const s = [...tournaments].sort((a, b) => b.date.localeCompare(a.date));
+    if (sortBy === 'oldest') return s.reverse();
+    if (sortBy === 'rarity') return s.sort((a, b) => (a.placement || 99) - (b.placement || 99));
+    return s;
+  }, [tournaments, sortBy]);
+
+  const sortedLongestThrows = useMemo(() => {
+    const byDate = [...longestThrows].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    if (sortBy === 'oldest') return byDate.reverse();
+    if (sortBy === 'rarity') return [...longestThrows].sort((a, b) => (b.distanceFeet || 0) - (a.distanceFeet || 0));
+    return byDate;
+  }, [longestThrows, sortBy]);
+
+  const sortedPBs = useMemo(() => {
+    const s = [...personalBests].sort((a, b) => b.date.localeCompare(a.date));
+    if (sortBy === 'oldest') return s.reverse();
+    return s;
+  }, [personalBests, sortBy]);
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
+          <Trophy size={24} className="text-amber-400"/>
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-white">Trophy Case</h2>
+          <p className="text-xs text-gray-500">Your Hall of Fame</p>
+        </div>
+      </div>
+
+      {/* Category cards */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {HOF_CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const count = cat.count(aces, tournaments, longestThrows, personalBests);
+          const value = cat.id === 'longest' ? (maxLongest ? `${maxLongest}ft` : '—') : count;
+          const active = category === cat.id;
+          return (
+            <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${active ? `bg-gradient-to-br ${cat.accent} border-current` : 'bg-gray-900/80 border-gray-700 hover:border-gray-600'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${active ? 'bg-white/10' : 'bg-gray-800'}`}><Icon size={20} className={active ? 'text-white' : 'text-gray-400'}/></div>
+              <div className="text-left">
+                <div className={`text-sm font-bold ${active ? 'text-white' : 'text-gray-300'}`}>{cat.label}</div>
+                <div className={`text-lg font-black ${active ? 'text-white' : 'text-gray-500'}`}>{value}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Toolbar: sort + Add (only show Add when category has entries; empty state has its own CTA) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="rarity">Rarity</option>
+        </select>
+        {category === 'aces' && sortedAces.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={onLogAce} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30"><Trophy size={16}/>Add an Ace</motion.button>}
+        {category === 'tournaments' && sortedTournaments.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30"><Award size={16}/>Add Tournament</motion.button>}
+        {category === 'longest' && sortedLongestThrows.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30"><Target size={16}/>Add Throw</motion.button>}
+        {category === 'pbs' && sortedPBs.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30"><Star size={16}/>Add Personal Best</motion.button>}
+      </div>
+
+      {/* Content grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {category === 'aces' && (sortedAces.length === 0 ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <AceEmblem size={100}/>
+            <h3 className="text-lg font-bold text-white mt-4">Your first ace card is waiting to be earned!</h3>
+            <p className="text-sm text-gray-500 max-w-xs mt-2">Log your first ace to start your collection.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={onLogAce} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-gray-950"><Trophy size={16}/>Log Your First Ace</motion.button>
+          </div>
+        ) : sortedAces.map((a, i) => (
+          <div key={a.id} className="aspect-[2.5/3.5] min-h-[180px] max-h-[320px] flex">
+            <AceTradingCard ace={a} disc={dm[a.discId]} index={i} totalAces={sortedAces.length} onEdit={onEditAce} onDelete={id=>setConfirmDelete(id)}/>
+          </div>
+        )))}
+
+        {category === 'tournaments' && (sortedTournaments.length === 0 ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <Award size={64} className="text-sky-500/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-white mt-4">Add your tournament results!</h3>
+            <p className="text-sm text-gray-500 max-w-xs mt-2">Track placements and divisions.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-sky-500 text-white"><Award size={16}/>Add Tournament</motion.button>
+          </div>
+        ) : sortedTournaments.map((t, i) => {
+          const rarity = getTournamentRarity(t.placement);
+          const hasPhoto = !!(t.photo);
+          const placementNum = typeof t.placement === 'number' ? t.placement : parseInt(String(t.placement), 10);
+          const placementStr = placementNum === 1 ? '1st' : placementNum === 2 ? '2nd' : placementNum === 3 ? '3rd' : placementNum >= 1 ? `#${placementNum}` : '—';
+          const isDoubles = t.type === 'doubles';
+          const groupCount = isDoubles ? (t.numberOfTeams || 0) : (t.numberOfPlayers || 0);
+          const groupLabel = groupCount > 0 ? `${groupCount} ${isDoubles ? 'teams' : 'players'}` : isDoubles ? 'teams' : 'players';
+          const typeLabel = isDoubles ? 'Doubles' : 'Singles';
+          return (
+            <div key={t.id} className="flex">
+              <AchievementCardWrapper rarity={rarity} index={i} aspectRatio="">
+                {hasPhoto && (
+                  <div className="relative w-full shrink-0 h-[180px]">
+                    <img src={t.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
+                    <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 55%)' }}/>
+                    <div className="absolute top-2 left-0 right-0 px-3 flex items-center justify-center pointer-events-none">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-950/80 border border-sky-500/70 shadow-lg">
+                        <span className="text-xl" role="img" aria-label="placement medal">{rarity.medalEmoji || '🎗️'}</span>
+                        <div className="flex flex-col leading-tight text-left">
+                          <span className="text-[11px] font-black tracking-widest uppercase text-sky-100">{rarity.label}</span>
+                          {placementNum >= 1 && (
+                            <span className="text-[10px] font-semibold text-sky-300">
+                              {placementStr} of {groupLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/30 text-sky-50 border border-sky-400/60 backdrop-blur-sm">
+                        {typeLabel}{t.division ? ` · ${t.division}` : ''}
+                      </span>
+                      {placementNum >= 1 && (
+                        <span className="text-2xl font-black drop-shadow" style={{ color: rarity.medalColor || THEME_TOURNAMENT.silver }}>
+                          {placementStr}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div className={`px-3 py-2 flex-1 min-h-0 overflow-y-auto flex flex-col ${hasPhoto ? '' : 'pt-3'}`}>
+                  {!hasPhoto && (
+                    <div className="flex items-center justify-between mb-2 shrink-0">
+                      <div className="inline-flex items-center gap-2">
+                        <span className="text-2xl" role="img" aria-label="placement medal">{rarity.medalEmoji || '🎗️'}</span>
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-[11px] font-black uppercase tracking-widest text-sky-100">{rarity.label}</span>
+                          {placementNum >= 1 && (
+                            <span className="text-[10px] font-semibold text-sky-300">
+                              {placementStr} of {groupLabel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-end gap-0.5 h-6">
+                        <span className="w-1.5 h-3 rounded-t-full bg-sky-900/80"/>
+                        <span className="w-1.5 h-4 rounded-t-full bg-sky-600/90"/>
+                        <span className="w-1.5 h-5 rounded-t-full bg-sky-400/90"/>
+                      </div>
+                    </div>
+                  )}
+                  <h3 className="text-sm font-black text-white truncate">{t.name}</h3>
+                  <p className="text-[10px] text-gray-500 truncate">{t.course}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {typeLabel}{t.division ? ` · ${t.division}` : ''}{groupCount > 0 ? ` · ${groupLabel}` : ''}
+                  </p>
+                  {isDoubles && t.teamName && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      Team: {t.teamName}
+                    </p>
+                  )}
+                  {isDoubles && t.partnerName && (
+                    <p className="text-[10px] text-gray-400 mt-0.5">Partner: {t.partnerName}</p>
+                  )}
+                  {t.rounds > 0 && (
+                    <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                      <Calendar size={10} className="text-sky-400"/>
+                      {t.rounds} {t.rounds === 1 ? 'Round' : 'Rounds'}
+                    </p>
+                  )}
+                  {t.withWho && (
+                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                      With: {t.withWho}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-500 mt-1">{fmtD(t.date)}</p>
+                  {t.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{t.notes}"</p>}
+                </div>
+                <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
+                  <button onClick={() => { setEditingTournament(t); setTournamentFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-sky-400 border border-gray-700/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'tournament', id: t.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                </div>
+              </AchievementCardWrapper>
+            </div>
+          );
+        }))}
+
+        {category === 'longest' && (sortedLongestThrows.length === 0 ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <Target size={64} className="text-rose-500/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-white mt-4">How far can you send it?</h3>
+            <p className="text-sm text-gray-500 max-w-xs mt-2">Log your longest throws with the disc you used.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-rose-500 text-white"><Target size={16}/>Add Longest Throw</motion.button>
+          </div>
+        ) : sortedLongestThrows.map((t, i) => {
+          const disc = dm[t.discId];
+          const rarity = getLongestThrowRarity(t.distanceFeet);
+          const hasPhoto = !!(t.photo);
+          const dist = t.distanceFeet || 0;
+          const max = maxLongest || dist || 1;
+          const pct = max ? Math.min(100, Math.round((dist / max) * 100)) : 0;
+          return (
+            <div key={t.id} className="flex">
+              <AchievementCardWrapper rarity={rarity} index={i} aspectRatio="">
+                {hasPhoto && (
+                  <div className="relative w-full shrink-0 h-[180px]">
+                    <img src={t.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
+                    <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.9) 0%,transparent 50%)' }}/>
+                    <div className="absolute bottom-3 left-0 right-0 px-3 flex items-end justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white backdrop-blur-sm">{rarity.label}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="inline-flex items-baseline gap-1">
+                          <Zap size={16} className="text-orange-400 drop-shadow" />
+                          <span className="text-3xl font-black text-white drop-shadow-lg">{dist}</span>
+                          <span className="text-sm font-bold text-rose-300 ml-0.5">ft</span>
+                        </div>
+                        <div className="w-24 h-1.5 rounded-full bg-gray-900/80 overflow-hidden border border-rose-500/40">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background:'linear-gradient(90deg,#facc15,#fb923c,#ef4444)' }}/>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className={`px-3 py-2 flex-1 min-h-0 overflow-y-auto flex flex-col ${hasPhoto ? '' : 'pt-2'}`}>
+                  {!hasPhoto && (
+                    <div className="flex items-center justify-between mb-1.5 shrink-0">
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${rarity.bg} ${rarity.text}`}>{rarity.label}</span>
+                      <Target size={14} className="text-rose-400"/>
+                    </div>
+                  )}
+                  {!hasPhoto && (
+                    <div className="rounded-lg px-3 py-1.5 mb-1.5 shrink-0 flex items-baseline justify-between gap-2" style={{ background: 'linear-gradient(135deg,rgba(255,69,0,0.25),rgba(220,20,60,0.12))', border: '1px solid rgba(255,99,71,0.5)' }}>
+                      <div className="inline-flex items-baseline gap-1">
+                        <Zap size={16} className="text-orange-400" />
+                        <span className="text-3xl font-black text-white">{dist}</span>
+                        <span className="text-sm text-rose-300 font-bold ml-1">ft</span>
+                      </div>
+                    </div>
+                  )}
+                  {!hasPhoto && (
+                    <div className="mb-1.5">
+                      <div className="w-full h-1.5 rounded-full bg-gray-900/90 overflow-hidden border border-rose-500/40">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background:'linear-gradient(90deg,#facc15,#fb923c,#ef4444)' }}/>
+                      </div>
+                      <p className="text-[9px] text-gray-500 mt-0.5 text-right">Power meter</p>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-gray-400 truncate">{disc ? (disc.custom_name || disc.mold) : 'Unknown disc'}</p>
+                  <p className="text-[10px] text-gray-500">{t.course} · {fmtD(t.date)}</p>
+                  {t.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{t.notes}"</p>}
+                </div>
+                <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
+                  <button onClick={() => { setEditingLongestThrow(t); setLongestThrowFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-rose-400 border border-gray-700/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'longest', id: t.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                </div>
+              </AchievementCardWrapper>
+            </div>
+          );
+        }))}
+
+        {category === 'pbs' && (sortedPBs.length === 0 ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+            <Star size={64} className="text-purple-500/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-white mt-4">Track your greatest moments!</h3>
+            <p className="text-sm text-gray-500 max-w-xs mt-2">Lowest round, most birdies, longest putt, and more.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-purple-500 text-white"><Star size={16}/>Add Personal Best</motion.button>
+          </div>
+        ) : sortedPBs.map((pb, i) => {
+          const rarity = getPBRarity();
+          const hasPhoto = !!(pb.photo);
+          let improvementLabel = '';
+          const currentVal = parseFloat(pb.value);
+          if (!Number.isNaN(currentVal)) {
+            const prev = sortedPBs.slice(i + 1).find(other => other.category === pb.category && other.course === pb.course);
+            if (prev) {
+              const prevVal = parseFloat(prev.value);
+              if (!Number.isNaN(prevVal) && prevVal !== currentVal) {
+                const cat = (pb.category || '').toLowerCase();
+                const lowerIsBetter = /score|stroke|round/.test(cat);
+                const delta = lowerIsBetter ? prevVal - currentVal : currentVal - prevVal;
+                if (delta > 0.01) {
+                  const rounded = Math.round(delta * 10) / 10;
+                  const arrow = lowerIsBetter ? '↓' : '↑';
+                  improvementLabel = `${arrow}${rounded} from previous`;
+                }
+              }
+            }
+          }
+          return (
+            <div key={pb.id} className="flex">
+              <AchievementCardWrapper rarity={rarity} index={i} aspectRatio="">
+                {hasPhoto && (
+                  <div className="relative w-full shrink-0 h-[180px]">
+                    <img src={pb.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
+                    <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 55%)' }}/>
+                    <div className="absolute top-2 left-0 right-0 flex justify-center px-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/25 border border-emerald-400/60 backdrop-blur">
+                        <Star size={14} className="text-emerald-200" fill="currentColor"/>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100">New Record</span>
+                      </div>
+                    </div>
+                    <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-gray-300">{pb.course}</span>
+                        <span className="text-[9px] text-gray-400">{fmtD(pb.date)}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-semibold text-emerald-200">{pb.category}</p>
+                        <p className="text-xl font-black text-white mt-0.5">{pb.value}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className={`px-3 py-2 flex-1 min-h-0 overflow-y-auto flex flex-col ${hasPhoto ? '' : 'pt-2'}`}>
+                  {!hasPhoto && (
+                    <div className="flex items-center justify-between mb-1.5 shrink-0">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">NEW RECORD</span>
+                      <Star size={14} className="text-emerald-400" fill="currentColor"/>
+                    </div>
+                  )}
+                  <h3 className="text-[11px] font-bold text-gray-400">{pb.category}</h3>
+                  <p className="text-lg font-black text-white mt-0.5">{pb.value}</p>
+                  {improvementLabel && <p className="text-[10px] text-emerald-300 font-semibold mt-0.5">{improvementLabel}</p>}
+                  <p className="text-[10px] text-gray-500 mt-1">{pb.course} · {fmtD(pb.date)}</p>
+                  {pb.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{pb.notes}"</p>}
+                </div>
+                <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
+                  <button onClick={() => { setEditingPersonalBest(pb); setPbFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-emerald-400 border border-gray-700/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'pb', id: pb.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                </div>
+              </AchievementCardWrapper>
+            </div>
+          );
+        }))}
+      </div>
+
+      <AnimatePresence>
+        {confirmDelete && typeof confirmDelete === 'string' && <ConfirmDialog open title="Delete this Ace?" message="This will permanently remove this ace record." danger confirmLabel="Delete Ace" onCancel={() => setConfirmDelete(null)} onConfirm={() => { onDeleteAce(confirmDelete); setConfirmDelete(null); }}/>}
+        {confirmDelete && typeof confirmDelete === 'object' && confirmDelete.type === 'tournament' && <ConfirmDialog open title="Delete this tournament?" message="This will permanently remove this record." danger confirmLabel="Delete" onCancel={() => setConfirmDelete(null)} onConfirm={() => { deleteTournament(confirmDelete.id); setConfirmDelete(null); }}/>}
+        {confirmDelete && typeof confirmDelete === 'object' && confirmDelete.type === 'longest' && <ConfirmDialog open title="Delete this longest throw?" message="This will permanently remove this record." danger confirmLabel="Delete" onCancel={() => setConfirmDelete(null)} onConfirm={() => { deleteLongestThrow(confirmDelete.id); setConfirmDelete(null); }}/>}
+        {confirmDelete && typeof confirmDelete === 'object' && confirmDelete.type === 'pb' && <ConfirmDialog open title="Delete this personal best?" message="This will permanently remove this record." danger confirmLabel="Delete" onCancel={() => setConfirmDelete(null)} onConfirm={() => { deletePersonalBest(confirmDelete.id); setConfirmDelete(null); }}/>}
+      </AnimatePresence>
+
+      <TournamentFormModal open={tournamentFormOpen} tournament={editingTournament} onClose={() => { setTournamentFormOpen(false); setEditingTournament(null); }} onSave={(t) => { if (t.id && tournaments.some(x => x.id === t.id)) updateTournament(t.id, t); else addTournament(t); setTournamentFormOpen(false); }} onDelete={deleteTournament} uploadImage={uploadImage}/>
+      <LongestThrowFormModal open={longestThrowFormOpen} throwRecord={editingLongestThrow} discs={discs} onClose={() => { setLongestThrowFormOpen(false); setEditingLongestThrow(null); }} onSave={(t) => { if (t.id && longestThrows.some(x => x.id === t.id)) updateLongestThrow(t.id, t); else addLongestThrow(t); setLongestThrowFormOpen(false); }} onDelete={deleteLongestThrow} uploadImage={uploadImage}/>
+      <PersonalBestFormModal open={pbFormOpen} pb={editingPersonalBest} onClose={() => { setPbFormOpen(false); setEditingPersonalBest(null); }} onSave={(pb) => { if (pb.id && personalBests.some(x => x.id === pb.id)) updatePersonalBest(pb.id, pb); else addPersonalBest(pb); setPbFormOpen(false); }} onDelete={deletePersonalBest} uploadImage={uploadImage}/>
+    </div>
   );
 }
 
@@ -2388,12 +3085,11 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd }) {
 // ═══════════════════════════════════════════════════════
 // DISC DETAIL MODAL
 // ═══════════════════════════════════════════════════════
-function DiscDetailModal({open,disc,onClose,aceHistory,bags,onEdit,onDelete,onLogAce,onBackup,onToggleBag,onViewTrophyRoom,onEditAce}) {
+function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onToggleBag}) {
   const [bagDrop,setBagDrop] = useState(false);
   useEffect(() => {if(open)setBagDrop(false);}, [open]);
   if (!open||!disc) return null;
   const cfg = DT[disc.disc_type]; const st = SM[disc.status]; const stab = classifyStability(disc); const stabM = STAB_META[stab];
-  const discAces = aceHistory.filter(a => a.discId===disc.id).sort((a,b) => b.date.localeCompare(a.date));
   const inBags = bags.filter(b => b.disc_ids.includes(disc.id));
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
@@ -2410,9 +3106,8 @@ function DiscDetailModal({open,disc,onClose,aceHistory,bags,onEdit,onDelete,onLo
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full border" style={{backgroundColor:stabM.color+'15',color:stabM.color,borderColor:stabM.color+'33'}}>{stabM.icon} {stabM.label}</span>
                 {st && <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className={`w-2 h-2 rounded-full ${st.dot}`}/>{st.label}</span>}
-                {discAces.length>0 && <button onClick={onViewTrophyRoom} className="flex items-center gap-1 text-xs font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full"><Trophy size={10}/>×{discAces.length}</button>}
               </div>
-              {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Package size={9}/>{b.name}</span>))}</div>}
+              {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Backpack size={9}/>{b.name}</span>))}</div>}
             </div>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-500 shrink-0 mt-1"><X size={20}/></button>
           </div>
@@ -2448,41 +3143,14 @@ function DiscDetailModal({open,disc,onClose,aceHistory,bags,onEdit,onDelete,onLo
               <p className="text-xs text-gray-400 mt-1">1 = Poor → 10 = Mint</p>
             </div>
           </section>
-          {/* Story */}
-          {disc.story && (
-            <section>
-              <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><BookOpen size={12}/>The Story</h3>
-              <div className="bg-emerald-950/30 rounded-r-xl px-5 py-4" style={{borderLeft:'3px solid rgba(16,185,129,0.4)'}}>
-                <p className="text-sm text-gray-300/90 leading-relaxed italic" style={{fontFamily:'Georgia, serif'}}>"{disc.story}"</p>
-              </div>
-            </section>
-          )}
-          {/* Ace History */}
-          {discAces.length>0 && (
-            <section>
-              <h3 className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest mb-3"><Trophy size={12}/>Aces ({discAces.length})</h3>
-              <div className="space-y-2">{discAces.map((a,i) => (
-                <div key={a.id} className="flex items-center gap-3 bg-amber-500/5 border border-amber-500/15 rounded-xl px-4 py-3 group">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0"><Trophy size={14} className="text-amber-400"/></div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-white">{a.course}</span>{a.hole>0&&<span className="text-xs text-gray-500">Hole #{a.hole}</span>}{a.witnessed&&<Shield size={10} className="text-emerald-400" fill="currentColor"/>}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{fmtD(a.date)}</div>
-                  </div>
-                  {a.distance>0 && <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 shrink-0"><span className="text-sm font-black text-amber-400">{a.distance}</span><span className="text-xs text-amber-500/60 font-bold">ft</span></div>}
-                  <button onClick={() => onEditAce(a)} className="p-1.5 rounded-lg text-gray-600 hover:text-sky-400 opacity-0 group-hover:opacity-100 shrink-0"><Edit3 size={13}/></button>
-                </div>
-              ))}</div>
-            </section>
-          )}
         </div>
         {/* Footer actions */}
         <div className="shrink-0 border-t border-gray-800/60 p-4 bg-gray-950">
           <div className="flex items-center gap-2">
             <button onClick={() => onEdit(disc)} className="p-2.5 rounded-xl text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 border border-gray-800"><Edit3 size={16}/></button>
             <button onClick={() => onDelete(disc.id)} className="p-2.5 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-gray-800"><Trash2 size={16}/></button>
-            <button onClick={() => onLogAce(disc)} className="p-2.5 rounded-xl text-gray-400 hover:text-amber-400 hover:bg-amber-500/10 border border-gray-800"><Trophy size={16}/></button>
             <div className="flex-1 flex justify-center relative">
-              <button onClick={() => setBagDrop(!bagDrop)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${bagDrop?'bg-sky-500/25 text-sky-300 border-sky-500/40':'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}><Package size={14}/>Add to Bag</button>
+              <button onClick={() => setBagDrop(!bagDrop)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${bagDrop?'bg-sky-500/25 text-sky-300 border-sky-500/40':'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}><Backpack size={14}/>Add to Bag</button>
               {bagDrop && (
                 <>
                   <div className="fixed inset-0" style={{zIndex:9}} onClick={() => setBagDrop(false)}/>
@@ -2513,7 +3181,7 @@ function DiscDetailModal({open,disc,onClose,aceHistory,bags,onEdit,onDelete,onLo
 // ═══════════════════════════════════════════════════════
 // DISC CARDS (List + Gallery views)
 // ═══════════════════════════════════════════════════════
-function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBackup,onToggleBag,onEdit,onDelete,onDetail,onRemoveFromBag,activeBagId,bagMenuOpen,setBagMenu,idx}) {
+function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDetail,onRemoveFromBag,activeBagId,bagMenuOpen,setBagMenu,idx}) {
   const cfg = DT[disc.disc_type]; const st = SM[disc.status]; const inBags = bags.filter(b=>b.disc_ids.includes(disc.id)); const hasNick = !!disc.custom_name;
   const isGallery = viewMode==='gallery';
 
@@ -2523,11 +3191,10 @@ function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBacku
       className={`bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-emerald-600/40 transition-colors group cursor-pointer ${bagMenuOpen?'z-30 relative':'relative'}`}>
       <div className="h-1" style={{background:disc.color||'#6b7280'}}/>
       <div className={`p-4 ${isGallery?'flex flex-col items-center':''}`}>
-        {/* Type badge + ace count */}
+        {/* Type badge + status */}
         <div className={`flex items-center justify-between ${isGallery?'w-full':''} mb-2`}>
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
           <div className="flex items-center gap-1.5">
-            {aceCount>0 && <button onClick={e=>{e.stopPropagation();onViewTrophyRoom();}} className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold px-2 py-0.5 rounded-full"><Trophy size={10}/>×{aceCount}</button>}
             {st && !isGallery && <span className="flex items-center gap-1 text-xs text-gray-500"><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
           </div>
         </div>
@@ -2546,8 +3213,7 @@ function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBacku
             <div className="flex-1 min-w-0">
               {hasNick ? (<><h3 className="text-lg font-black text-white group-hover:text-emerald-400 truncate">{disc.custom_name}</h3><p className="text-xs text-gray-400 mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-gray-500">{disc.manufacturer}</span><h3 className="text-lg font-extrabold text-white group-hover:text-emerald-400 truncate">{disc.mold}</h3><span className="text-xs text-gray-400">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
               {disc.estimated_value && <span className="text-xs text-emerald-500/60 font-semibold block">${disc.estimated_value}</span>}
-              {disc.story && <p className="text-xs text-gray-500/70 italic mt-1 truncate">"{disc.story.slice(0,60)}{disc.story.length>60?'…':''}"</p>}
-              {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Package size={8}/>{b.name}</span>))}</div>}
+              {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={8}/>{b.name}</span>))}</div>}
             </div>
             <div onClick={e=>e.stopPropagation()}><FlightPath turn={disc.turn} fade={disc.fade} id={disc.id} defaultMode={disc.flight_preference || 'both'}/></div>
           </div>
@@ -2565,7 +3231,6 @@ function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBacku
           <div className="flex gap-0.5">
             <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10"><Edit3 size={isGallery?12:14}/></button>
             <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10"><Trash2 size={isGallery?12:14}/></button>
-            <button onClick={() => onLogAce(disc)} className="p-1.5 rounded-md text-gray-500 hover:text-amber-400 hover:bg-amber-500/10"><Trophy size={isGallery?12:14}/></button>
           </div>
           {activeBagId ? (
             <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20"><Minus size={11}/>Remove</button>
@@ -2573,7 +3238,7 @@ function DiscCard({disc,aceCount,bags,viewMode,onLogAce,onViewTrophyRoom,onBacku
             <div className="flex-1 flex justify-center relative">
               <button onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bagMenuOpen?'bg-sky-500/25 text-sky-300 border-sky-500/40':'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>
-                <Package size={11}/>Bag
+                <Backpack size={11}/>Bag
               </button>
               {bagMenuOpen && (
                 <>
@@ -2771,19 +3436,47 @@ function DiscLibrary() {
 
   const showApp = guestMode || userAuth;
 
-  // Load initial state from localStorage; new users get empty arrays (no demo/sample discs or aces)
-  const [discs,setDiscs] = useState(() => { const s = loadState(); return s?.discs ?? []; });
+  // Load initial state from localStorage
+  const [discs,setDiscs] = useState(() => {
+    const s = loadState();
+    console.log('[DiscLibrary] initial discs from localStorage:', s?.discs?.length ?? 0, 'example disc:', s?.discs?.[0], 'hasPhoto:', !!s?.discs?.[0]?.photo);
+    return s?.discs ?? [];
+  });
   const [aceHistory,setAceHistory] = useState(() => { const s = loadState(); return s?.aceHistory ?? []; });
   const [bags,setBags] = useState(() => { const s = loadState(); return s?.bags ?? []; });
+  const [tournaments,setTournaments] = useState(() => { const s = loadState(); return s?.tournaments ?? []; });
+  const [longestThrows,setLongestThrows] = useState(() => { const s = loadState(); return s?.longestThrows ?? []; });
+  const [personalBests,setPersonalBests] = useState(() => { const s = loadState(); return s?.personalBests ?? []; });
 
-  // Save to localStorage whenever data changes
-  useEffect(() => { saveState({discs,aceHistory,bags}); }, [discs,aceHistory,bags]);
+  // One-time migration: clear old localStorage (including previous base64 photos)
+  useEffect(() => {
+    try {
+      const MIGRATION_KEY = 'discgolf_storage_migrated_v3';
+      if (!localStorage.getItem(MIGRATION_KEY)) {
+        localStorage.clear();
+        localStorage.setItem(MIGRATION_KEY, '1');
+      }
+    } catch(_) {}
+  }, []);
+
+  useEffect(() => {
+    const discsForCache = guestMode
+      // In guest mode, keep photos in localStorage so photos persist without Firestore
+      ? discs
+      // When signed in, strip photos from the localStorage cache (Firestore holds photos)
+      : discs.map(d => {
+          if (!d) return d;
+          const { photo, ...rest } = d;
+          return rest;
+        });
+    saveState({discs:discsForCache,aceHistory,bags,tournaments,longestThrows,personalBests});
+  }, [guestMode, discs,aceHistory,bags,tournaments,longestThrows,personalBests]);
 
   const firestoreSyncUserIdRef = useRef(null);
   const firestoreInitialLoadDoneRef = useRef(false);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
 
-  // After sign-in: load from Firestore or push current data (guest uses localStorage only)
+  // After sign-in: load from Firestore (guest uses localStorage only)
   useEffect(() => {
     const email = userAuth?.email;
     if (!email) return;
@@ -2792,35 +3485,25 @@ function DiscLibrary() {
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
     setSyncStatus('syncing');
+    console.log('[DiscLibrary] Loading from Firestore for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
-        const localState = loadState();
-        const localDiscs = localState?.discs ?? [];
-        const localBags = localState?.bags ?? [];
-        const localAces = localState?.aceHistory ?? [];
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
         const remoteAces = data?.aceHistory ?? [];
+        const remoteTournaments = data?.tournaments ?? [];
+        const remoteLongestThrows = data?.longestThrows ?? [];
+        const remotePersonalBests = data?.personalBests ?? [];
 
-        // Use whichever source has more data to prevent data loss
-        const localTotal = localDiscs.length + localBags.length + localAces.length;
-        const remoteTotal = remoteDiscs.length + remoteBags.length + remoteAces.length;
-
-        if (remoteTotal > 0 && remoteTotal >= localTotal) {
-          // Firestore has same or more data — use it
-          setDiscs(remoteDiscs);
-          setBags(remoteBags);
-          setAceHistory(remoteAces);
-        } else if (localTotal > 0) {
-          // Local has more data — keep local and push to Firestore
-          setDiscs(localDiscs);
-          setBags(localBags);
-          setAceHistory(localAces);
-          return syncToFirestore(userId, localDiscs, localBags, localAces);
-        }
+        setDiscs(remoteDiscs);
+        setBags(remoteBags);
+        setAceHistory(remoteAces);
+        setTournaments(remoteTournaments);
+        setLongestThrows(remoteLongestThrows);
+        setPersonalBests(remotePersonalBests);
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch(() => { setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; });
+      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; });
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -2829,10 +3512,15 @@ function DiscLibrary() {
     if (!email || !firestoreInitialLoadDoneRef.current || firestoreSyncUserIdRef.current !== emailToUserId(email)) return;
     setSyncStatus('syncing');
     const userId = emailToUserId(email);
-    syncToFirestore(userId, discs, bags, aceHistory)
+    const discsCopy = [...discs];
+    const acesCopy = [...aceHistory];
+    const tournamentsCopy = [...tournaments];
+    const longestCopy = [...longestThrows];
+    const pbsCopy = [...personalBests];
+    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true)
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); });
-  }, [userAuth?.email, discs, bags, aceHistory]);
+  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   useEffect(() => {
     if (guestMode) try { localStorage.setItem(GUEST_MODE_KEY, 'true'); } catch(_) {}
@@ -2967,6 +3655,7 @@ function DiscLibrary() {
   }, []);
 
   const [activeBagId,setActiveBagId] = useState(null);
+  const [mainView,setMainView] = useState('discs'); // 'discs' | 'bags'
   const [search,setSearch] = useState('');
   const [typeFilter,setTypeFilter] = useState('all');
   const [selectedBrand,setSelectedBrand] = useState('All');
@@ -2975,20 +3664,14 @@ function DiscLibrary() {
   const [viewMode,setViewMode] = useState('list');
   const [formOpen,setFormOpen] = useState(false);
   const [editingDisc,setEditingDisc] = useState(null);
-  const [sidebarOpen,setSidebarOpen] = useState(false);
   const [bagMenuDisc,setBagMenuDisc] = useState(null);
-  const [aceLogDisc,setAceLogDisc] = useState(null);
-  const [editingAce,setEditingAce] = useState(null);
-  const [showTrophyRoom,setShowTrophyRoom] = useState(false);
+  const [editingBag,setEditingBag] = useState(null);
   const [backupDisc,setBackupDisc] = useState(null);
   const [detailDisc,setDetailDisc] = useState(null);
-  const [showConfetti,setShowConfetti] = useState(false);
-  const [confettiKey,setConfettiKey] = useState(0);
   const [toast,setToast] = useState(null);
   const [deleteConfirm,setDeleteConfirm] = useState(null);
   const [deleteBagConfirm,setDeleteBagConfirm] = useState(null);
   const [duplicateDiscConfirm,setDuplicateDiscConfirm] = useState(null);
-  const [shareAce,setShareAce] = useState(null);
   const [showPrivacy,setShowPrivacy] = useState(false);
   const [settingsOpen,setSettingsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -2996,19 +3679,71 @@ function DiscLibrary() {
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const settingsRef = useRef(null);
 
-  const handleSignOut = useCallback(() => {
-    try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
-    try { localStorage.removeItem(AUTH_KEY); } catch(_) {}
-    try { localStorage.removeItem(USER_PROFILE_PIC_KEY); } catch(_) {}
+  const handleUploadImage = useCallback(async (file, folder) => {
+    if (!file || !file.type?.startsWith('image/')) return null;
+    try {
+      console.log('[ImageUpload] Starting upload pipeline', { name: file.name, size: file.size, type: file.type, folder });
+      const dataUrl = await compressImageFileToDataUrl(file);
+      console.log('[ImageUpload] Compression done, data URL bytes:', typeof dataUrl === 'string' ? dataUrl.length : 0);
+      return dataUrl;
+    } catch (e) {
+      console.warn('Image upload failed', e);
+      setToast('Image upload failed. Please try a smaller photo.');
+      return null;
+    }
+  }, []);
+
+  const handleForceCloudSync = useCallback(() => {
+    const email = userAuth?.email;
+    if (!email) return;
+    const userId = emailToUserId(email);
+    setSyncStatus('syncing');
+    syncToFirestore(userId, discs, bags, aceHistory, tournaments, longestThrows, personalBests, true)
+      .then(() => { setSyncStatus('synced'); setToast('Cloud sync complete.'); })
+      .catch(() => { setSyncStatus('error'); setToast('Cloud sync failed.'); });
+  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+
+  const handleSignOut = useCallback(async () => {
+    const email = userAuth?.email;
+    if (email) {
+      const userId = emailToUserId(email);
+      try {
+        // 1) Capture copies BEFORE any mutation
+        const discsCopy = [...discs];
+        const acesCopy = [...aceHistory];
+        const tournamentsCopy = [...tournaments];
+        const longestCopy = [...longestThrows];
+        const pbsCopy = [...personalBests];
+
+        // 2) Sync while still authenticated
+        await syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true);
+        console.log('[signOut] Firestore save SUCCESS on sign-out', { userId, aceCount: acesCopy.length, discCount: discsCopy.length });
+        // 3) Now sign out from Firebase Auth
+        try {
+          await firebaseSignOut(getAuth());
+        } catch (e) {
+          console.warn('[auth] Firebase signOut failed (continuing with local sign-out)', e);
+        }
+      } catch (e) {
+        console.warn('[syncAces] Firestore save FAILED on sign-out', e);
+      }
+    }
+    try { localStorage.clear(); } catch(_) {}
     firestoreSyncUserIdRef.current = null;
     firestoreInitialLoadDoneRef.current = false;
+    setDiscs([]);
+    setBags([]);
+    setAceHistory([]);
+    setTournaments([]);
+    setLongestThrows([]);
+    setPersonalBests([]);
     setGuestMode(false);
     setUserAuth(null);
     setCustomProfilePic(null);
     setSyncStatus('idle');
     setSettingsOpen(false);
     setShowProfileModal(false);
-  }, []);
+  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   const handleDeleteAccount = useCallback(async () => {
     try {
@@ -3025,6 +3760,9 @@ function DiscLibrary() {
       setDiscs([]);
       setBags([]);
       setAceHistory([]);
+      setTournaments([]);
+      setLongestThrows([]);
+      setPersonalBests([]);
       setGuestMode(false);
       setUserAuth(null);
       setCustomProfilePic(null);
@@ -3041,16 +3779,14 @@ function DiscLibrary() {
   }, []);
 
   // Derived data
-  const aceMap = useMemo(() => { const m={}; aceHistory.forEach(a=>{m[a.discId]=(m[a.discId]||0)+1;}); return m; }, [aceHistory]);
   const brandOptions = useMemo(() => { const u=[...new Set(discs.map(d=>d.manufacturer))].sort(); return [{value:'All',label:'All Brands'},...u.map(b=>({value:b,label:b}))]; }, [discs]);
   const activeBag = useMemo(() => bags.find(b=>b.id===activeBagId)||null, [bags,activeBagId]);
   const bagDiscsForDashboard = useMemo(() => activeBag ? discs.filter(d=>activeBag.disc_ids.includes(d.id)) : [], [activeBag,discs]);
-  const totalAces = useMemo(() => Object.values(aceMap).reduce((a,b)=>a+b,0), [aceMap]);
 
   const filteredDiscs = useMemo(() => {
     let result = [...discs];
     if (activeBagId && activeBag) result = result.filter(d => activeBag.disc_ids.includes(d.id));
-    if (search.trim()) { const q=search.toLowerCase(); result=result.filter(d => d.manufacturer.toLowerCase().includes(q)||d.mold.toLowerCase().includes(q)||d.plastic_type.toLowerCase().includes(q)||(d.custom_name&&d.custom_name.toLowerCase().includes(q))||(d.story&&d.story.toLowerCase().includes(q))); }
+    if (search.trim()) { const q=search.toLowerCase(); result=result.filter(d => d.manufacturer.toLowerCase().includes(q)||d.mold.toLowerCase().includes(q)||d.plastic_type.toLowerCase().includes(q)||(d.custom_name&&d.custom_name.toLowerCase().includes(q))); }
     if (typeFilter!=='all') result = result.filter(d => d.disc_type===typeFilter);
     if (selectedBrand!=='All') result = result.filter(d => d.manufacturer===selectedBrand);
     if (selectedSpeed!=='All') { const range=SPEED_RANGES.find(sr=>sr.value===selectedSpeed); if(range)result=result.filter(d=>d.speed>=range.min&&d.speed<=range.max); }
@@ -3080,38 +3816,38 @@ function DiscLibrary() {
     const d=discs.find(x=>x.id===discId); setToast(`🗑️ ${d?.mold||'Disc'} removed from bag`);
   }, [discs]);
 
-  const handleSaveAce = useCallback((aceData,isEdit) => {
-    if (isEdit) { setAceHistory(p=>p.map(a=>a.id===aceData.id?aceData:a)); setToast('✏️ Ace updated!'); }
-    else { setAceHistory(p=>[...p,aceData]); setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800); const d=discs.find(x=>x.id===aceData.discId); setToast(`🏆 Ace logged for ${d?.mold||'disc'}!`); }
-  }, [discs]);
+  const addTournament = useCallback((t) => { setTournaments(p=>[...p,{...t,id:t.id||`t${Date.now()}`}]); setToast('🏅 Tournament added!'); }, []);
+  const updateTournament = useCallback((id, t) => { setTournaments(p=>p.map(x=>x.id===id?{...t,id}:x)); setToast('✏️ Tournament updated!'); }, []);
+  const deleteTournament = useCallback((id) => { setTournaments(p=>p.filter(x=>x.id!==id)); setToast('🗑️ Tournament deleted'); }, []);
 
-  const handleDeleteAce = useCallback(aceId => { setAceHistory(p=>p.filter(a=>a.id!==aceId)); setToast('🗑️ Ace deleted'); }, []);
+  const addLongestThrow = useCallback((t) => { setLongestThrows(p=>[...p,{...t,id:t.id||`lt${Date.now()}`}]); setToast('🎯 Longest throw added!'); }, []);
+  const updateLongestThrow = useCallback((id, t) => { setLongestThrows(p=>p.map(x=>x.id===id?{...t,id}:x)); setToast('✏️ Longest throw updated!'); }, []);
+  const deleteLongestThrow = useCallback((id) => { setLongestThrows(p=>p.filter(x=>x.id!==id)); setToast('🗑️ Longest throw deleted'); }, []);
 
-  const performAddDisc = useCallback((data, optionalAce) => {
+  const addPersonalBest = useCallback((t) => { setPersonalBests(p=>[...p,{...t,id:t.id||`pb${Date.now()}`}]); setToast('⭐ Personal best added!'); }, []);
+  const updatePersonalBest = useCallback((id, t) => { setPersonalBests(p=>p.map(x=>x.id===id?{...t,id}:x)); setToast('✏️ Personal best updated!'); }, []);
+  const deletePersonalBest = useCallback((id) => { setPersonalBests(p=>p.filter(x=>x.id!==id)); setToast('🗑️ Personal best deleted'); }, []);
+
+  const performAddDisc = useCallback((data) => {
     ReactGA.event({ category: 'Disc', action: 'Add Disc' });
+    console.log('[performAddDisc] adding disc', { id: data.id, hasPhoto: !!data.photo, photoBytes: typeof data.photo === 'string' ? data.photo.length : 0 });
     setDiscs(p=>[...p,{...data,date_acquired:data.date_acquired||td()}]);
-    if (optionalAce) {
-      const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
-      setAceHistory(p=>[...p, aceEntry]);
-      setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
-      setToast(`🏆 ${data.mold} added and ace logged!`);
-    } else {
-      setToast(`✅ ${data.mold} added!`);
-    }
+    setToast(`✅ ${data.mold} added!`);
     setEditingDisc(null); setFormOpen(false);
   }, []);
 
-  const handleSaveDisc = useCallback((data, optionalAce) => {
+  const handleSaveDisc = useCallback((data) => {
+    console.log('[handleSaveDisc] saving disc', {
+      id: data.id,
+      hasPhoto: !!data.photo,
+      photoBytes: typeof data.photo === 'string' ? data.photo.length : 0,
+      editing: !!editingDisc,
+      disc: data,
+    });
     if (editingDisc) {
+      console.log('[handleSaveDisc] Updating existing disc in state...');
       setDiscs(p=>p.map(d=>d.id===data.id?data:d));
-      if (optionalAce) {
-        const aceEntry = { id: `a${Date.now()}`, discId: data.id, date: optionalAce.date, course: optionalAce.course, hole: optionalAce.hole || 0, distance: 0, witnessed: false, ...(optionalAce.notes ? { notes: optionalAce.notes } : {}) };
-        setAceHistory(p=>[...p, aceEntry]);
-        setConfettiKey(k=>k+1); setShowConfetti(true); setTimeout(()=>setShowConfetti(false),2800);
-        setToast(`🏆 ${data.mold} updated and ace logged!`);
-      } else {
-        setToast(`✅ ${data.mold} updated!`);
-      }
+      setToast(`✅ ${data.mold} updated!`);
       setEditingDisc(null); setFormOpen(false);
       return;
     }
@@ -3119,15 +3855,16 @@ function DiscLibrary() {
     const mold = (data.mold || '').trim().toLowerCase();
     const isDuplicate = discs.some(d => (d.manufacturer||'').trim().toLowerCase() === man && (d.mold||'').trim().toLowerCase() === mold);
     if (isDuplicate) {
-      setDuplicateDiscConfirm({ data, optionalAce });
+      setDuplicateDiscConfirm({ data });
       return;
     }
-    performAddDisc(data, optionalAce);
+    console.log('[handleSaveDisc] Adding new disc to state...');
+    performAddDisc(data);
   }, [editingDisc, discs, performAddDisc]);
 
   const confirmAddDuplicateDisc = useCallback(() => {
     if (!duplicateDiscConfirm) return;
-    performAddDisc(duplicateDiscConfirm.data, duplicateDiscConfirm.optionalAce);
+    performAddDisc(duplicateDiscConfirm.data);
     setDuplicateDiscConfirm(null);
   }, [duplicateDiscConfirm, performAddDisc]);
 
@@ -3159,14 +3896,13 @@ function DiscLibrary() {
     if (!deleteBagConfirm) return;
     deleteBag(deleteBagConfirm.id);
     setDeleteBagConfirm(null);
-  }, [deleteBagConfirm, deleteBag]);
+    if (editingBag?.id === deleteBagConfirm.id) setEditingBag(null);
+  }, [deleteBagConfirm, deleteBag, editingBag]);
   const updateBag = (id,data) => setBags(p=>p.map(b=>b.id===id?{...b,...data}:b));
 
   const handleBuySearch = useCallback(suggestion => {
     setBackupDisc({id:'sug_'+Date.now(),manufacturer:suggestion.manufacturer,mold:suggestion.mold,plastic_type:suggestion.plastic,color:suggestion.color||'#6b7280',speed:suggestion.speed,glide:suggestion.glide,turn:suggestion.turn,fade:suggestion.fade,wear_level:10,weight_grams:175,custom_name:'',photo:null});
   }, []);
-
-  const handleShareAce = useCallback((ace,disc) => { setShareAce({ace,disc}); }, []);
 
   const headerDiscCount = activeBag ? activeBag.disc_ids.length : discs.length;
   const gridCls = viewMode==='gallery' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
@@ -3187,66 +3923,70 @@ function DiscLibrary() {
     );
   }
 
+  const showDiscsHeader = mainView === 'discs';
+  const showBagsGrid = mainView === 'bags' && !activeBagId;
+  const showSingleBag = mainView === 'bags' && activeBagId && activeBag;
+  const goToBagsGrid = () => { setMainView('bags'); setActiveBagId(null); };
+  const goToDiscs = () => { setMainView('discs'); setActiveBagId(null); };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-gray-950 text-white pb-12">
-      <AnimatePresence>{showConfetti && <Confetti key={confettiKey}/>}</AnimatePresence>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-gray-950 text-white">
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
       <InstallPromptBanner />
 
-      {/* ── HEADER ── */}
-      <div className="bg-gradient-to-b from-emerald-950/40 to-gray-950 border-b border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4 pt-5 pb-4">
-          {/* Single flex row that wraps: no absolute positioning, no overlap */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-3 mb-4">
-            {/* Left: Library + Title (truncates on small) */}
-            <div className="flex items-center gap-3 min-w-0 flex-1 basis-0">
-              <button onClick={() => setSidebarOpen(true)} className="p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all shrink-0" aria-label="Open sidebar"><Library size={20}/></button>
-              <div className="min-w-0">
-                <h1 className="text-xl font-extrabold tracking-tight flex items-center gap-2 truncate">
-                  {activeBag ? (<><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor:activeBag.bagColor||'#6b7280'}}/><span className="truncate">{activeBag.name}</span><span className="text-gray-500 font-semibold text-base shrink-0">({headerDiscCount})</span></>) : 'My Disc Library'}
-                </h1>
-                <p className="text-xs text-gray-400 truncate">{activeBag?`${filteredDiscs.length} disc${filteredDiscs.length!==1?'s':''} shown`:`${discs.length} disc${discs.length!==1?'s':''} in collection`}</p>
-              </div>
-            </div>
-            {/* Right: actions in one wrap group — Add Disc first for priority, then Synced (tiny), Avatar, Settings */}
-            <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
-              <button onClick={() => setShowTrophyRoom(true)} className="flex items-center gap-1.5 p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30 transition-all relative shrink-0">
-                <Trophy size={18}/>{totalAces>0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-xs font-black flex items-center justify-center" style={{fontSize:9}}>{totalAces}</span>}
-              </button>
-              <div className="flex bg-gray-900 rounded-lg border border-gray-800 p-0.5 shrink-0">
-                <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-all ${viewMode==='list'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><List size={16}/></button>
-                <button onClick={() => setViewMode('gallery')} className={`p-2 rounded-md transition-all ${viewMode==='gallery'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><LayoutGrid size={16}/></button>
-              </div>
-              <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={openAdd} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-600/20 shrink-0"><Plus size={18}/><span className="hidden sm:inline">Add Disc</span></motion.button>
-              {/* Synced: small unobtrusive indicator */}
-              {userAuth && syncStatus === 'synced' && (
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0" title="Data saved to cloud" aria-label="Synced">
-                  <Check size={14}/>
+      {/* ── STICKY TOP: Header + Nav Tabs ── */}
+      <div className="sticky top-0 z-20 bg-gray-950 border-b border-gray-800/50 shadow-lg shadow-black/20">
+        {/* Row 1: App header — logo left, profile right */}
+        <div className="bg-gradient-to-b from-emerald-950/40 to-transparent">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {showSingleBag ? (
+                <button onClick={goToBagsGrid} className="p-2 rounded-lg bg-gray-900 border border-gray-800 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 shrink-0" aria-label="Back to My Bags"><ChevronLeft size={20}/></button>
+              ) : null}
+              <h1 className="text-lg font-extrabold tracking-tight truncate text-white">
+                {showSingleBag ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:activeBag.bagColor||'#6b7280'}}/>
+                    <span className="truncate">{activeBag.name}</span>
+                    <span className="text-gray-500 font-semibold text-sm">({headerDiscCount})</span>
+                  </span>
+                ) : (
+                  'Disc Golf Companion'
+                )}
+              </h1>
+              {showSingleBag && (
+                <span className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => setEditingBag(activeBag)} className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10" aria-label="Edit bag"><Edit3 size={14}/></button>
+                  <button onClick={() => requestDeleteBag(activeBag.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10" aria-label="Delete bag"><Trash2 size={14}/></button>
                 </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {showDiscsHeader && (
+                <>
+                  <div className="flex bg-gray-900 rounded-lg border border-gray-800 p-0.5 shrink-0">
+                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><List size={14}/></button>
+                    <button onClick={() => setViewMode('gallery')} className={`p-1.5 rounded-md transition-all ${viewMode==='gallery'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><LayoutGrid size={14}/></button>
+                  </div>
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={openAdd} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Disc</span></motion.button>
+                </>
+              )}
+              {userAuth && syncStatus === 'synced' && (
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0" title="Data saved to cloud" aria-label="Synced"><Check size={12}/></span>
               )}
               {userAuth && syncStatus === 'syncing' && (
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-800 text-gray-400 shrink-0" title="Syncing…" aria-label="Syncing">
-                  <Loader size={14} className="animate-spin"/>
-                </span>
-              )}
-              {userAuth && (
-                <div className="shrink-0">
-                  <ProfileAvatar
-                    src={effectiveProfilePic}
-                    displayName={userAuth.displayName}
-                    size="sm"
-                  />
-                </div>
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-800 text-gray-400 shrink-0" title="Syncing…" aria-label="Syncing"><Loader size={12} className="animate-spin"/></span>
               )}
               <div className="relative shrink-0" ref={settingsRef}>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(o => !o)}
-                  className="flex items-center justify-center p-2.5 rounded-xl bg-gray-900 border border-gray-800 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
-                  aria-label="Settings"
-                  title="Settings"
+                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-gray-900 border border-gray-800 text-gray-300 hover:text-white hover:border-emerald-500/30 transition-all"
+                  aria-label="Profile and settings"
+                  title="Profile"
                 >
-                  <Settings size={20}/>
+                  <ProfileAvatar src={effectiveProfilePic} displayName={userAuth?.displayName} size="sm"/>
+                  {userAuth?.displayName && <span className="hidden sm:block text-sm font-semibold truncate max-w-[100px]">{userAuth.displayName}</span>}
                 </button>
                 {settingsOpen && (
                   <>
@@ -3261,23 +4001,21 @@ function DiscLibrary() {
                               {userAuth.email && <p className="text-xs text-gray-500 truncate">{userAuth.email}</p>}
                             </div>
                           </div>
+                          <button type="button" onClick={() => { setShowProfileModal(true); setSettingsOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors">
+                            <User size={16} className="shrink-0 text-gray-500"/> Edit Profile
+                          </button>
                           <button
                             type="button"
-                            onClick={() => { setShowProfileModal(true); setSettingsOpen(false); }}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors"
+                            onClick={() => { handleForceCloudSync(); setSettingsOpen(false); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-gray-400 hover:bg-gray-700/80 hover:text-emerald-300 transition-colors"
                           >
-                            <User size={16} className="shrink-0 text-gray-500"/>
-                            Edit Profile
+                            <Upload size={14} className="shrink-0 text-gray-500"/>
+                            Sync data to cloud
                           </button>
                         </>
                       )}
-                      <button
-                        type="button"
-                        onClick={handleSignOut}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors"
-                      >
-                        <LogOut size={16} className="shrink-0 text-gray-500"/>
-                        Sign Out
+                      <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors">
+                        <LogOut size={16} className="shrink-0 text-gray-500"/> Sign Out
                       </button>
                     </div>
                   </>
@@ -3285,120 +4023,130 @@ function DiscLibrary() {
               </div>
             </div>
           </div>
-          {/* Quick stats */}
-          {!activeBag && (
-            <div className="grid grid-cols-4 gap-2 mb-4">
-              {[{l:'Total',v:discs.length,c:'text-white'},{l:'In Bag',v:discs.filter(d=>d.status==='in_bag').length,c:'text-emerald-400'},{l:'Aces',v:totalAces,c:'text-amber-400',click:()=>setShowTrophyRoom(true)},{l:'Bags',v:bags.length,c:'text-sky-400',click:()=>setSidebarOpen(true)}].map(s => (
-                <button key={s.l} onClick={s.click||undefined} className={`bg-gray-900/70 rounded-xl p-2.5 text-center border border-gray-800/60 transition-all ${s.click?'hover:border-gray-700 cursor-pointer':'cursor-default'}`}>
-                  <div className={`text-lg font-bold ${s.c}`}>{s.v}</div><div className="text-xs text-gray-500 font-medium">{s.l}</div>
-                </button>
-              ))}
-            </div>
-          )}
-          {activeBag && (
-            <div className="flex items-center gap-2 mb-3 bg-gray-900/50 rounded-lg px-3 py-2">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor:activeBag.bagColor||'#6b7280'}}/>
-              <span className="text-xs text-gray-400 flex-1">Viewing <span className="text-white font-semibold">{activeBag.name}</span></span>
-              <button onClick={() => setActiveBagId(null)} className="text-xs text-emerald-400 hover:text-emerald-300 font-medium">Show All ×</button>
-            </div>
-          )}
-          {/* Search */}
-          <div className="relative mb-3">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search mold, plastic, nickname, story…" className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors"/>
-            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X size={16}/></button>}
-          </div>
-          {/* Type pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-2">
-            <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-gray-900 text-gray-500 border-gray-800'}`}>All ({counts.all})</button>
-            {Object.entries(DT).map(([k,c]) => (
-              <button key={k} onClick={
-                () => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-900 text-gray-500 border-gray-800'}`}>{c.label} ({counts[k]||0})</button>
-            ))}
-          </div>
-          {/* Filter bar */}
-          <div className="flex items-center gap-2 flex-wrap pb-1">
-            <Filter size={14} className="text-gray-600 shrink-0"/>
-            <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
-            <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
-            {activeFilterCount>0 && (
-              <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20">
-                <X size={12}/>Clear ({activeFilterCount})
-              </button>
-            )}
-            <div className="flex-1"/>
-            <FilterDropdown label="Sort" value={selectedSort} options={SORT_OPTIONS.map(s=>({value:s.value,label:s.label}))} onChange={setSelectedSort}/>
-          </div>
         </div>
       </div>
 
-      {bagMenuDisc && <div className="fixed inset-0 z-20" onClick={() => setBagMenuDisc(null)}/>}
-
-      {/* ── BODY ── */}
-      <div className="max-w-7xl mx-auto px-4 pt-5">
-        {activeBag && <BagDashboard key={activeBag.id} bagDiscs={bagDiscsForDashboard} bag={activeBag} allDiscs={discs} onAddToBag={addDiscToBag} onRemoveFromBag={removeDiscFromBag} onBuySearch={handleBuySearch}/>}
-        {activeBag && discs.length > 0 && (
-          <div className="flex justify-end mb-3">
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
-              onClick={() => setAddToBagPickerOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-semibold text-sm border border-emerald-500/30 transition-all">
-              <Plus size={16}/>Add Discs to Bag
-            </motion.button>
+      {/* ── PAGE CONTENT (below sticky header) ── */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 pb-8">
+        {/* Navigation cards row — only when not in single-bag subview */}
+        {!showSingleBag && (
+          <div className="grid grid-cols-2 gap-2 mb-4" aria-label="Main navigation">
+            <button type="button" onClick={goToDiscs} className={`flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'discs' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'bg-gray-900/80 border-gray-700/80 text-gray-300 hover:border-gray-600 hover:bg-gray-800/90'}`}>
+              <LayoutGrid size={22} className="shrink-0 mb-1.5 opacity-90"/>
+              <span className="text-xl font-black tabular-nums">{discs.length}</span>
+              <span className="text-[11px] font-semibold text-gray-500 mt-0.5">Disc Library</span>
+            </button>
+            <button type="button" onClick={goToBagsGrid} className={`flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'bags' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'bg-gray-900/80 border-gray-700/80 text-gray-300 hover:border-gray-600 hover:bg-gray-800/90'}`}>
+              <Backpack size={22} className="shrink-0 mb-1.5 opacity-90"/>
+              <span className="text-xl font-black tabular-nums">{bags.length}</span>
+              <span className="text-[11px] font-semibold text-gray-500 mt-0.5">My Bags</span>
+            </button>
           </div>
         )}
-
-        {discs.length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col items-center justify-center py-20 sm:py-28 text-center">
-            <div className="w-24 h-24 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-6 text-4xl" role="img" aria-label="Disc">
-              🥏
+        {/* Search + filters — My Discs only, directly below nav cards */}
+        {mainView === 'discs' && (
+          <>
+            <div className="relative mb-3">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search mold, plastic, nickname…" className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors"/>
+              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X size={16}/></button>}
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Start building your collection!</h2>
-            <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-xs">Tap + to add your first disc 🥏</p>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={openAdd}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base shadow-lg shadow-emerald-600/25"
-            >
-              <Plus size={20}/>Add Your First Disc
-            </motion.button>
-          </motion.div>
-        ) : activeBag && filteredDiscs.length === 0 ? (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col items-center justify-center py-20 sm:py-28 text-center">
-            <div className="w-24 h-24 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-6">
-              <Package size={40} className="text-gray-500"/>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">This bag is empty</h2>
-            <p className="text-gray-400 text-sm sm:text-base max-w-xs">Add discs from your collection.</p>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setAddToBagPickerOpen(true)}
-              className="mt-6 flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base shadow-lg shadow-emerald-600/25"
-            >
-              <Plus size={20}/>Add Discs to Bag
-            </motion.button>
-          </motion.div>
-        ) : filteredDiscs.length > 0 ? (
-          <motion.div layout className={`grid ${gridCls} gap-4`}>
-            <AnimatePresence mode="popLayout">
-              {filteredDiscs.map((d,i) => (
-                <DiscCard key={d.id} disc={d} aceCount={aceMap[d.id]||0} bags={bags} viewMode={viewMode}
-                  onLogAce={disc => setAceLogDisc(disc)} onViewTrophyRoom={() => setShowTrophyRoom(true)}
-                  onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
-                  onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
-                  bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-2">
+              <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-gray-900 text-gray-500 border-gray-800'}`}>All ({counts.all})</button>
+              {Object.entries(DT).map(([k,c]) => (
+                <button key={k} onClick={() => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-900 text-gray-500 border-gray-800'}`}>{c.label} ({counts[k]||0})</button>
               ))}
-            </AnimatePresence>
-          </motion.div>
-        ) : (
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4"><Search size={28} className="text-gray-700"/></div>
-            <h3 className="text-lg font-semibold text-gray-400 mb-1">No discs match your filters</h3>
-            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={clearAllFilters} className="mt-3 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold shadow-lg"><X size={14} className="inline mr-1"/>Reset All Filters</motion.button>
-          </motion.div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap pb-1">
+              <Filter size={14} className="text-gray-600 shrink-0"/>
+              <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
+              <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
+              {activeFilterCount>0 && (
+                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20"><X size={12}/>Clear ({activeFilterCount})</button>
+              )}
+              <div className="flex-1"/>
+              <FilterDropdown label="Sort" value={selectedSort} options={SORT_OPTIONS.map(s=>({value:s.value,label:s.label}))} onChange={setSelectedSort}/>
+            </div>
+          </>
+        )}
+        {/* My Bags grid */}
+        {showBagsGrid && <MyBagsGridPage bags={bags} discs={discs} onSelectBag={(id) => setActiveBagId(id)} onCreateBag={createBag}/>}
+
+        {/* Single bag view: dashboard + Add Disc above gap finder + disc list */}
+        {showSingleBag && (
+          <>
+            <BagDashboard
+              key={activeBag.id}
+              bagDiscs={bagDiscsForDashboard}
+              bag={activeBag}
+              allDiscs={discs}
+              onAddToBag={addDiscToBag}
+              onRemoveFromBag={removeDiscFromBag}
+              onBuySearch={handleBuySearch}
+              slotAboveGapFinder={
+                <div className="flex justify-end mb-3">
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-semibold text-sm border border-emerald-500/30 transition-all">
+                    <Plus size={16}/>Add Discs to Bag
+                  </motion.button>
+                </div>
+              }
+            />
+            {bagDiscsForDashboard.length === 0 ? (
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
+                <Backpack size={40} className="text-gray-500 mb-4"/>
+                <h2 className="text-lg font-bold text-white mb-2">This bag is empty</h2>
+                <p className="text-gray-400 text-sm max-w-xs mb-4">Add discs from your collection.</p>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"><Plus size={18}/>Add Discs to Bag</motion.button>
+              </motion.div>
+            ) : (
+              <motion.div layout className={`grid ${gridCls} gap-4 mt-4`}>
+                <AnimatePresence mode="popLayout">
+                  {filteredDiscs.map((d,i) => (
+                    <DiscCard key={d.id} disc={d} bags={bags} viewMode={viewMode}
+                      onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
+                      onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
+                      bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </>
+        )}
+
+        {/* My Discs: all discs (activeBagId is null when on this tab) */}
+        {mainView === 'discs' && (
+          <>
+            {discs.length === 0 ? (
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col items-center justify-center py-20 sm:py-28 text-center">
+                <div className="w-24 h-24 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-6 text-4xl" role="img" aria-label="Disc">🥏</div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Start building your collection!</h2>
+                <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-xs">Tap + to add your first disc 🥏</p>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={openAdd} className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base shadow-lg shadow-emerald-600/25"><Plus size={20}/>Add Your First Disc</motion.button>
+              </motion.div>
+            ) : filteredDiscs.length > 0 ? (
+              <motion.div layout className={`grid ${gridCls} gap-4`}>
+                <AnimatePresence mode="popLayout">
+                  {filteredDiscs.map((d,i) => (
+                    <DiscCard key={d.id} disc={d} bags={bags} viewMode={viewMode}
+                      onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
+                      onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={null}
+                      bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              <motion.div initial={{opacity:0}} animate={{opacity:1}} className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4"><Search size={28} className="text-gray-700"/></div>
+                <h3 className="text-lg font-semibold text-gray-400 mb-1">No discs match your filters</h3>
+                <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={clearAllFilters} className="mt-3 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold shadow-lg"><X size={14} className="inline mr-1"/>Reset All Filters</motion.button>
+              </motion.div>
+            )}
+          </>
         )}
       </div>
+
+      {bagMenuDisc && <div className="fixed inset-0 z-20" onClick={() => setBagMenuDisc(null)}/>}
 
       {/* ── FOOTER ── */}
       <div className="border-t border-gray-800/60 mt-8">
@@ -3415,15 +4163,12 @@ function DiscLibrary() {
       </div>
 
       {/* ── MODALS ── */}
-      <AnimatePresence>{showTrophyRoom && <TrophyRoomModal open onClose={() => setShowTrophyRoom(false)} aces={aceHistory} discs={discs} onShare={handleShareAce} onEditAce={ace=>{setShowTrophyRoom(false);setEditingAce(ace);}} onDeleteAce={handleDeleteAce} onLogAce={() => { setShowTrophyRoom(false); setAceLogDisc(discs[0] ?? null); }}/>}</AnimatePresence>
-      <AnimatePresence>{shareAce && <ShareOverlay open ace={shareAce.ace} disc={shareAce.disc} onClose={() => setShareAce(null)}/>}</AnimatePresence>
-      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} aceHistory={aceHistory} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onLogAce={d=>{setDetailDisc(null);setAceLogDisc(d);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} onViewTrophyRoom={() => {setDetailDisc(null);setShowTrophyRoom(true);}} onEditAce={ace=>{setDetailDisc(null);setEditingAce(ace);}}/>}</AnimatePresence>
-      <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc}/>
-      <AnimatePresence>{(aceLogDisc||editingAce) && <AceFormModal open disc={aceLogDisc||null} existingAce={editingAce||null} discs={discs} onClose={() => {setAceLogDisc(null);setEditingAce(null);}} onSave={handleSaveAce}/>}</AnimatePresence>
+      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag}/>}</AnimatePresence>
+      <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage}/>
       <BackupModal open={!!backupDisc} disc={backupDisc} onClose={() => setBackupDisc(null)}/>
       <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }}/>}</AnimatePresence>
-      <BagSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} bags={bags} discs={discs} activeBagId={activeBagId} setActiveBagId={setActiveBagId} onCreateBag={createBag} onRemoveDisc={removeDiscFromBag} onDeleteBag={requestDeleteBag} onUpdateBag={updateBag}/>
-      <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently? Its ace records will also be removed.`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
+      <AnimatePresence>{editingBag && <EditBagModal open bag={editingBag} onClose={() => setEditingBag(null)} onSave={(id, data) => { updateBag(id, data); setEditingBag(null); }} onDelete={id => { requestDeleteBag(id); setEditingBag(null); }}/>}</AnimatePresence>
+      <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently?`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
       <AnimatePresence>{duplicateDiscConfirm && (
         <ConfirmDialog
           key="dup"

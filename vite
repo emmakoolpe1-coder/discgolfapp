@@ -1,0 +1,45 @@
+
+
+  VITE v7.3.1  ready in 287 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+5:01:38 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:38 PM [vite] (client) hmr update /src/index.css, /src/App.jsx
+5:01:47 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:47 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x2)
+5:01:48 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:48 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x3)
+5:01:48 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:48 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x4)
+5:01:56 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:56 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x5)
+5:01:59 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:01:59 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x6)
+5:02:01 PM [vite] (client)pdate /src/index.css, /src/App.j
+5:02:01 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x7)
+5:02:07 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:02:07 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x8)
+5:02:10 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:02:10 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x9)
+5:02:12 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:02:12 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x10)
+5:02:15 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:02:15 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x11)
+5:04:36 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:36 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x12)
+5:04:38 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:38 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x13)
+5:04:39 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:39 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x14)
+5:04:41 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:41 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x15)
+5:04:42 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:42 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x16)
+5:04:43 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:43 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x17)
+5:04:45 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:45 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x18)
+5:04:47 PM [vite] (client) hmr update /src/index.css, /src/App.j
+5:04:47 PM [vite] (client) hmr update /src/index.css, /src/App.jsx (x19)
