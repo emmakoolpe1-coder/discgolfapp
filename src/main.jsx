@@ -5,7 +5,7 @@ import App from './App.jsx'
 import { restoreUserData } from './services/firestoreService.js'
 import { emailToUserId } from './firestoreSync.js'
 
-export const APP_VERSION = '1.0.3'
+export const APP_VERSION = '1.0.4'
 const VERSION_STORAGE_KEY = 'discgolf_app_version'
 
 async function ensureVersionAndCaches() {
@@ -26,7 +26,9 @@ async function ensureVersionAndCaches() {
 
 function registerServiceWorker() {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+  let swUpdateRequested = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!swUpdateRequested) return
     window.location.reload()
   })
   import('virtual:pwa-register').then(({ registerSW }) => {
@@ -41,6 +43,7 @@ function registerServiceWorker() {
           if (!installing) return
           installing.addEventListener('statechange', () => {
             if (installing.state === 'installed' && registration.waiting) {
+              swUpdateRequested = true
               registration.waiting.postMessage({ type: 'SKIP_WAITING' })
             }
           })
@@ -58,9 +61,22 @@ function registerServiceWorker() {
   }).catch(() => {})
 }
 
+const THEME_KEY = 'discgolf_theme'
+
+function applyTheme(theme) {
+  const valid = ['light', 'dark', 'system'].includes(theme) ? theme : 'system'
+  document.documentElement.setAttribute('data-theme', valid)
+}
+
 async function init() {
   const root = document.getElementById('root')
   if (!root) return
+
+  // Apply theme before first paint to avoid flash
+  try {
+    const saved = localStorage.getItem(THEME_KEY) || 'system'
+    applyTheme(saved)
+  } catch (_) {}
 
   // Check version BEFORE rendering — avoids double flash
   const shouldContinue = await ensureVersionAndCaches()

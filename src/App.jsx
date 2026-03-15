@@ -17,23 +17,24 @@ import {
   MapPin, Hash, ShoppingCart, Loader, LayoutGrid, List, Upload,
   Camera, Filter, Ruler, Library, Info,
   AlertTriangle, TrendingUp, BarChart3, Crosshair, DollarSign,
-  Zap, Shield, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock, Award
+  Zap, Shield, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock, Award,
+  Sun, Moon, Monitor
 } from 'lucide-react';
 
 // ── Constants ────────────────────────────────────────
 const MFRS = ['Axiom','Clash','DGA','Discraft','Dynamic Discs','Gateway','Innova','Kastaplast','Latitude 64','Lone Star','Mint','MVP','Prodigy','RPM','Streamline','TSA','Westside'];
 const DT = {
-  putter:          { label:'Putter',   bg:'bg-sky-500/15',     text:'text-sky-400',     border:'border-sky-500/30',   color:'#38bdf8' },
-  midrange:        { label:'Midrange', bg:'bg-emerald-500/15', text:'text-emerald-400', border:'border-emerald-500/30',color:'#34d399' },
-  fairway_driver:  { label:'Fairway',  bg:'bg-amber-500/15',   text:'text-amber-400',   border:'border-amber-500/30', color:'#fbbf24' },
-  distance_driver: { label:'Distance', bg:'bg-rose-500/15',    text:'text-rose-400',    border:'border-rose-500/30',  color:'#fb7185' },
+  putter:          { label:'Putter',   bg:'bg-secondary/15',     text:'text-secondary',     border:'border-secondary/30',   color:'#6B8F71' },
+  midrange:        { label:'Midrange', bg:'bg-primary/15', text:'text-primary', border:'border-primary/30',color:'#1F3D2B' },
+  fairway_driver:  { label:'Fairway',  bg:'bg-gap-medium/15',   text:'text-gap-medium',   border:'border-gap-medium/30', color:'#C08A2E' },
+  distance_driver: { label:'Distance', bg:'bg-gap-low/15',    text:'text-gap-low',    border:'border-gap-low/30',  color:'#4C7A67' },
 };
-const SM = { in_bag:{label:'In Bag',dot:'bg-emerald-400'}, backup:{label:'Backup',dot:'bg-sky-400'}, wall_hanger:{label:'Wall',dot:'bg-purple-400'}, lost:{label:'Lost',dot:'bg-gray-500'} };
+const SM = { in_bag:{label:'In Bag',dot:'bg-primary'}, backup:{label:'Backup',dot:'bg-secondary'}, wall_hanger:{label:'Wall',dot:'bg-gap-medium'}, lost:{label:'Lost',dot:'bg-text-muted'} };
 const FN_META = [
-  { key:'speed',label:'SPD',bg:'bg-sky-500/10',text:'text-sky-400' },
-  { key:'glide',label:'GLD',bg:'bg-emerald-500/10',text:'text-emerald-400' },
-  { key:'turn', label:'TRN',bg:'bg-amber-500/10',text:'text-amber-400' },
-  { key:'fade', label:'FAD',bg:'bg-rose-500/10',text:'text-rose-400' },
+  { key:'speed',label:'SPD',bg:'bg-secondary/10',text:'text-secondary' },
+  { key:'glide',label:'GLD',bg:'bg-primary/10',text:'text-primary' },
+  { key:'turn', label:'TRN',bg:'bg-gap-medium/10',text:'text-gap-medium' },
+  { key:'fade', label:'FAD',bg:'bg-gap-low/10',text:'text-gap-low' },
 ];
 const SPEED_RANGES = [
   { value:'All', label:'All Speeds', min:0, max:99 },
@@ -51,9 +52,9 @@ const BAG_COLORS = ['#1e3a5f','#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2',
 const PB_CATEGORIES = ['Lowest Round','Most Birdies','Longest Putt','Best Score','First Under Par','Other'];
 
 const STAB_META = {
-  understable:{label:'Understable',color:'#38bdf8',bg:'bg-sky-500/15',text:'text-sky-400',border:'border-sky-500/30',icon:'↗'},
-  stable:{label:'Stable',color:'#a3e635',bg:'bg-lime-500/15',text:'text-lime-400',border:'border-lime-500/30',icon:'↑'},
-  overstable:{label:'Overstable',color:'#fb923c',bg:'bg-orange-500/15',text:'text-orange-400',border:'border-orange-500/30',icon:'↙'},
+  understable:{label:'Understable',color:'#6B8F71',bg:'bg-secondary/15',text:'text-secondary',border:'border-secondary/30',icon:'↗'},
+  stable:{label:'Stable',color:'#1F3D2B',bg:'bg-primary/15',text:'text-primary',border:'border-primary/30',icon:'↑'},
+  overstable:{label:'Overstable',color:'#C08A2E',bg:'bg-gap-medium/15',text:'text-gap-medium',border:'border-gap-medium/30',icon:'↙'},
 };
 
 const SPEED_TIERS = [
@@ -65,11 +66,11 @@ const SPEED_TIERS = [
 
 const BUY_SUGGESTIONS = {
   putter: [
-    { mold:'Luna', manufacturer:'Discraft', plastic:'Z Line', speed:3, glide:3, turn:0, fade:3, price:'$14–18', color:'#3b82f6', desc:'Tour-favorite putter with reliable fade' },
+    { mold:'Luna', manufacturer:'Discraft', plastic:'Z Line', speed:3, glide:3, turn:0, fade:3, price:'$14–18', color:'#6B8F71', desc:'Tour-favorite putter with reliable fade' },
     { mold:'Aviar', manufacturer:'Innova', plastic:'Star', speed:2, glide:3, turn:0, fade:1, price:'$12–16', color:'#ef4444', desc:'The original do-everything putter' },
   ],
   midrange: [
-    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#06b6d4', desc:'The gold standard of midranges' },
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#4C7A67', desc:'The gold standard of midranges' },
     { mold:'Hex', manufacturer:'MVP', plastic:'Neutron', speed:5, glide:5, turn:-1, fade:1, price:'$15–19', color:'#8b5cf6', desc:'Glidey straight-to-understable mid' },
   ],
   fairway_driver: [
@@ -85,7 +86,7 @@ const BUY_SUGGESTIONS = {
     { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Perfect beginner fairway' },
   ],
   stable: [
-    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#3b82f6', desc:'Dead straight, the most popular mid' },
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#6B8F71', desc:'Dead straight, the most popular mid' },
     { mold:'Reactor', manufacturer:'MVP', plastic:'Neutron', speed:5, glide:5, turn:-0.5, fade:1.5, price:'$15–19', color:'#14b8a6', desc:'Straight flying complement to the Hex' },
   ],
   overstable: [
@@ -94,7 +95,7 @@ const BUY_SUGGESTIONS = {
   ],
   // Speed gap fillers (by range)
   speed_4_5: [
-    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#06b6d4', desc:'Fills the midrange slot' },
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#4C7A67', desc:'Fills the midrange slot' },
     { mold:'Roc3', manufacturer:'Innova', plastic:'Champion', speed:5, glide:4, turn:0, fade:3, price:'$14–18', color:'#6b7280', desc:'Stable mid for the 4–5 range' },
   ],
   speed_6_8: [
@@ -108,7 +109,7 @@ const BUY_SUGGESTIONS = {
   // Stability slot per tier
   stability_putters_understable: [
     { mold:'Fierce', manufacturer:'Discraft', plastic:'ESP', speed:3, glide:4, turn:-1, fade:0, price:'$14–18', color:'#ec4899', desc:'Understable putter for turnover putts' },
-    { mold:'Deputy', manufacturer:'Dynamic Discs', plastic:'Lucid', speed:3, glide:4, turn:-1, fade:0, price:'$12–16', color:'#3b82f6', desc:'Understable approach putter' },
+    { mold:'Deputy', manufacturer:'Dynamic Discs', plastic:'Lucid', speed:3, glide:4, turn:-1, fade:0, price:'$12–16', color:'#6B8F71', desc:'Understable approach putter' },
   ],
   stability_putters_overstable: [
     { mold:'Zone', manufacturer:'Discraft', plastic:'Z', speed:4, glide:3, turn:0, fade:3, price:'$14–18', color:'#eab308', desc:'Overstable approach and putter' },
@@ -116,7 +117,7 @@ const BUY_SUGGESTIONS = {
   ],
   stability_mids_understable: [
     { mold:'Comet', manufacturer:'Discraft', plastic:'Z', speed:5, glide:5, turn:-2, fade:1, price:'$14–18', color:'#22c55e', desc:'Understable mid' },
-    { mold:'Mako3', manufacturer:'Innova', plastic:'Star', speed:5, glide:5, turn:0, fade:0, price:'$14–18', color:'#06b6d4', desc:'Neutral to understable mid' },
+    { mold:'Mako3', manufacturer:'Innova', plastic:'Star', speed:5, glide:5, turn:0, fade:0, price:'$14–18', color:'#4C7A67', desc:'Neutral to understable mid' },
   ],
   stability_mids_overstable: [
     { mold:'Roc3', manufacturer:'Innova', plastic:'Champion', speed:5, glide:4, turn:0, fade:3, price:'$14–18', color:'#6b7280', desc:'Overstable mid' },
@@ -124,7 +125,7 @@ const BUY_SUGGESTIONS = {
   ],
   stability_fairways_understable: [
     { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Understable fairway' },
-    { mold:'River', manufacturer:'Latitude 64', plastic:'Gold', speed:7, glide:7, turn:-1, fade:1, price:'$15–19', color:'#06b6d4', desc:'Glidey understable fairway' },
+    { mold:'River', manufacturer:'Latitude 64', plastic:'Gold', speed:7, glide:7, turn:-1, fade:1, price:'$15–19', color:'#4C7A67', desc:'Glidey understable fairway' },
   ],
   stability_fairways_overstable: [
     { mold:'Firebird', manufacturer:'Innova', plastic:'Champion', speed:9, glide:3, turn:0, fade:4, price:'$14–18', color:'#ef4444', desc:'Overstable fairway utility' },
@@ -150,7 +151,7 @@ const BUY_SUGGESTIONS = {
     { mold:'Sidewinder', manufacturer:'Innova', plastic:'Star', speed:9, glide:5, turn:-3, fade:1, price:'$15–19', color:'#ec4899', desc:'Understable driver' },
   ],
   utility_neutral_mid: [
-    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#06b6d4', desc:'Straight flying neutral mid' },
+    { mold:'Buzzz', manufacturer:'Discraft', plastic:'ESP', speed:5, glide:4, turn:-1, fade:1, price:'$14–18', color:'#4C7A67', desc:'Straight flying neutral mid' },
     { mold:'Hex', manufacturer:'MVP', plastic:'Neutron', speed:5, glide:5, turn:-1, fade:1, price:'$15–19', color:'#8b5cf6', desc:'Dead straight mid' },
     { mold:'Mako3', manufacturer:'Innova', plastic:'Star', speed:5, glide:5, turn:0, fade:0, price:'$14–18', color:'#14b8a6', desc:'Neutral mid' },
   ],
@@ -162,7 +163,7 @@ const BUY_SUGGESTIONS = {
 };
 
 // ── Helpers (function declarations so they are hoisted and safe with minification) ───
-function wc(l) { return l>=8?'bg-emerald-500':l>=6?'bg-lime-500':l>=4?'bg-amber-500':l>=2?'bg-orange-500':'bg-red-500'; }
+function wc(l) { return l>=8?'bg-gap-low':l>=6?'bg-primary':l>=4?'bg-gap-medium':l>=2?'bg-gap-medium':'bg-gap-high'; }
 function ww(l) { return l>=9?'Mint':l>=7?'Good':l>=5?'Used':l>=3?'Fair':'Poor'; }
 function td() { return new Date().toISOString().split('T')[0]; }
 function fmtD(d) {
@@ -180,13 +181,13 @@ function luma(hex) { const c=(hex||'#888').replace('#',''); return (parseInt(c.s
 function classifyStability(d) { const net=(d.turn||0)+(d.fade||0); if(d.turn<=-2||net<=0) return 'understable'; if(d.fade>=3||net>=3) return 'overstable'; return 'stable'; }
 
 function getAceRarity(distance) {
-  if(distance>=350) return { label:'LEGENDARY', badge:'ACE', border:'linear-gradient(135deg,#a855f7,#ec4899,#f59e0b,#a855f7)', glow:'rgba(168,85,247,0.3)', text:'text-purple-300', bg:'bg-purple-500/10' };
-  if(distance>=300) return { label:'EPIC', badge:'ACE', border:'linear-gradient(135deg,#fbbf24,#fef08a,#f59e0b,#fbbf24)', glow:'rgba(251,191,36,0.3)', text:'text-amber-300', bg:'bg-amber-500/10' };
-  if(distance>=200) return { label:'RARE', badge:'ACE', border:'linear-gradient(135deg,#38bdf8,#a5f3fc,#0ea5e9,#38bdf8)', glow:'rgba(56,189,248,0.25)', text:'text-sky-300', bg:'bg-sky-500/10' };
-  return { label:'ACE', badge:'ACE', border:'linear-gradient(135deg,#fbbf24,#fef08a,#e5e7eb,#fbbf24)', glow:'rgba(251,191,36,0.2)', text:'text-amber-300', bg:'bg-amber-500/10' };
+  if(distance>=350) return { label:'LEGENDARY', badge:'ACE', border:'linear-gradient(135deg,#1F3D2B,#6B8F71,#C08A2E,#1F3D2B)', glow:'rgba(31,61,43,0.3)', text:'text-primary', bg:'bg-primary/10' };
+  if(distance>=300) return { label:'EPIC', badge:'ACE', border:'linear-gradient(135deg,#C08A2E,#e8c97a,#C08A2E,#C08A2E)', glow:'rgba(192,138,46,0.3)', text:'text-gap-medium', bg:'bg-gap-medium/10' };
+  if(distance>=200) return { label:'RARE', badge:'ACE', border:'linear-gradient(135deg,#6B8F71,#9ab59e,#6B8F71,#6B8F71)', glow:'rgba(107,143,113,0.25)', text:'text-secondary', bg:'bg-secondary/10' };
+  return { label:'ACE', badge:'ACE', border:'linear-gradient(135deg,#C08A2E,#e8c97a,#E6E7E3,#C08A2E)', glow:'rgba(192,138,46,0.2)', text:'text-gap-medium', bg:'bg-gap-medium/10' };
 }
-// Theme borders for achievement cards (royal blue/silver, fiery, emerald)
-const THEME_TOURNAMENT = { border:'linear-gradient(135deg,#4169E1,#C0C0C0,#1E3A5F,#4169E1)', primary:'#4169E1', silver:'#C0C0C0', dark:'#1E3A5F' };
+// Theme borders for achievement cards (primary/silver, fiery, emerald)
+const THEME_TOURNAMENT = { border:'linear-gradient(135deg,#1F3D2B,#C0C0C0,#6B8F71,#1F3D2B)', primary:'#1F3D2B', silver:'#C0C0C0', dark:'#1F3D2B' };
 const THEME_LONGEST = { border:'linear-gradient(135deg,#FF4500,#FF6347,#DC143C,#FF4500)', primary:'#FF4500', mid:'#FF6347', dark:'#DC143C' };
 const THEME_PB = { border:'linear-gradient(135deg,#50C878,#2E8B57,#00FF7F,#50C878)', primary:'#50C878', mid:'#2E8B57', light:'#00FF7F' };
 
@@ -196,8 +197,8 @@ function getTournamentRarity(placement) {
     return {
       label:'1ST PLACE',
       border: THEME_TOURNAMENT.border,
-      text:'text-sky-100',
-      bg:'bg-sky-900/60',
+      text:'text-text',
+      bg:'bg-secondary/20',
       medalColor:'#FFD700',
       medalEmoji:'🥇',
     };
@@ -206,8 +207,8 @@ function getTournamentRarity(placement) {
     return {
       label:'2ND PLACE',
       border: THEME_TOURNAMENT.border,
-      text:'text-sky-100',
-      bg:'bg-sky-900/60',
+      text:'text-text',
+      bg:'bg-secondary/20',
       medalColor:'#C0C0C0',
       medalEmoji:'🥈',
     };
@@ -216,8 +217,8 @@ function getTournamentRarity(placement) {
     return {
       label:'3RD PLACE',
       border: THEME_TOURNAMENT.border,
-      text:'text-sky-100',
-      bg:'bg-sky-900/60',
+      text:'text-text',
+      bg:'bg-secondary/20',
       medalColor:'#CD7F32',
       medalEmoji:'🥉',
     };
@@ -225,19 +226,19 @@ function getTournamentRarity(placement) {
   return {
     label:'TOURNAMENT',
     border: THEME_TOURNAMENT.border,
-    text:'text-sky-300',
-    bg:'bg-sky-900/40',
+    text:'text-text-muted',
+    bg:'bg-secondary/15',
     medalColor: THEME_TOURNAMENT.silver,
     medalEmoji:'🎗️',
   };
 }
 function getLongestThrowRarity(distanceFeet) {
-  if ((distanceFeet || 0) >= 400) return { label:'CANNON', border: THEME_LONGEST.border, text:'text-orange-300', bg:'bg-orange-500/10' };
-  if ((distanceFeet || 0) >= 300) return { label:'BOMBER', border: THEME_LONGEST.border, text:'text-rose-300', bg:'bg-rose-500/10' };
-  return { label:'LONG', border: THEME_LONGEST.border, text:'text-rose-400/80', bg:'bg-rose-900/20' };
+  if ((distanceFeet || 0) >= 400) return { label:'CANNON', border: THEME_LONGEST.border, text:'text-gap-medium', bg:'bg-gap-medium/10' };
+  if ((distanceFeet || 0) >= 300) return { label:'BOMBER', border: THEME_LONGEST.border, text:'text-gap-high', bg:'bg-gap-high/10' };
+  return { label:'LONG', border: THEME_LONGEST.border, text:'text-gap-low', bg:'bg-gap-low/20' };
 }
 function getPBRarity() {
-  return { label:'PB', border: THEME_PB.border, text:'text-emerald-300', bg:'bg-emerald-500/10' };
+  return { label:'PB', border: THEME_PB.border, text:'text-primary', bg:'bg-primary/10' };
 }
 
 const APP_URL = 'Disc Golf Companion';
@@ -251,6 +252,8 @@ const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
 const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
+const VIEW_MODE_KEY = 'discgolf_view_mode';
+const THEME_KEY = 'discgolf_theme';
 const PWA_DISMISS_DAYS = 7;
 const PWA_SHOW_DELAY_MS = 30_000;
 
@@ -455,8 +458,8 @@ function Toast({message,onDone}) {
   useEffect(() => { const t = setTimeout(onDone,3000); return () => clearTimeout(t); }, [onDone]);
   return (
     <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 px-5 py-3 rounded-xl shadow-2xl max-w-sm text-center" style={{zIndex:60}}>
-      <span className="text-sm text-white">{message}</span>
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-card border border-border px-5 py-3 rounded-xl shadow-card-lg max-w-sm text-center" style={{zIndex:60}}>
+      <span className="text-sm text-text">{message}</span>
     </motion.div>
   );
 }
@@ -491,9 +494,9 @@ function Stepper({value,onChange,min,max,step=1,label}) {
   const displayVal = editing ? inputVal : value;
   return (
     <div>
-      <label className="block text-xs text-gray-400 mb-1 font-medium">{label}</label>
-      <div className="flex items-center bg-gray-800 rounded-lg border border-gray-700 hover:border-gray-600 active:border-emerald-500/50 transition-colors">
-        <button type="button" onClick={dec} className="px-2 py-2.5 sm:px-2 sm:py-2 text-gray-400 hover:text-white active:text-emerald-400 transition rounded-l-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Decrease ${label}`}><Minus size={14} /></button>
+      <label className="block text-xs text-text-muted mb-1 font-medium">{label}</label>
+      <div className="flex items-center bg-surface rounded-lg border border-border hover:border-border active:border-primary/50 transition-colors">
+        <button type="button" onClick={dec} className="px-2 py-2.5 sm:px-2 sm:py-2 text-text-muted hover:text-text active:text-primary transition rounded-l-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Decrease ${label}`}><Minus size={14} /></button>
         <input
           type="text"
           inputMode="decimal"
@@ -504,9 +507,9 @@ function Stepper({value,onChange,min,max,step=1,label}) {
           onKeyDown={handleKeyDown}
           placeholder="—"
           title="Tap to type or use +/−"
-          className="flex-1 min-w-[2.5rem] bg-gray-700/40 text-center text-white font-semibold text-base sm:text-sm py-2.5 sm:py-2 cursor-text placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:bg-gray-700/60 rounded min-h-[44px] touch-manipulation tabular-nums"
+          className="flex-1 min-w-[2.5rem] bg-surface/40 text-center text-text font-semibold text-base sm:text-sm py-2.5 sm:py-2 cursor-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary/50 focus:bg-surface/60 rounded min-h-[44px] touch-manipulation tabular-nums"
         />
-        <button type="button" onClick={inc} className="px-2 py-2.5 sm:px-2 sm:py-2 text-gray-400 hover:text-white active:text-emerald-400 transition rounded-r-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Increase ${label}`}><Plus size={14} /></button>
+        <button type="button" onClick={inc} className="px-2 py-2.5 sm:px-2 sm:py-2 text-text-muted hover:text-text active:text-primary transition rounded-r-lg touch-manipulation min-h-[44px] flex items-center justify-center shrink-0" aria-label={`Increase ${label}`}><Plus size={14} /></button>
       </div>
     </div>
   );
@@ -519,19 +522,19 @@ function FilterDropdown({value,options,onChange,label}) {
   return (
     <div className="relative shrink-0">
       <button onClick={() => setOpen(p=>!p)}
-        className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold border transition-all ${isActive?'bg-emerald-500/15 text-emerald-400 border-emerald-500/30':'bg-gray-900 text-gray-400 border-gray-800 hover:border-gray-600'}`}>
-        {label&&<span className="text-gray-600 mr-0.5">{label}:</span>}{selected.label}
+        className={`flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold border transition-all ${isActive?'bg-accent text-primary border-primary/20':'bg-card text-text-muted border-border hover:border-border'}`}>
+        {label&&<span className="text-text-muted mr-0.5">{label}:</span>}{selected.label}
         <ChevronDown size={12} className={`transition-transform duration-200 ${open?'rotate-180':''}`}/>
       </button>
       {open && (
         <>
           <div className="fixed inset-0" style={{zIndex:45}} onClick={() => setOpen(false)}/>
-          <div className="absolute top-full left-0 mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl" style={{zIndex:46,minWidth:'12rem',maxHeight:'16rem',overflowY:'auto'}}>
+          <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl overflow-hidden shadow-card" style={{zIndex:46,minWidth:'12rem',maxHeight:'16rem',overflowY:'auto'}}>
             {options.map(o => (
               <button key={o.value} onClick={() => {onChange(o.value);setOpen(false);}}
-                className={`w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${o.value===value?'bg-emerald-500/15 text-emerald-400':'text-gray-300 hover:bg-gray-700/60'}`}>
-                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${o.value===value?'bg-emerald-500 border-emerald-500':'border-gray-600'}`}>
-                  {o.value===value && <Check size={10} className="text-white"/>}
+                className={`w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2 ${o.value===value?'bg-accent text-primary':'text-text-muted hover:bg-surface/60'}`}>
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${o.value===value?'bg-primary border-primary':'border-border'}`}>
+                  {o.value===value && <Check size={10} className="text-text"/>}
                 </span>
                 <span className="flex-1">{o.label}</span>
               </button>
@@ -574,30 +577,30 @@ function ConfirmDialog({open,title,message,onConfirm,onCancel,danger,confirmLabe
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 flex items-center justify-center p-4" style={{zIndex:70}}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel}/>
-      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} className="relative w-full max-w-sm bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg">
         <div className="p-6">
           <div className="flex items-start gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${danger?'bg-red-500/15':'bg-amber-500/15'}`}>
-              {danger ? <Trash2 size={22} className="text-red-400"/> : <AlertTriangle size={22} className="text-amber-400"/>}
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${danger?'bg-gap-high/15':'bg-gap-medium/15'}`}>
+              {danger ? <Trash2 size={22} className="text-gap-high"/> : <AlertTriangle size={22} className="text-gap-medium"/>}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-white">{title}</h3>
-              <p className="text-sm text-gray-400 mt-1.5 leading-relaxed">{message}</p>
+              <h3 className="text-base font-bold text-text">{title}</h3>
+              <p className="text-sm text-text-muted mt-1.5 leading-relaxed">{message}</p>
             </div>
           </div>
           {discInfo && (
-            <div className="mt-4 flex items-center gap-3 bg-gray-800/80 border border-gray-700/50 rounded-xl px-4 py-3">
+            <div className="mt-4 flex items-center gap-3 bg-surface/80 border border-border/50 rounded-xl px-4 py-3">
               <DiscVisual disc={discInfo} size="sm"/>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-white truncate">{discInfo.custom_name||discInfo.mold}</div>
-                <div className="text-xs text-gray-500">{discInfo.manufacturer} · {discInfo.plastic_type}</div>
+                <div className="text-sm font-bold text-text truncate">{discInfo.custom_name||discInfo.mold}</div>
+                <div className="text-xs text-text-muted">{discInfo.manufacturer} · {discInfo.plastic_type}</div>
               </div>
             </div>
           )}
         </div>
         <div className="px-6 pb-6 flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm hover:bg-gray-700 transition-colors">Cancel</button>
-          <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${danger?'bg-red-600 hover:bg-red-500 text-white':'bg-amber-600 hover:bg-amber-500 text-white'}`}>
+          <button onClick={onCancel} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm hover:bg-surface transition-colors">Cancel</button>
+          <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${danger?'bg-gap-high hover:bg-gap-high text-on-primary':'bg-gap-medium hover:bg-gap-medium text-on-primary'}`}>
             {danger&&<Trash2 size={14}/>}{confirmLabel||(danger?'Delete':'Confirm')}
           </button>
         </div>
@@ -615,75 +618,75 @@ function PrivacyPolicyModal({open,onClose}) {
         initial={{scale:0.95,opacity:0,y:10}}
         animate={{scale:1,opacity:1,y:0}}
         exit={{scale:0.97,opacity:0,y:10}}
-        className="relative w-full max-w-lg bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg bg-card rounded-2xl border border-border shadow-card-lg overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800/80">
+        <div className="flex items-center justify-between px-5 py-4 mb-4">
           <div className="flex items-center gap-2">
-            <Shield size={18} className="text-emerald-400"/>
-            <h2 className="text-sm font-semibold text-white">Privacy Policy</h2>
+            <Shield size={18} className="text-primary"/>
+            <h2 className="text-sm font-semibold text-text">Privacy Policy</h2>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-800 text-gray-400">
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-surface text-text-muted">
             <X size={16}/>
           </button>
         </div>
-        <div className="px-5 py-4 space-y-3 text-xs text-gray-300 max-h-[60vh] overflow-y-auto">
-          <p className="text-gray-400 text-xs">
+        <div className="px-5 py-4 space-y-3 text-xs text-text-muted max-h-[60vh] overflow-y-auto">
+          <p className="text-text-muted text-xs">
             Last updated: March 2026. This policy explains how Disc Golf Companion collects, uses, and protects your data.
           </p>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Account &amp; Authentication</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Account &amp; Authentication</h3>
+            <p className="leading-relaxed text-text-muted">
               When you create an account we collect your email address and an encrypted password (or OAuth token if you sign in with Google/Apple). This is used solely for authentication and account recovery. We do not sell or share your email with marketers.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Data We Store</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Data We Store</h3>
+            <p className="leading-relaxed text-text-muted">
               Your disc collection, bags, bag assignments, profile information (display name, avatar), and app preferences are stored in a cloud database powered by Firebase/Firestore (hosted by Google Cloud). This allows your data to sync across devices and persist if you clear your browser. Your data is protected by Firebase security rules so only you can access it.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Payments</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Payments</h3>
+            <p className="leading-relaxed text-text-muted">
               No payment or subscription system is currently in use. If we add one later, we will update this policy.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Cookies &amp; Analytics</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Cookies &amp; Analytics</h3>
+            <p className="leading-relaxed text-text-muted">
               We use cookies for authentication sessions and basic site analytics to understand how the app is used. We do not run targeted advertising.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Third Parties</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Third Parties</h3>
+            <p className="leading-relaxed text-text-muted">
               When you click a &quot;Buy&quot; or &quot;Shop&quot; link, you are redirected to third-party retailers (e.g. Amazon, Infinite Discs) which have their own privacy policies. We may earn a small commission from these links at no extra cost to you.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Data Security</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Data Security</h3>
+            <p className="leading-relaxed text-text-muted">
               All data is transmitted over HTTPS (TLS encryption). Passwords are hashed and never stored in plain text. Database access is restricted by Firebase security rules.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Your Rights</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Your Rights</h3>
+            <p className="leading-relaxed text-text-muted">
               You can view, edit, or delete your disc and bag data at any time within the app. To delete your account and all associated data, go to your profile settings and select &quot;Delete Account,&quot; or contact us at discgolfcompanionsupport@gmail.com. Under GDPR and CCPA, you have the right to request a copy of your data or ask us to erase it.
             </p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold text-white mb-1">Contact</h3>
-            <p className="leading-relaxed text-gray-300">
+            <h3 className="text-xs font-semibold text-text mb-1">Contact</h3>
+            <p className="leading-relaxed text-text-muted">
               Questions about this policy? Reach us at discgolfcompanionsupport@gmail.com.
             </p>
           </div>
         </div>
-        <div className="px-5 py-3 border-t border-gray-800 flex justify-end">
+        <div className="px-5 py-3 mt-4 pt-4 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-gray-200 hover:bg-gray-700"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface text-text-muted hover:bg-surface"
           >
             Close
           </button>
@@ -724,13 +727,13 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
       <div
         onClick={onUpload ? handleClick : undefined}
-        className={`${sizeCls} rounded-full overflow-hidden border-2 border-gray-700 flex items-center justify-center text-white font-bold text-sm select-none transition-all ${onUpload ? 'cursor-pointer hover:border-emerald-500/50 hover:ring-2 hover:ring-emerald-500/20' : 'cursor-default'}`}
+        className={`${sizeCls} rounded-full overflow-hidden border-2 border-border flex items-center justify-center text-text font-bold text-sm select-none transition-all ${onUpload ? 'cursor-pointer hover:border-primary/50 hover:ring-2 hover:ring-primary/20' : 'cursor-default'}`}
         style={!src ? { backgroundColor: bgColor } : undefined}
         aria-label={onUpload ? 'Change profile picture' : 'Profile picture'}
         role={onUpload ? 'button' : undefined}
       >
         {uploading ? (
-          <Loader size={iconSize} className="animate-spin text-white/90" />
+          <Loader size={iconSize} className="animate-spin text-text/90" />
         ) : src ? (
           <img src={src} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         ) : (
@@ -738,8 +741,8 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
         )}
       </div>
       {onUpload && !uploading && (
-        <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-gray-800 border-2 border-gray-950 flex items-center justify-center" aria-hidden="true">
-          <Camera size={iconSize - 4} className="text-emerald-400" />
+        <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-surface border-2 border-border flex items-center justify-center" aria-hidden="true">
+          <Camera size={iconSize - 4} className="text-primary" />
         </span>
       )}
     </div>
@@ -792,64 +795,64 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-border shadow-card-lg overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <User size={18} className="text-emerald-400"/> Edit Profile
+        <div className="flex items-center justify-between px-5 py-4 mb-4">
+          <h2 className="text-base font-bold text-text flex items-center gap-2">
+            <User size={18} className="text-primary"/> Edit Profile
           </h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400"><X size={16}/></button>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface text-text-muted"><X size={16}/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="flex flex-col items-center gap-3 pb-2">
             <ProfileAvatar src={profilePic} displayName={userAuth.displayName} size="lg" onUpload={onProfilePicUpload} />
-            <p className="text-xs text-gray-500">Click the avatar to change your photo</p>
+            <p className="text-xs text-text-muted">Click the avatar to change your photo</p>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">Display name</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500" placeholder="Your name" />
+            <label className="block text-xs text-text-muted font-medium mb-1">Display name</label>
+            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Your name" />
           </div>
           {userAuth.email && (
             <div>
-              <label className="block text-xs text-gray-500 font-medium mb-1">Email</label>
-              <input type="email" value={userAuth.email} readOnly className="w-full bg-gray-800/80 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-400 cursor-not-allowed" />
+              <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
+              <input type="email" value={userAuth.email} readOnly className="w-full bg-surface/80 border border-border rounded-xl px-3 py-2.5 text-sm text-text-muted cursor-not-allowed" />
             </div>
           )}
           {isEmail && (
             <>
-              <div className="pt-2 border-t border-gray-800">
-                <p className="text-xs text-gray-500 font-medium mb-2">Change password (optional)</p>
+              <div className="pt-3 mt-3">
+                <p className="text-xs text-text-muted font-medium mb-2">Change password (optional)</p>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Current password</label>
-                    <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500" placeholder="Current password" autoComplete="current-password" />
+                    <label className="block text-xs text-text-muted mb-1">Current password</label>
+                    <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Current password" autoComplete="current-password" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">New password</label>
-                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500" placeholder="At least 6 characters" autoComplete="new-password" />
+                    <label className="block text-xs text-text-muted mb-1">New password</label>
+                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="At least 6 characters" autoComplete="new-password" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">Confirm new password</label>
-                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500" placeholder="Repeat new password" autoComplete="new-password" />
+                    <label className="block text-xs text-text-muted mb-1">Confirm new password</label>
+                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Repeat new password" autoComplete="new-password" />
                   </div>
                 </div>
               </div>
             </>
           )}
-          <div className="pt-3 border-t border-gray-800">
+          <div className="pt-3 mt-3">
             <button
               type="button"
               onClick={onDeleteAccount}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-red-400 hover:bg-red-500/10 border border-red-900/40 transition-colors"
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-gap-high hover:bg-gap-high/10 border border-gap-high/40 transition-colors"
             >
               Delete Account
             </button>
-            <p className="text-xs text-gray-600 mt-1.5 text-center">Permanently delete your account and all data</p>
+            <p className="text-xs text-text-muted mt-1.5 text-center">Permanently delete your account and all data</p>
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-gap-high">{error}</p>}
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm hover:bg-gray-700">Cancel</button>
-            <button type="submit" className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm">Save</button>
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm hover:bg-surface">Cancel</button>
+            <button type="submit" className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm">Save</button>
           </div>
         </form>
       </motion.div>
@@ -882,40 +885,40 @@ function DeleteAccountModal({ open, onClose, onConfirm }) {
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-red-900/50 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-gap-high/50 shadow-card-lg overflow-hidden"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="text-base font-bold text-red-400 flex items-center gap-2">
-            <Trash2 size={18} className="text-red-400" /> Delete Account
+        <div className="flex items-center justify-between px-5 py-4 mb-4">
+          <h2 className="text-base font-bold text-gap-high flex items-center gap-2">
+            <Trash2 size={18} className="text-gap-high" /> Delete Account
           </h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-400"><X size={16} /></button>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface text-text-muted"><X size={16} /></button>
         </div>
         <div className="p-5 space-y-4">
-          <p className="text-sm text-gray-300">
-            This will <span className="text-red-400 font-semibold">permanently delete</span> your account and all your data, including your disc collection, bags, and ace history. This action cannot be undone.
+          <p className="text-sm text-text-muted">
+            This will <span className="text-gap-high font-semibold">permanently delete</span> your account and all your data, including your disc collection, bags, and ace history. This action cannot be undone.
           </p>
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">
-              Type <span className="text-red-400 font-bold">DELETE</span> to confirm
+            <label className="block text-xs text-text-muted font-medium mb-1">
+              Type <span className="text-gap-high font-bold">DELETE</span> to confirm
             </label>
             <input
               type="text"
               value={confirmText}
               onChange={e => setConfirmText(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-red-500"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-gap-high"
               placeholder="DELETE"
               disabled={deleting}
             />
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} disabled={deleting} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm hover:bg-gray-700">
+            <button type="button" onClick={onClose} disabled={deleting} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm hover:bg-surface">
               Cancel
             </button>
             <button
               type="button"
               onClick={handleDelete}
               disabled={confirmText !== 'DELETE' || deleting}
-              className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="flex-1 py-3 rounded-xl bg-gap-high hover:bg-gap-high text-on-primary font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               {deleting ? 'Deleting…' : 'Delete Forever'}
             </button>
@@ -1024,11 +1027,11 @@ function InstallPromptBanner() {
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="fixed bottom-0 left-0 right-0 z-50 p-3 safe-area-pb"
       >
-        <div className="max-w-lg mx-auto rounded-xl border border-gray-800 bg-gray-950/95 backdrop-blur-md shadow-xl border-emerald-500/20 overflow-hidden">
+        <div className="max-w-lg mx-auto rounded-xl border border-border bg-card backdrop-blur-md shadow-card-lg overflow-hidden">
           <div className="flex items-center gap-3 px-4 py-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 text-xl">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0 text-xl">
               {bannerType === 'android' ? (
-                <Download size={20} className="text-emerald-400" />
+                <Download size={20} className="text-primary" />
               ) : (
                 <span aria-hidden="true">⬆️</span>
               )}
@@ -1036,13 +1039,13 @@ function InstallPromptBanner() {
             <div className="flex-1 min-w-0">
               {bannerType === 'android' ? (
                 <>
-                  <p className="text-sm font-semibold text-white">Install Disc Golf Companion for the best experience!</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Add to home screen for quick access and offline use.</p>
+                  <p className="text-sm font-semibold text-text">Install Disc Golf Companion for the best experience!</p>
+                  <p className="text-xs text-text-muted mt-0.5">Add to home screen for quick access and offline use.</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold text-white">Install this app: tap the Share button then &quot;Add to Home Screen&quot;</p>
-                  <p className="text-xs text-gray-400 mt-1">Tap <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-700 text-base">⬆️</span> then &quot;Add to Home Screen&quot;</p>
+                  <p className="text-sm font-semibold text-text">Install this app: tap the Share button then &quot;Add to Home Screen&quot;</p>
+                  <p className="text-xs text-text-muted mt-1">Tap <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-surface text-base">⬆️</span> then &quot;Add to Home Screen&quot;</p>
                 </>
               )}
             </div>
@@ -1051,7 +1054,7 @@ function InstallPromptBanner() {
                 <button
                   type="button"
                   onClick={handleInstall}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition-colors"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary text-on-primary shadow-lg shadow-primary/20 transition-colors"
                 >
                   Install
                 </button>
@@ -1059,7 +1062,7 @@ function InstallPromptBanner() {
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded-lg text-text-muted hover:text-text hover:bg-surface transition-colors"
                 aria-label="Dismiss"
               >
                 <X size={18} />
@@ -1116,7 +1119,7 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
         <div className="flex gap-0.5 mt-0.5">
           {[['bh','BH'],['both','Both'],['fh','FH']].map(([k,l]) => (
             <button key={k} onClick={e=>{e.stopPropagation();setMode(k);}}
-              className={`px-1.5 py-0.5 rounded transition-all font-bold ${mode===k?'bg-gray-700 text-white':'text-gray-600 hover:text-gray-400'}`}
+              className={`px-1.5 py-0.5 rounded transition-all font-bold ${mode===k?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}
               style={{fontSize:large?11:8}}>{l}</button>
           ))}
         </div>
@@ -1173,53 +1176,53 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
     <AnimatePresence>{open && (
       <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
         <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm"/>
-        <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} transition={{type:'spring',damping:28}} className="relative w-full max-w-lg bg-gray-900 rounded-t-3xl sm:rounded-2xl border border-gray-800 flex flex-col overflow-hidden" style={{maxHeight:'92vh'}}>
-          <div className="flex items-center justify-between p-5 border-b border-gray-800 shrink-0">
-            <div><h2 className="text-lg font-bold text-white">{isEdit?'Edit Disc':'Add New Disc'}</h2><p className="text-xs text-gray-500 mt-0.5">{isEdit?`Editing ${editDisc.mold}`:'Log a disc to your collection'}</p></div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-400"><X size={20}/></button>
+        <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} transition={{type:'spring',damping:28}} className="relative w-full max-w-lg bg-card rounded-t-3xl sm:rounded-2xl border border-border flex flex-col overflow-hidden shadow-card-lg" style={{maxHeight:'92vh'}}>
+          <div className="flex items-center justify-between p-5 mb-4 shrink-0">
+            <div><h2 className="text-lg font-bold text-text">{isEdit?'Edit Disc':'Add New Disc'}</h2><p className="text-xs text-text-muted mt-0.5">{isEdit?`Editing ${editDisc.mold}`:'Log a disc to your collection'}</p></div>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted"><X size={20}/></button>
           </div>
           <div className="overflow-y-auto flex-1 p-5 space-y-5">
             {/* Photo */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-3">Photo</h3>
+              <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Photo</h3>
               <div className="flex items-center gap-4">
                 <DiscVisual disc={f} size="lg"/>
                 <div className="flex-1 space-y-2">
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto}/>
-                  <button type="button" onClick={() => fileRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-gray-600 text-gray-400 hover:border-emerald-500/50 hover:text-emerald-400 transition-all text-sm font-medium">
+                  <button type="button" onClick={() => fileRef.current?.click()} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-border text-text-muted hover:border-primary/50 hover:text-primary transition-all text-sm font-medium">
                     {f.photo?<><Camera size={14}/>Change</>:<><Upload size={14}/>Upload Photo</>}
                   </button>
-                  {f.photo && <button type="button" onClick={() => s('photo',null)} className="w-full text-xs text-red-400 hover:text-red-300 py-1">Remove</button>}
+                  {f.photo && <button type="button" onClick={() => s('photo',null)} className="w-full text-xs text-gap-high hover:text-red-300 py-1">Remove</button>}
                 </div>
               </div>
             </section>
             {/* Identity */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Identity</h3>
+              <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Identity</h3>
               <div className="space-y-2">
-                <select value={f.manufacturer} onChange={e=>s('manufacturer',e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                <select value={f.manufacturer} onChange={e=>s('manufacturer',e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
                   <option value="">Select manufacturer…</option>{MFRS.map(m=><option key={m}>{m}</option>)}
                 </select>
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={f.mold} onChange={e=>s('mold',e.target.value)} placeholder="Mold *" className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
-                  <input value={f.plastic_type} onChange={e=>s('plastic_type',e.target.value)} placeholder="Plastic *" className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+                  <input value={f.mold} onChange={e=>s('mold',e.target.value)} placeholder="Mold *" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                  <input value={f.plastic_type} onChange={e=>s('plastic_type',e.target.value)} placeholder="Plastic *" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
                 </div>
-                <input value={f.custom_name} onChange={e=>s('custom_name',e.target.value)} placeholder="Nickname (optional)" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+                <input value={f.custom_name} onChange={e=>s('custom_name',e.target.value)} placeholder="Nickname (optional)" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
               </div>
             </section>
             {/* Type & Status */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Type & Status</h3>
+              <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Type & Status</h3>
               <div className="grid grid-cols-4 gap-1.5 mb-2">
                 {Object.entries(DT).map(([k,c]) => (
                   <button key={k} type="button" onClick={() => s('disc_type',k)}
-                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${f.disc_type===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-800 text-gray-500 border-gray-700'}`}>{c.label}</button>
+                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${f.disc_type===k?`${c.bg} ${c.text} ${c.border}`:'bg-surface text-text-muted border-border'}`}>{c.label}</button>
                 ))}
               </div>
               <div className="grid grid-cols-4 gap-1.5">
                 {Object.entries(SM).map(([k,v]) => (
                   <button key={k} type="button" onClick={() => s('status',k)}
-                    className={`py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 ${f.status===k?'bg-gray-700 text-white border-gray-600':'bg-gray-800 text-gray-500 border-gray-700'}`}>
+                    className={`py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 ${f.status===k?'bg-surface text-text border-border':'bg-surface text-text-muted border-border'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${v.dot}`}/>{v.label}
                   </button>
                 ))}
@@ -1227,26 +1230,26 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
             </section>
             {/* Flight Numbers */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-1">Flight Numbers</h3>
-              <p className="text-xs text-gray-500 mb-2 sm:text-[10px]">Tap to type or use +/− buttons</p>
+              <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Flight Numbers</h3>
+              <p className="text-xs text-text-muted mb-2 sm:text-[10px]">Tap to type or use +/− buttons</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <Stepper label="Speed" value={f.speed} onChange={v=>s('speed',v)} min={1} max={15} step={0.5}/>
                 <Stepper label="Glide" value={f.glide} onChange={v=>s('glide',v)} min={1} max={7} step={0.5}/>
                 <Stepper label="Turn" value={f.turn} onChange={v=>s('turn',v)} min={-5} max={1} step={0.5}/>
                 <Stepper label="Fade" value={f.fade} onChange={v=>s('fade',v)} min={0} max={5} step={0.5}/>
               </div>
-              <div className="mt-3 flex justify-center bg-gray-800/50 rounded-xl p-3">
+              <div className="mt-3 flex justify-center bg-surface/50 rounded-xl p-3">
                 <FlightPath turn={f.turn} fade={f.fade} id="preview" large defaultMode={f.flight_preference || 'both'} hideToggle/>
               </div>
               <div className="mt-3">
-                <label className="block text-xs text-gray-400 mb-1.5 font-medium">Default Flight View</label>
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">Default Flight View</label>
                 <div className="flex gap-1.5">
                   {[['bh','Backhand Only','🫲'],['both','Both','↔️'],['fh','Forehand Only','🫱']].map(([k,l,icon]) => (
                     <button key={k} type="button" onClick={() => s('flight_preference',k)}
                       className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
                         f.flight_preference===k 
-                          ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50' 
-                          : 'bg-gray-800 text-gray-500 border-gray-700 hover:border-gray-600'
+                          ? 'bg-primary/20 text-primary border-primary/50' 
+                          : 'bg-surface text-text-muted border-border hover:border-border'
                       }`}>{icon} {l}</button>
                   ))}
                 </div>
@@ -1254,28 +1257,28 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
             </section>
             {/* Physical */}
             <section>
-              <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2">Physical & Value</h3>
+              <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Physical & Value</h3>
               <div className="grid grid-cols-3 gap-2 mb-2">
-                <input type="number" value={f.weight_grams} onChange={e=>s('weight_grams',parseInt(e.target.value)||0)} placeholder="Weight (g)" className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"/>
-                <input type="date" value={f.date_acquired} onChange={e=>s('date_acquired',e.target.value)} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"/>
-                <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span><input type="number" value={f.estimated_value} onChange={e=>s('estimated_value',parseFloat(e.target.value)||0)} className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-7 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"/></div>
+                <input type="number" value={f.weight_grams} onChange={e=>s('weight_grams',parseInt(e.target.value)||0)} placeholder="Weight (g)" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/>
+                <input type="date" value={f.date_acquired} onChange={e=>s('date_acquired',e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/>
+                <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span><input type="number" value={f.estimated_value} onChange={e=>s('estimated_value',parseFloat(e.target.value)||0)} className="w-full bg-surface border border-border rounded-lg pl-7 pr-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/></div>
               </div>
-              <label className="block text-xs text-gray-400 mb-1.5 font-medium">Disc Color</label>
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Disc Color</label>
               <div className="flex flex-wrap gap-2 mb-3">
                 {DISC_COLORS.map(c => (
                   <button key={c} type="button" onClick={() => s('color',c)}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform ${f.color===c?'border-white scale-110':'border-gray-700'}`}
+                    className={`w-7 h-7 rounded-full border-2 transition-transform ${f.color===c?'border-white scale-110':'border-border'}`}
                     style={{backgroundColor:c}}/>
                 ))}
               </div>
-              <label className="block text-xs text-gray-400 mb-1">Condition: {f.wear_level}/10 · {ww(f.wear_level)}</label>
-              <input type="range" min={1} max={10} value={f.wear_level} onChange={e=>s('wear_level',parseInt(e.target.value))} className="w-full accent-emerald-500"/>
-              <p className="text-xs text-gray-400 mt-1">1 = Poor (heavily used) → 10 = Mint (brand new)</p>
+              <label className="block text-xs text-text-muted mb-1">Condition: {f.wear_level}/10 · {ww(f.wear_level)}</label>
+              <input type="range" min={1} max={10} value={f.wear_level} onChange={e=>s('wear_level',parseInt(e.target.value))} className="w-full accent-primary"/>
+              <p className="text-xs text-text-muted mt-1">1 = Poor (heavily used) → 10 = Mint (brand new)</p>
             </section>
           </div>
-          <div className="p-5 border-t border-gray-800 shrink-0 flex gap-3">
-            <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm">Cancel</button>
-            <button onClick={save} disabled={!ok} className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${ok?'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25':'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>
+          <div className="p-5 mt-4 pt-4 shrink-0 flex gap-3">
+            <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm">Cancel</button>
+            <button onClick={save} disabled={!ok} className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${ok?'bg-primary text-on-primary shadow-lg shadow-primary/25':'bg-surface text-text-muted cursor-not-allowed'}`}>
               {isEdit?<><Check size={16}/>Save Changes</>:<><Plus size={16}/>Add Disc</>}
             </button>
           </div>
@@ -1359,45 +1362,45 @@ function AceFormModal({open,disc,existingAce,discs,onClose,onSave,uploadImage}) 
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} onClick={e=>e.stopPropagation()} className="relative w-full max-w-sm bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-        <div className="p-5 border-b border-gray-800 flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isEdit?'bg-sky-500/15':'bg-amber-500/15'}`}>
-            {isEdit?<Edit3 size={20} className="text-sky-400"/>:<Trophy size={20} className="text-amber-400"/>}
+      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} onClick={e=>e.stopPropagation()} className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg">
+        <div className="p-5 mb-4 flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isEdit?'bg-secondary/15':'bg-gap-medium/15'}`}>
+            {isEdit?<Edit3 size={20} className="text-secondary"/>:<Trophy size={20} className="text-gap-medium"/>}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-white">{isEdit?'Edit Ace':'Log an Ace!'}</h2>
-            <p className="text-xs text-gray-500 truncate">{displayDisc ? `${displayDisc.manufacturer || 'Unknown'} ${displayDisc.mold}` : 'Select a disc'}</p>
+            <h2 className="text-base font-bold text-text">{isEdit?'Edit Ace':'Log an Ace!'}</h2>
+            <p className="text-xs text-text-muted truncate">{displayDisc ? `${displayDisc.manufacturer || 'Unknown'} ${displayDisc.mold}` : 'Select a disc'}</p>
           </div>
-          <button onClick={onClose} className="ml-auto p-1.5 rounded-full hover:bg-gray-800 text-gray-500"><X size={18}/></button>
+          <button onClick={onClose} className="ml-auto p-1.5 rounded-full hover:bg-surface text-text-muted"><X size={18}/></button>
         </div>
         <div className="p-5 space-y-3 max-h-96 overflow-y-auto">
           {/* No discs message when opening without a disc and collection is empty */}
           {noDiscsInCollection && (
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-sm text-amber-200">
+            <div className="rounded-xl bg-gap-medium/10 border border-gap-medium/20 px-4 py-3 text-sm text-gap-medium">
               Add a disc to your collection first, then log an ace for it.
             </div>
           )}
           {/* Disc picker: always show when logging an ace and user has discs (so they can select which disc) */}
           {discs?.length > 0 ? (
             <div className="relative">
-              <label className="text-xs text-gray-400 font-medium mb-1 block">Disc</label>
-              <button onClick={() => setDiscPickerOpen(!discPickerOpen)} className="w-full flex items-center gap-2.5 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-left hover:border-gray-600">
-                {activeDisc && <span className="w-5 h-5 rounded-full shrink-0 border border-gray-600" style={{backgroundColor:activeDisc.color||'#6b7280'}}/>}
-                <span className="text-sm text-white flex-1 truncate">
+              <label className="text-xs text-text-muted font-medium mb-1 block">Disc</label>
+              <button onClick={() => setDiscPickerOpen(!discPickerOpen)} className="w-full flex items-center gap-2.5 bg-surface border border-border rounded-lg px-3 py-2.5 text-left hover:border-border">
+                {activeDisc && <span className="w-5 h-5 rounded-full shrink-0 border border-border" style={{backgroundColor:activeDisc.color||'#6b7280'}}/>}
+                <span className="text-sm text-text flex-1 truncate">
                   {activeDisc ? `${activeDisc.manufacturer || 'Unknown'} ${activeDisc.mold}${activeDisc.custom_name ? ` (${activeDisc.custom_name})` : ''}` : 'Select a disc…'}
                 </span>
-                <ChevronDown size={14} className={`text-gray-500 transition-transform ${discPickerOpen?'rotate-180':''}`}/>
+                <ChevronDown size={14} className={`text-text-muted transition-transform ${discPickerOpen?'rotate-180':''}`}/>
               </button>
               {discPickerOpen && (
                 <>
                   <div className="fixed inset-0" style={{zIndex:9}} onClick={() => setDiscPickerOpen(false)}/>
-                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl max-h-48 overflow-y-auto" style={{zIndex:10}}>
+                  <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl overflow-hidden shadow-card max-h-48 overflow-y-auto" style={{zIndex:10}}>
                     {discs.map(d => (
                       <button key={d.id} onClick={() => {setSelectedDiscId(d.id);setDiscPickerOpen(false);}}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-700/60 ${d.id===selectedDiscId?'bg-emerald-500/10 text-emerald-400':'text-gray-300'}`}>
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-surface/60 ${d.id===selectedDiscId?'bg-primary/10 text-primary':'text-text-muted'}`}>
                         <span className="w-4 h-4 rounded-full shrink-0" style={{backgroundColor:d.color||'#6b7280'}}/>
                         <span className="flex-1 truncate text-sm">{d.manufacturer || 'Unknown'} {d.mold}{d.custom_name ? ` (${d.custom_name})` : ''}</span>
-                        {d.id===selectedDiscId && <Check size={12} className="text-emerald-400 shrink-0"/>}
+                        {d.id===selectedDiscId && <Check size={12} className="text-primary shrink-0"/>}
                       </button>
                     ))}
                   </div>
@@ -1406,76 +1409,76 @@ function AceFormModal({open,disc,existingAce,discs,onClose,onSave,uploadImage}) 
             </div>
           ) : null}
           <div>
-            <label className="text-xs text-gray-400 font-medium mb-1 block">Date</label>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"/>
+            <label className="text-xs text-text-muted font-medium mb-1 block">Date</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-gap-medium"/>
           </div>
           <div>
-            <label className="text-xs text-gray-400 font-medium mb-1 block">Course</label>
-            <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="e.g. Maple Hill" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
+            <label className="text-xs text-text-muted font-medium mb-1 block">Course</label>
+            <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="e.g. Maple Hill" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-gap-medium"/>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-400 font-medium mb-1 block">Hole #</label>
-              <input type="number" value={hole} onChange={e=>setHole(e.target.value)} placeholder="7" min={1} max={36} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
+              <label className="text-xs text-text-muted font-medium mb-1 block">Hole #</label>
+              <input type="number" value={hole} onChange={e=>setHole(e.target.value)} placeholder="7" min={1} max={36} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-gap-medium"/>
             </div>
             <div>
-              <label className="text-xs text-gray-400 font-medium mb-1 block">Distance (ft)</label>
-              <input type="number" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="250" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500"/>
+              <label className="text-xs text-text-muted font-medium mb-1 block">Distance (ft)</label>
+              <input type="number" value={distance} onChange={e=>setDistance(e.target.value)} placeholder="250" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-gap-medium"/>
             </div>
           </div>
           <div>
-            <label className="text-xs text-gray-500 font-medium mb-1.5 block">Quick pick</label>
+            <label className="text-xs text-text-muted font-medium mb-1.5 block">Quick pick</label>
             <div className="flex gap-1.5 flex-wrap">
               {[150,200,250,300,350,400].map(d => (
                 <button key={d} type="button" onClick={() => setDistance(d)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${parseInt(distance)===d?'bg-amber-500/20 text-amber-400 border-amber-500/30':'bg-gray-800 text-gray-500 border-gray-700'}`}>{d} ft</button>
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${parseInt(distance)===d?'bg-gap-medium/20 text-gap-medium border-gap-medium/30':'bg-surface text-text-muted border-border'}`}>{d} ft</button>
               ))}
             </div>
           </div>
           {/* Witnesses toggle */}
           <button type="button" onClick={() => setWitnessed(!witnessed)}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${witnessed?'bg-emerald-500/10 border-emerald-500/30':'bg-gray-800 border-gray-700 hover:border-gray-600'}`}>
-            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${witnessed?'bg-emerald-500 border-emerald-500':'border-gray-600'}`}>
-              {witnessed && <Check size={14} className="text-white"/>}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${witnessed?'bg-primary/10 border-primary/30':'bg-surface border-border hover:border-border'}`}>
+            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${witnessed?'bg-primary border-primary':'border-border'}`}>
+              {witnessed && <Check size={14} className="text-text"/>}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-1.5">
-                <Users size={13} className={witnessed?'text-emerald-400':'text-gray-500'}/>
-                <span className={`text-sm font-semibold ${witnessed?'text-emerald-400':'text-white'}`}>Witnessed Ace</span>
+                <Users size={13} className={witnessed?'text-primary':'text-text-muted'}/>
+                <span className={`text-sm font-semibold ${witnessed?'text-primary':'text-text'}`}>Witnessed Ace</span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">Was this ace witnessed by other players?</p>
+              <p className="text-xs text-text-muted mt-0.5">Was this ace witnessed by other players?</p>
             </div>
-            {witnessed && <Shield size={16} className="text-emerald-400 shrink-0" fill="currentColor"/>}
+            {witnessed && <Shield size={16} className="text-primary shrink-0" fill="currentColor"/>}
           </button>
           {witnessed && (
             <div>
-              <label className="text-xs text-gray-400 font-medium mb-1 block">Witness names</label>
-              <input value={witnessNames} onChange={e=>setWitnessNames(e.target.value)} placeholder="Who witnessed it? (e.g. John, Sarah)" className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+              <label className="text-xs text-text-muted font-medium mb-1 block">Witness names</label>
+              <input value={witnessNames} onChange={e=>setWitnessNames(e.target.value)} placeholder="Who witnessed it? (e.g. John, Sarah)" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
             </div>
           )}
           <div>
-            <label className="text-xs text-gray-500 font-medium mb-1 block">Notes (optional)</label>
-            <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 resize-none"/>
+            <label className="text-xs text-text-muted font-medium mb-1 block">Notes (optional)</label>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-gap-medium resize-none"/>
           </div>
           {/* Photo upload */}
           <div>
-            <label className="text-xs text-gray-500 font-medium mb-1.5 block">Photo</label>
-            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 hover:border-amber-500/40 cursor-pointer">
-              <Camera size={18} className="text-gray-400"/>
-              <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+            <label className="text-xs text-text-muted font-medium mb-1.5 block">Photo</label>
+            <label className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:border-gap-medium/40 cursor-pointer">
+              <Camera size={18} className="text-text-muted"/>
+              <span className="text-sm text-text-muted">{photo ? 'Change photo' : 'Add Photo'}</span>
               <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhotoUpload}/>
             </label>
             {photo && (
               <div className="mt-2 flex items-center gap-2">
-                <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
-                <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+                <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-border"/>
+                <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-gap-high hover:text-red-300 font-semibold">Remove photo</button>
               </div>
             )}
           </div>
         </div>
-        <div className="p-5 border-t border-gray-800 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 font-semibold text-sm">Cancel</button>
-          <button onClick={submit} disabled={!isEdit && !hasDiscSelected} className={`flex-1 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isEdit?'bg-sky-600 hover:bg-sky-500 text-white':'bg-amber-600 hover:bg-amber-500 text-white'}`}>
+        <div className="p-5 mt-4 pt-4 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted font-semibold text-sm">Cancel</button>
+          <button onClick={submit} disabled={!isEdit && !hasDiscSelected} className={`flex-1 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isEdit?'bg-secondary hover:bg-secondary text-on-primary':'bg-gap-medium hover:bg-gap-medium text-on-primary'}`}>
             {isEdit?<><Check size={14}/>Save</>:<><Trophy size={14}/>Log Ace!</>}
           </button>
         </div>
@@ -1500,8 +1503,8 @@ function AceEmblem({size=80}) {
         {[0,60,120,180,240,300].map(a => (<line key={a} x1="50" y1="6" x2="50" y2="11" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" transform={`rotate(${a} 50 50)`} opacity="0.35"/>))}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <Trophy size={size*0.28} className="text-amber-400" strokeWidth={2.5}/>
-        <span className="text-amber-400 font-black tracking-widest" style={{fontSize:size*0.11,marginTop:size*0.02}}>ACE</span>
+        <Trophy size={size*0.28} className="text-gap-medium" strokeWidth={2.5}/>
+        <span className="text-gap-medium font-black tracking-widest" style={{fontSize:size*0.11,marginTop:size*0.02}}>ACE</span>
       </div>
     </div>
   );
@@ -1517,7 +1520,7 @@ function AceTradingCard({ace,disc,index,totalAces,onEdit,onDelete}) {
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} className="relative group h-full min-h-0 flex flex-col">
       <motion.div className="absolute -inset-1 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg" style={{background:GOLD_ACE_BORDER}}/>
       <div className="relative rounded-2xl overflow-hidden flex-1 min-h-0 flex flex-col" style={{padding:'1.5px',background:GOLD_ACE_BORDER}}>
-        <div className="relative rounded-2xl overflow-hidden h-full min-h-0 flex flex-col bg-gray-950" style={{background:'linear-gradient(180deg,rgba(26,25,24,0.98),rgba(38,36,33,0.95))'}}>
+        <div className="relative rounded-2xl overflow-hidden h-full min-h-0 flex flex-col bg-bg" style={{background:'linear-gradient(180deg,rgba(26,25,24,0.98),rgba(38,36,33,0.95))'}}>
           <motion.div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
             style={{zIndex:5,background:'linear-gradient(105deg,transparent 35%,rgba(255,215,0,0.06) 40%,rgba(255,255,255,0.08) 45%,rgba(255,215,0,0.06) 50%,transparent 55%)',backgroundSize:'250% 100%'}}
             animate={hovered?{backgroundPosition:['200% 0','-100% 0']}:{}} transition={{duration:1.5,repeat:Infinity,ease:'linear'}}/>
@@ -1527,42 +1530,42 @@ function AceTradingCard({ace,disc,index,totalAces,onEdit,onDelete}) {
               <img src={ace.photo} alt="" className="w-full h-full object-cover rounded-t-2xl"/>
               <div className="absolute inset-0 rounded-t-2xl pointer-events-none" style={{background:'linear-gradient(to top,rgba(0,0,0,0.75) 0%,transparent 50%)'}}/>
               <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-widest uppercase text-amber-300">
-                  <Trophy size={14} className="text-amber-400"/>
+                <span className="inline-flex items-center gap-1.5 text-xs font-black tracking-widest uppercase text-gap-medium">
+                  <Trophy size={14} className="text-gap-medium"/>
                   <span>Ace #{totalAces-index}</span>
                 </span>
-                <span className="ml-3 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">{rarity.label}</span>
+                <span className="ml-3 text-[10px] font-black px-2.5 py-0.5 rounded-full bg-gap-medium/20 text-gap-medium border border-gap-medium/40">{rarity.label}</span>
               </div>
             </div>
           ) : (
             <div className="relative px-3 pt-3 pb-2.5 shrink-0 flex flex-col items-center text-center gap-1.5" style={{background:'linear-gradient(135deg,rgba(255,215,0,0.08),rgba(184,134,11,0.04))'}}>
               <div className="flex items-center justify-between w-full gap-3">
                 <div className="inline-flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/15 border border-amber-400/50 flex items-center justify-center">
-                    <Trophy size={14} className="text-amber-300"/>
+                  <div className="w-8 h-8 rounded-full bg-gap-medium/15 border border-gap-medium/50 flex items-center justify-center">
+                    <Trophy size={14} className="text-gap-medium"/>
                   </div>
-                  <span className="text-[11px] font-black tracking-widest uppercase text-amber-400">Ace #{totalAces-index}</span>
+                  <span className="text-[11px] font-black tracking-widest uppercase text-gap-medium">Ace #{totalAces-index}</span>
                 </div>
-                <span className="ml-auto text-[9px] font-black px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-200 border border-amber-500/50 whitespace-nowrap">{rarity.label}</span>
+                <span className="ml-auto text-[9px] font-black px-3 py-0.5 rounded-full bg-gap-medium/20 text-gap-medium border border-gap-medium/50 whitespace-nowrap">{rarity.label}</span>
               </div>
-              <h3 className="text-[12px] font-black text-white leading-tight truncate w-full mt-0.5">
+              <h3 className="text-[12px] font-black text-text leading-tight truncate w-full mt-0.5">
                 {disc?.custom_name || disc?.mold || 'Unknown Disc'}
               </h3>
-              <p className="text-[10px] text-gray-400 font-medium truncate w-full">
+              <p className="text-[10px] text-text-muted font-medium truncate w-full">
                 {disc?.manufacturer || ''}{disc?.plastic_type ? ` · ${disc.plastic_type}` : ''}
               </p>
               {ace.witnessed && (
-                <motion.div initial={{scale:0}} animate={{scale:1}} className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full px-1.5 py-0.5 mt-1">
-                  <Shield size={8} className="text-emerald-400" fill="currentColor"/>
-                  <span className="text-[9px] font-bold text-emerald-400">VERIFIED</span>
+                <motion.div initial={{scale:0}} animate={{scale:1}} className="flex items-center gap-1 bg-primary/20 border border-primary/30 rounded-full px-1.5 py-0.5 mt-1">
+                  <Shield size={8} className="text-primary" fill="currentColor"/>
+                  <span className="text-[9px] font-bold text-primary">VERIFIED</span>
                 </motion.div>
               )}
             </div>
           )}
           {hasPhoto && (
             <div className="relative px-3 py-1 flex items-center justify-between shrink-0 border-b border-white/5">
-              <span className="text-[10px] font-black text-amber-400">{rarity.label}</span>
-              {ace.witnessed && <span className="text-[9px] font-bold text-emerald-400 flex items-center gap-0.5"><Shield size={8} fill="currentColor"/>VERIFIED</span>}
+              <span className="text-[10px] font-black text-gap-medium">{rarity.label}</span>
+              {ace.witnessed && <span className="text-[9px] font-bold text-primary flex items-center gap-0.5"><Shield size={8} fill="currentColor"/>VERIFIED</span>}
             </div>
           )}
           {/* Stats — scrollable if needed, no flex-1 grow */}
@@ -1570,27 +1573,27 @@ function AceTradingCard({ace,disc,index,totalAces,onEdit,onDelete}) {
             {ace.distance>0 && (
               <div className="flex justify-center">
                 <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-0.5" style={{background:'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(184,134,11,0.06))',border:'1px solid rgba(255,215,0,0.25)'}}>
-                  <Ruler size={11} className="text-amber-400"/>
-                  <span className="text-base font-black text-amber-400">{ace.distance}</span>
-                  <span className="text-[10px] text-amber-500/80 font-bold uppercase">ft</span>
+                  <Ruler size={11} className="text-gap-medium"/>
+                  <span className="text-base font-black text-gap-medium">{ace.distance}</span>
+                  <span className="text-[10px] text-gap-medium/80 font-bold uppercase">ft</span>
                 </div>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <MapPin size={10} className="text-amber-500/70 shrink-0"/>
-              <div className="flex-1 min-w-0"><span className="text-[10px] text-gray-500">Course</span><div className="text-xs text-white font-semibold truncate">{ace.course}</div></div>
+              <MapPin size={10} className="text-gap-medium/70 shrink-0"/>
+              <div className="flex-1 min-w-0"><span className="text-[10px] text-text-muted">Course</span><div className="text-xs text-text font-semibold truncate">{ace.course}</div></div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {ace.hole>0 && <div><span className="text-[10px] text-gray-500">Hole</span><div className="text-xs text-white font-bold">#{ace.hole}</div></div>}
-              <div><span className="text-[10px] text-gray-500">Date</span><div className="text-xs text-white font-semibold">{fmtD(ace.date)}</div></div>
+              {ace.hole>0 && <div><span className="text-[10px] text-text-muted">Hole</span><div className="text-xs text-text font-bold">#{ace.hole}</div></div>}
+              <div><span className="text-[10px] text-text-muted">Date</span><div className="text-xs text-text font-semibold">{fmtD(ace.date)}</div></div>
             </div>
-            {ace.witnessNames && <p className="text-[10px] text-amber-200/90 truncate" title={ace.witnessNames}>Witnessed by: {ace.witnessNames}</p>}
-            {ace.notes && <p className="text-[10px] text-gray-500 italic line-clamp-2" title={ace.notes}>"{ace.notes}"</p>}
+            {ace.witnessNames && <p className="text-[10px] text-gap-medium/90 truncate" title={ace.witnessNames}>Witnessed by: {ace.witnessNames}</p>}
+            {ace.notes && <p className="text-[10px] text-text-muted italic line-clamp-2" title={ace.notes}>"{ace.notes}"</p>}
           </div>
           {/* Actions — always visible at bottom */}
           <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
-            <button onClick={e=>{e.stopPropagation();onEdit(ace);}} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold bg-gray-800/80 text-gray-500 hover:text-sky-400 border border-gray-700/50"><Edit3 size={12}/>Edit</button>
-            <button onClick={e=>{e.stopPropagation();onDelete(ace.id);}} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+            <button onClick={e=>{e.stopPropagation();onEdit(ace);}} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold bg-surface/80 text-text-muted hover:text-secondary border border-border/50"><Edit3 size={12}/>Edit</button>
+            <button onClick={e=>{e.stopPropagation();onDelete(ace.id);}} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-gap-high border border-border/50"><Trash2 size={12}/></button>
           </div>
         </div>
       </div>
@@ -1611,37 +1614,37 @@ function TrophyRoomModal({open,onClose,aces,discs,onEditAce,onDeleteAce,onLogAce
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose}/>
-      <motion.div initial={{y:60,opacity:0}} animate={{y:0,opacity:1}} className="relative w-full max-w-3xl bg-gray-950 rounded-t-3xl sm:rounded-2xl border border-gray-800 flex flex-col overflow-hidden shadow-2xl" style={{maxHeight:'92vh'}}>
+      <motion.div initial={{y:60,opacity:0}} animate={{y:0,opacity:1}} className="relative w-full max-w-3xl bg-card rounded-t-3xl sm:rounded-2xl border border-border flex flex-col overflow-hidden shadow-card-lg" style={{maxHeight:'92vh'}}>
         {/* Gold bar */}
         <div className="h-1.5 shrink-0" style={{background:'linear-gradient(90deg,#d97706,#fbbf24,#fef08a,#fbbf24,#d97706)'}}/>
         {/* Header */}
-        <div className="shrink-0 border-b border-gray-800 p-5">
+        <div className="shrink-0 mb-4 p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3.5">
               <div className="w-14 h-14 rounded-xl flex items-center justify-center relative" style={{background:'linear-gradient(135deg,rgba(251,191,36,0.15),rgba(217,119,6,0.08))',border:'1px solid rgba(251,191,36,0.25)'}}>
-                <motion.div animate={{rotate:[0,5,-5,0]}} transition={{duration:4,repeat:Infinity}}><Trophy size={28} className="text-amber-400"/></motion.div>
-                {aces.length>0 && <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-amber-500 text-gray-950 text-xs font-black flex items-center justify-center shadow-lg">{aces.length}</span>}
+                <motion.div animate={{rotate:[0,5,-5,0]}} transition={{duration:4,repeat:Infinity}}><Trophy size={28} className="text-gap-medium"/></motion.div>
+                {aces.length>0 && <span className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-gap-medium text-on-primary text-xs font-black flex items-center justify-center shadow-lg">{aces.length}</span>}
               </div>
               <div>
-                <h2 className="text-xl font-black bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">Trophy Case</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{aces.length===0?'Start your legendary collection':'Your legendary ace collection'}</p>
+                <h2 className="text-xl font-black bg-gradient-to-r from-gap-medium via-gap-medium/80 to-gap-medium bg-clip-text text-transparent">Trophy Case</h2>
+                <p className="text-xs text-text-muted mt-0.5">{aces.length===0?'Start your legendary collection':'Your legendary ace collection'}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {aces.length>0 && (
-                <button type="button" onClick={e => { e.stopPropagation(); onLogAce?.(); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-all">
+                <button type="button" onClick={e => { e.stopPropagation(); onLogAce?.(); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gap-medium/20 text-gap-medium border border-gap-medium/30 hover:bg-gap-medium/30 transition-all">
                   <Trophy size={14}/>Add an Ace
                 </button>
               )}
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-400"><X size={20}/></button>
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted"><X size={20}/></button>
             </div>
           </div>
           {aces.length>0 && (
             <div className="grid grid-cols-4 gap-2 mt-4">
-              <div className="rounded-xl p-2.5 text-center" style={{background:'linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05))',border:'1px solid rgba(251,191,36,0.2)'}}><div className="text-xl font-black text-amber-400">{aces.length}</div><div className="text-xs text-amber-500/60 font-medium">Total</div></div>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-white">{uniqueCourses}</div><div className="text-xs text-gray-500">Courses</div></div>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-amber-400">{longestAce?longestAce.distance+'ft':'—'}</div><div className="text-xs text-gray-500">Longest</div></div>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-emerald-400">{witnessedCount}</div><div className="text-xs text-gray-500">Verified</div></div>
+              <div className="rounded-xl p-2.5 text-center" style={{background:'linear-gradient(135deg,rgba(251,191,36,0.1),rgba(217,119,6,0.05))',border:'1px solid rgba(251,191,36,0.2)'}}><div className="text-xl font-black text-gap-medium">{aces.length}</div><div className="text-xs text-gap-medium/60 font-medium">Total</div></div>
+              <div className="bg-card border border-border rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-text">{uniqueCourses}</div><div className="text-xs text-text-muted">Courses</div></div>
+              <div className="bg-card border border-border rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-gap-medium">{longestAce?longestAce.distance+'ft':'—'}</div><div className="text-xs text-text-muted">Longest</div></div>
+              <div className="bg-card border border-border rounded-xl p-2.5 text-center"><div className="text-lg font-bold text-primary">{witnessedCount}</div><div className="text-xs text-text-muted">Verified</div></div>
             </div>
           )}
         </div>
@@ -1653,12 +1656,12 @@ function TrophyRoomModal({open,onClose,aces,discs,onEditAce,onDeleteAce,onLogAce
               <motion.div animate={{y:[0,-8,0]}} transition={{duration:3,repeat:Infinity,ease:'easeInOut'}} className="relative mb-6">
                 <AceEmblem size={120}/>
               </motion.div>
-              <h3 className="text-xl font-black text-white mb-2">Your first Ace is waiting.</h3>
-              <p className="text-sm text-gray-500 max-w-xs leading-relaxed mb-6">Log your rounds to start your collection!</p>
+              <h3 className="text-xl font-black text-text mb-2">Your first Ace is waiting.</h3>
+              <p className="text-sm text-text-muted max-w-xs leading-relaxed mb-6">Log your rounds to start your collection!</p>
               <div className="flex items-center gap-3 mb-6">
                 {[0,1,2].map(i => (
                   <motion.div key={i} animate={{opacity:[0.2,0.6,0.2],scale:[0.8,1.1,0.8]}} transition={{duration:2,repeat:Infinity,delay:i*0.5}}>
-                    <Sparkles size={16} className="text-amber-500/40"/>
+                    <Sparkles size={16} className="text-gap-medium/40"/>
                   </motion.div>
                 ))}
               </div>
@@ -1701,14 +1704,14 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-gray-800 p-5">
-        <h2 className="text-lg font-bold text-white mb-4">Edit Bag</h2>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && save()} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 mb-3"/>
-        <div className="mb-4"><label className="block text-xs text-gray-500 mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-white scale-110' : 'border-gray-600'}`} style={{ backgroundColor: c }}/>))}</div></div>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-bg rounded-2xl border border-border p-5">
+        <h2 className="text-lg font-bold text-text mb-4">Edit Bag</h2>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && save()} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary mb-3"/>
+        <div className="mb-4"><label className="block text-xs text-text-muted mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setColor(c)} className={`w-7 h-7 rounded-full border-2 ${color === c ? 'border-white scale-110' : 'border-border'}`} style={{ backgroundColor: c }}/>))}</div></div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => { onDelete(bag.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20 hover:bg-red-500/20">Delete</button>
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
-          <button onClick={save} disabled={!name.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${name.trim() ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>Save</button>
+          <button type="button" onClick={() => { onDelete(bag.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-gap-high/10 text-gap-high text-sm font-semibold border border-gap-high/20 hover:bg-gap-high/20">Delete</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold">Cancel</button>
+          <button onClick={save} disabled={!name.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${name.trim() ? 'bg-primary text-on-primary' : 'bg-surface text-text-muted cursor-not-allowed'}`}>Save</button>
         </div>
       </motion.div>
     </motion.div>
@@ -1927,43 +1930,42 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       {/* Bag name */}
       <div className="flex items-center gap-2.5">
         <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bagColor}}/>
-        <h2 className="text-lg font-bold text-white truncate">{bag?.name || 'My Bag'}</h2>
+        <h2 className="text-lg font-bold text-text truncate">{bag?.name || 'My Bag'}</h2>
       </div>
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="bg-gradient-to-br from-emerald-950/50 to-gray-900 rounded-xl p-4 border border-emerald-800/30">
-          <div className="flex items-center gap-2 mb-1"><DollarSign size={14} className="text-emerald-400"/><span className="text-xs text-emerald-500/80 font-bold uppercase tracking-wider">Bag Value</span></div>
-          <div className="text-2xl font-black text-emerald-400">${totalValue}</div>
-          <div className="text-xs text-gray-500 mt-0.5">{bagDiscs.length} disc{bagDiscs.length!==1?'s':''}</div>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <div className="flex items-center gap-2 mb-1"><Backpack size={14} className="text-secondary"/><span className="text-xs text-secondary/80 font-bold uppercase tracking-wider">Discs</span></div>
+          <div className="text-2xl font-black text-secondary">{bagDiscs.length}</div>
         </div>
-        <div className="bg-gradient-to-br from-sky-950/40 to-gray-900 rounded-xl p-4 border border-sky-800/30">
-          <div className="flex items-center gap-2 mb-1"><Zap size={14} className="text-sky-400"/><span className="text-xs text-sky-500/80 font-bold uppercase tracking-wider">Avg Weight</span></div>
-          <div className="text-2xl font-black text-sky-400">{avgWeight.toFixed(1)}<span className="text-sm text-gray-500">g</span></div>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <div className="flex items-center gap-2 mb-1"><Zap size={14} className="text-secondary"/><span className="text-xs text-secondary/80 font-bold uppercase tracking-wider">Avg Weight</span></div>
+          <div className="text-2xl font-black text-secondary">{avgWeight.toFixed(1)}<span className="text-sm text-text-muted">g</span></div>
         </div>
-        <div className="bg-gradient-to-br from-amber-950/40 to-gray-900 rounded-xl p-4 border border-amber-800/30">
-          <div className="flex items-center gap-2 mb-1"><BarChart3 size={14} className="text-amber-400"/><span className="text-xs text-amber-500/80 font-bold uppercase tracking-wider">Avg Speed</span></div>
-          <div className="text-2xl font-black text-amber-400">{(bagDiscs.reduce((s,d)=>s+d.speed,0)/bagDiscs.length).toFixed(1)}</div>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <div className="flex items-center gap-2 mb-1"><BarChart3 size={14} className="text-gap-medium"/><span className="text-xs text-gap-medium/80 font-bold uppercase tracking-wider">Avg Speed</span></div>
+          <div className="text-2xl font-black text-gap-medium">{(bagDiscs.reduce((s,d)=>s+d.speed,0)/bagDiscs.length).toFixed(1)}</div>
         </div>
-        <div className="bg-gradient-to-br from-purple-950/40 to-gray-900 rounded-xl p-4 border border-purple-800/30">
-          <div className="flex items-center gap-2 mb-1"><Crosshair size={14} className="text-purple-400"/><span className="text-xs text-purple-500/80 font-bold uppercase tracking-wider">Speed Range</span></div>
-          <div className="text-2xl font-black text-purple-400">{Math.min(...bagDiscs.map(d=>d.speed))}–{Math.max(...bagDiscs.map(d=>d.speed))}</div>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <div className="flex items-center gap-2 mb-1"><Crosshair size={14} className="text-gap-low"/><span className="text-xs text-gap-low/80 font-bold uppercase tracking-wider">Speed Range</span></div>
+          <div className="text-2xl font-black text-gap-low">{Math.min(...bagDiscs.map(d=>d.speed))}–{Math.max(...bagDiscs.map(d=>d.speed))}</div>
         </div>
       </div>
       {/* Type + Stability breakdowns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-800/50">
-          <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><BarChart3 size={12}/>Type Breakdown</h3>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><BarChart3 size={12}/>Type Breakdown</h3>
           <div className="space-y-2.5">
             {Object.entries(DT).map(([k,cfg]) => {
               const ct = typeCounts[k]; const pct = maxTC>0?(ct/maxTC)*100:0;
               return (
                 <div key={k}>
                   <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:cfg.color}}/><span className="text-xs text-gray-300 font-medium">{cfg.label}s</span></div>
-                    <span className={`text-sm font-black ${ct===0?'text-gray-600':cfg.text}`}>{ct}</span>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:cfg.color}}/><span className="text-xs text-text-muted font-medium">{cfg.label}s</span></div>
+                    <span className={`text-sm font-black ${ct===0?'text-text-muted':cfg.text}`}>{ct}</span>
                   </div>
-                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-2 bg-surface rounded-full overflow-hidden">
                     <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:cfg.color,opacity:ct===0?0.2:0.7}}/>
                   </div>
                 </div>
@@ -1971,18 +1973,18 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
             })}
           </div>
         </div>
-        <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-800/50">
-          <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Crosshair size={12}/>Stability Spectrum</h3>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Crosshair size={12}/>Stability Spectrum</h3>
           <div className="space-y-2.5">
             {Object.entries(STAB_META).map(([k,meta]) => {
               const ct = stabCounts[k]; const pct = maxSC>0?(ct/maxSC)*100:0;
               return (
                 <div key={k}>
                   <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2"><span className="text-sm">{meta.icon}</span><span className="text-xs text-gray-300 font-medium">{meta.label}</span></div>
-                    <span className={`text-sm font-black ${ct===0?'text-gray-600':meta.text}`}>{ct}</span>
+                    <div className="flex items-center gap-2"><span className="text-sm">{meta.icon}</span><span className="text-xs text-text-muted font-medium">{meta.label}</span></div>
+                    <span className={`text-sm font-black ${ct===0?'text-text-muted':meta.text}`}>{ct}</span>
                   </div>
-                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="h-2 bg-surface rounded-full overflow-hidden">
                     <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:meta.color,opacity:ct===0?0.2:0.7}}/>
                   </div>
                 </div>
@@ -1991,47 +1993,76 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           </div>
         </div>
       </div>
-      {/* Discs in bag */}
-      <div className="bg-gray-900/80 rounded-xl p-4 border border-gray-800/50">
-        <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Backpack size={12}/>Discs in Bag ({bagDiscs.length})</h3>
-        <div className="space-y-1.5">
-          {bagDiscs.map(d => {
-            const cfg = DT[d.disc_type];
-            return (
-              <div key={d.id} className="flex items-center gap-2.5 bg-gray-800/60 rounded-lg px-3 py-2.5 group hover:bg-gray-800 transition-colors">
-                {d.photo ? (
-                  <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden shadow-md flex items-center justify-center bg-gray-800">
-                    <img src={d.photo} alt={d.mold} className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
-                    <span className="text-xs font-black" style={{color:luma(d.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{d.speed}</span>
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5"><span className="text-sm font-bold text-white truncate">{d.custom_name||d.mold}</span><span className={`text-xs font-bold px-1.5 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`} style={{fontSize:9}}>{cfg.label}</span></div>
-                  <span className="text-xs text-gray-500">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
-                </div>
-                <motion.button whileHover={{scale:1.1}} whileTap={{scale:0.9}} onClick={() => onRemoveFromBag(bag.id,d.id)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 text-xs font-bold border border-red-500/20 hover:bg-red-500/20 shrink-0 opacity-60 group-hover:opacity-100">
-                  <X size={12}/>Remove
-                </motion.button>
+      {/* Flight comparison — curved flight paths like Innova-style chart */}
+      {bagDiscs.length > 0 && (() => {
+        const sorted = [...bagDiscs].sort((a,b) => b.speed - a.speed);
+        const colWidth = 52;
+        const pathHeight = 100;
+        const pathWidth = 28;
+        const centerX = pathWidth / 2;
+        const getFlightPath = (turn, fade) => {
+          const t = turn ?? 0, f = fade ?? 0;
+          const cpx = Math.max(4, Math.min(pathWidth - 4, centerX - t * 3));
+          const endX = Math.max(4, Math.min(pathWidth - 4, centerX - f * 3));
+          return `M ${centerX} 0 Q ${cpx} ${pathHeight/2} ${endX} ${pathHeight}`;
+        };
+        const getStabilityColor = (turn, fade) => {
+          const t = turn ?? 0, f = fade ?? 0;
+          const stability = -t + f;
+          if (stability >= 4) return '#B23A3A';
+          if (stability >= 2) return '#C08A2E';
+          if (stability >= 0) return '#6B8F71';
+          return '#4C7A67';
+        };
+        return (
+          <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+            <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><TrendingUp size={12}/>Flight Characteristics</h3>
+            <p className="text-xs text-text-muted mb-4">Each line shows the disc&apos;s typical flight path. Overstable discs curve left; understable curve right.</p>
+            <div className="overflow-x-auto pb-2 -mx-1 rounded-lg bg-surface/40">
+              <div className="flex gap-3 min-w-max py-4 px-3">
+                {sorted.map(d => {
+                  const turn = d.turn ?? 0, fade = d.fade ?? 0;
+                  const color = getStabilityColor(turn, fade);
+                  const path = getFlightPath(turn, fade);
+                  const endX = Math.max(4, Math.min(pathWidth - 4, pathWidth/2 - fade * 3));
+                  return (
+                    <div key={d.id} className="flex flex-col items-center shrink-0" style={{ width: colWidth }}>
+                      <div className="relative w-full flex justify-center" style={{ height: pathHeight }}>
+                        <svg viewBox={`0 0 ${pathWidth} ${pathHeight}`} className="w-14 h-full" preserveAspectRatio="xMidYMid meet">
+                          <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+                          <circle cx={endX} cy={pathHeight} r={2.5} fill={color}/>
+                        </svg>
+                      </div>
+                      <div className="mt-2 text-center min-h-[2.5rem]">
+                        <div className="text-[11px] font-bold text-text leading-tight px-0.5" title={`${d.custom_name || d.mold} · ${d.speed}/${d.glide}/${d.turn}/${d.fade}`}>
+                          {(d.custom_name || d.mold).toUpperCase().slice(0, 10)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </div>
+            </div>
+            <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-border/50 text-[10px] text-text-muted">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#B23A3A]"/>Overstable — fades hard left</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#C08A2E]"/>Stable — controlled fade</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#6B8F71]"/>Neutral — straight fliers</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#4C7A67]"/>Understable — turns right</span>
+            </div>
+          </div>
+        );
+      })()}
       {slotAboveGapFinder}
       {/* GAP FINDER */}
-      <div className="bg-gradient-to-r from-amber-950/30 to-gray-900/50 rounded-xl p-4 border border-amber-800/25">
-        <h3 className="flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest mb-3">
+      <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+        <h3 className="flex items-center gap-2 text-xs font-bold text-gap-medium uppercase tracking-widest mb-3">
           <AlertTriangle size={12}/>Gap Finder
-          {gaps.length>0 ? <span className="text-gray-600 font-medium normal-case tracking-normal ml-1">· {gaps.length} gap{gaps.length!==1?'s':''}</span> : <span className="text-emerald-400 font-medium normal-case tracking-normal ml-1">· ✓ No gaps!</span>}
+          {gaps.length>0 ? <span className="text-text-muted font-medium normal-case tracking-normal ml-1">· {gaps.length} gap{gaps.length!==1?'s':''}</span> : <span className="text-primary font-medium normal-case tracking-normal ml-1">· ✓ No gaps!</span>}
         </h3>
         {gaps.length===0 && (
-          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0"><Check size={20} className="text-emerald-400"/></div>
-            <div><div className="text-sm font-bold text-emerald-400">All categories covered!</div><div className="text-xs text-emerald-500/60 mt-0.5">Your bag has all disc types and stability profiles.</div></div>
+          <div className="flex items-center gap-3 bg-accent border border-primary/20 rounded-xl px-4 py-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0"><Check size={20} className="text-primary"/></div>
+            <div><div className="text-sm font-bold text-primary">All categories covered!</div><div className="text-xs text-primary/60 mt-0.5">Your bag has all disc types and stability profiles.</div></div>
           </div>
         )}
         {gaps.length>0 && (
@@ -2041,40 +2072,40 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
               const libraryMatches = getLibraryMatches(g);
               const buySuggestions = getBuySuggestions(g);
               const isRedundancy = g.isRedundancy === true;
-              const cardCls = isRedundancy ? 'bg-sky-500/5 border-sky-500/20' : (g.sev==='high'?'bg-red-500/5 border-red-500/20':'bg-amber-500/5 border-amber-500/15');
-              const iconCls = isRedundancy ? 'text-sky-400' : (g.sev==='high'?'text-red-400':'text-amber-500/70');
-              const titleCls = isRedundancy ? 'text-sky-400' : (g.sev==='high'?'text-red-400':'text-amber-400');
+              const cardCls = isRedundancy ? 'bg-secondary/5 border-secondary/20' : (g.sev==='high'?'bg-gap-high/5 border-gap-high/20':'bg-gap-medium/5 border-gap-medium/15');
+              const iconCls = isRedundancy ? 'text-secondary' : (g.sev==='high'?'text-gap-high':'text-gap-medium/70');
+              const titleCls = isRedundancy ? 'text-secondary' : (g.sev==='high'?'text-gap-high':'text-gap-medium');
               return (
                 <div key={g.key} className={`rounded-xl border cursor-pointer transition-all overflow-hidden ${cardCls}`} onClick={() => setExpandedGap(isExp?null:g.key)}>
                   <div className="flex items-start gap-2.5 px-3.5 py-3">
                     {isRedundancy ? <Info size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/> : <AlertTriangle size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/>}
                     <div className="flex-1 min-w-0">
                       <div className={`text-xs font-bold ${titleCls}`}>{g.msg}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">{g.suggest}</div>
+                      <div className="text-xs text-text-muted mt-0.5">{g.suggest}</div>
                     </div>
-                    <ChevronDown size={14} className={`text-gray-500 transition-transform duration-200 shrink-0 ${isExp?'rotate-180':''}`}/>
+                    <ChevronDown size={14} className={`text-text-muted transition-transform duration-200 shrink-0 ${isExp?'rotate-180':''}`}/>
                   </div>
                   <AnimatePresence>
                     {isExp && (
                       <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}} className="overflow-hidden">
                         <div className="px-3.5 pb-4 space-y-3" onClick={e=>e.stopPropagation()}>
-                          <div className="border-t border-gray-800/50 pt-3"/>
+                          <div className="pt-3 mt-3"/>
                           {/* From your collection */}
                           {libraryMatches.length > 0 && (
                             <div>
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2"><Library size={11}/>From Your Collection ({libraryMatches.length})</h4>
+                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wider mb-2"><Library size={11}/>From Your Collection ({libraryMatches.length})</h4>
                               <div className="space-y-1.5">
                                 {libraryMatches.slice(0,4).map(d => (
-                                  <div key={d.id} className="flex items-center gap-2.5 bg-gray-800/60 rounded-lg px-3 py-2.5">
+                                  <div key={d.id} className="flex items-center gap-2.5 bg-surface/60 rounded-lg px-3 py-2.5">
                                     <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
                                       <span className="text-xs font-black" style={{color:luma(d.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{d.speed}</span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-sm font-bold text-white truncate block">{d.custom_name||d.mold}</span>
-                                      <span className="text-xs text-gray-500">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
+                                      <span className="text-sm font-bold text-text truncate block">{d.custom_name||d.mold}</span>
+                                      <span className="text-xs text-text-muted">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
                                     </div>
                                     <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => onAddToBag(bag.id,d.id)}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold border border-emerald-500/25">
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25">
                                       <Plus size={12}/>Add
                                     </motion.button>
                                   </div>
@@ -2083,27 +2114,27 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                             </div>
                           )}
                           {libraryMatches.length === 0 && (
-                            <div className="flex items-center gap-2 bg-gray-800/40 rounded-lg px-3 py-2.5">
-                              <Library size={13} className="text-gray-600 shrink-0"/><span className="text-xs text-gray-500">No matching discs in your collection</span>
+                            <div className="flex items-center gap-2 bg-surface/40 rounded-lg px-3 py-2.5">
+                              <Library size={13} className="text-text-muted shrink-0"/><span className="text-xs text-text-muted">No matching discs in your collection</span>
                             </div>
                           )}
                           {/* Buy suggestions */}
                           {buySuggestions.length>0 && (
                             <div className="relative">
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-amber-400 uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy</h4>
+                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-gap-medium uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy</h4>
                               <div className="space-y-1.5">
                                 {buySuggestions.map((s,si) => (
-                                  <div key={si} className="flex items-center gap-2.5 bg-gray-800/40 rounded-lg px-3 py-2.5">
+                                  <div key={si} className="flex items-center gap-2.5 bg-surface/40 rounded-lg px-3 py-2.5">
                                     <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:s.color||'#6b7280'}}>
                                       <span className="text-xs font-black" style={{color:luma(s.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{s.speed}</span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-bold text-white">{s.mold}</div>
-                                      <div className="text-xs text-gray-500">{s.manufacturer} · {s.plastic}</div>
+                                      <div className="text-sm font-bold text-text">{s.mold}</div>
+                                      <div className="text-xs text-text-muted">{s.manufacturer} · {s.plastic}</div>
                                     </div>
-                                    <span className="text-xs font-bold text-emerald-400">{s.price}</span>
+                                    <span className="text-xs font-bold text-primary">{s.price}</span>
                                     <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => onBuySearch(s)}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/12 text-amber-400 text-xs font-semibold border border-amber-500/20">
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20">
                                       <ShoppingCart size={10}/>Shop
                                     </motion.button>
                                   </div>
@@ -2138,11 +2169,11 @@ function CreateBagModal({ open, onClose, onCreate }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-gray-950 rounded-2xl border border-gray-800 p-5">
-        <h2 className="text-lg font-bold text-white mb-4">New Bag</h2>
-        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && create()} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 mb-3"/>
-        <div className="mb-4"><label className="block text-xs text-gray-500 mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setNewColor(c)} className={`w-7 h-7 rounded-full border-2 ${newColor === c ? 'border-white scale-110' : 'border-gray-600'}`} style={{ backgroundColor: c }}/>))}</div></div>
-        <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button><button onClick={create} disabled={!newName.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${newName.trim() ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>Create</button></div>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-sm bg-bg rounded-2xl border border-border p-5">
+        <h2 className="text-lg font-bold text-text mb-4">New Bag</h2>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Bag name…" onKeyDown={e => e.key === 'Enter' && create()} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary mb-3"/>
+        <div className="mb-4"><label className="block text-xs text-text-muted mb-2 font-medium">Color</label><div className="flex flex-wrap gap-2">{BAG_COLORS.map(c => (<button key={c} onClick={() => setNewColor(c)} className={`w-7 h-7 rounded-full border-2 ${newColor === c ? 'border-white scale-110' : 'border-border'}`} style={{ backgroundColor: c }}/>))}</div></div>
+        <div className="flex gap-2"><button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold">Cancel</button><button onClick={create} disabled={!newName.trim()} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold ${newName.trim() ? 'bg-primary text-on-primary' : 'bg-surface text-text-muted cursor-not-allowed'}`}>Create</button></div>
       </motion.div>
     </motion.div>
   );
@@ -2166,19 +2197,19 @@ function MyBagsGridPage({ bags, discs, onSelectBag, onCreateBag }) {
           const putters = tc.putter || 0;
           return (
             <motion.button key={bag.id} type="button" onClick={() => onSelectBag(bag.id)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-emerald-600/40 transition-colors text-left">
+              className="bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-colors text-left shadow-card">
               <div className="h-2" style={{ backgroundColor: bc }}/>
               <div className="p-4 flex items-start gap-3">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-gray-800/80" style={{ border: `2px solid ${bc}40` }}>
-                  <Backpack size={24} className="text-gray-400" style={{ color: bc }}/>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-surface/80" style={{ border: `2px solid ${bc}40` }}>
+                  <Backpack size={24} className="text-text-muted" style={{ color: bc }}/>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-white truncate">{bag.name}</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{bd.length} disc{bd.length !== 1 ? 's' : ''}</p>
+                  <h3 className="font-bold text-text truncate">{bag.name}</h3>
+                  <p className="text-sm text-text-muted mt-0.5">{bd.length} disc{bd.length !== 1 ? 's' : ''}</p>
                   <div className="flex flex-wrap gap-1.5 mt-2 text-xs">
-                    {putters > 0 && <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30">{putters} putter{putters !== 1 ? 's' : ''}</span>}
-                    {mids > 0 && <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">{mids} mid{mids !== 1 ? 's' : ''}</span>}
-                    {drivers > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">{drivers} driver{drivers !== 1 ? 's' : ''}</span>}
+                    {putters > 0 && <span className="px-2 py-0.5 rounded-full bg-secondary/15 text-secondary border border-secondary/30">{putters} putter{putters !== 1 ? 's' : ''}</span>}
+                    {mids > 0 && <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30">{mids} mid{mids !== 1 ? 's' : ''}</span>}
+                    {drivers > 0 && <span className="px-2 py-0.5 rounded-full bg-gap-medium/15 text-gap-medium border border-gap-medium/30">{drivers} driver{drivers !== 1 ? 's' : ''}</span>}
                   </div>
                 </div>
               </div>
@@ -2186,7 +2217,7 @@ function MyBagsGridPage({ bags, discs, onSelectBag, onCreateBag }) {
           );
         })}
         <motion.button type="button" onClick={() => setCreateOpen(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-          className="bg-gray-900/60 rounded-2xl border-2 border-dashed border-gray-700 hover:border-emerald-500/50 flex flex-col items-center justify-center min-h-[120px] text-gray-500 hover:text-emerald-400 transition-colors">
+          className="bg-card/60 rounded-2xl border-2 border-dashed border-border hover:border-primary/50 flex flex-col items-center justify-center min-h-[120px] text-text-muted hover:text-primary transition-colors">
           <Plus size={28} className="mb-2"/>
           <span className="text-sm font-semibold">Add New Bag</span>
         </motion.button>
@@ -2199,19 +2230,19 @@ function MyBagsGridPage({ bags, discs, onSelectBag, onCreateBag }) {
 function RoundsPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <div className="w-20 h-20 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4"><Calendar size={36} className="text-gray-500"/></div>
-      <h2 className="text-xl font-bold text-white mb-2">Rounds</h2>
-      <p className="text-gray-400 text-sm">Round tracking coming soon</p>
+      <div className="w-20 h-20 rounded-2xl bg-card border border-border flex items-center justify-center mb-4"><Calendar size={36} className="text-text-muted"/></div>
+      <h2 className="text-xl font-bold text-text mb-2">Rounds</h2>
+      <p className="text-text-muted text-sm">Round tracking coming soon</p>
     </div>
   );
 }
 
 // ── HALL OF FAME: Achievement category cards + trading cards ──
 const HOF_CATEGORIES = [
-  { id: 'aces', label: 'Aces', icon: Trophy, count: (a,t,lt,pb) => a.length, accent: 'from-amber-500/20 to-amber-600/10 border-amber-500/30' },
-  { id: 'tournaments', label: 'Tournaments', icon: Award, count: (a,t,lt,pb) => t.length, accent: 'from-sky-500/20 to-sky-600/10 border-sky-500/30' },
-  { id: 'longest', label: 'Longest Throw', icon: Target, count: (a,t,lt,pb) => lt.length, accent: 'from-rose-500/20 to-rose-600/10 border-rose-500/30' },
-  { id: 'pbs', label: 'Personal Bests', icon: Star, count: (a,t,lt,pb) => pb.length, accent: 'from-purple-500/20 to-purple-600/10 border-purple-500/30' },
+  { id: 'aces', label: 'Aces', icon: Trophy, count: (a,t,lt,pb) => a.length, accent: 'from-gap-medium/20 to-gap-medium/10 border-gap-medium/30' },
+  { id: 'tournaments', label: 'Tournaments', icon: Award, count: (a,t,lt,pb) => t.length, accent: 'from-secondary/20 to-secondary/10 border-secondary/30' },
+  { id: 'longest', label: 'Longest Throw', icon: Target, count: (a,t,lt,pb) => lt.length, accent: 'from-gap-high/20 to-gap-high/10 border-gap-high/30' },
+  { id: 'pbs', label: 'Personal Bests', icon: Star, count: (a,t,lt,pb) => pb.length, accent: 'from-gap-low/20 to-gap-low/10 border-gap-low/30' },
 ];
 
 function AchievementCardWrapper({ children, rarity, index, aspectRatio = 'aspect-[2.5/3.5]' }) {
@@ -2220,7 +2251,7 @@ function AchievementCardWrapper({ children, rarity, index, aspectRatio = 'aspect
     <motion.div layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: index * 0.04 }} className={`relative group h-full min-h-0 flex ${aspectRatio}`} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <motion.div className="absolute -inset-0.5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-md" style={{ background: rarity.border }}/>
       <motion.div className="relative flex-1 min-h-0 rounded-2xl overflow-hidden transition-shadow duration-300" style={{ padding: '1.5px', background: rarity.border }} whileHover={{ scale: 1.02, boxShadow: '0 20px 40px -12px rgba(0,0,0,0.5)' }} whileTap={{ scale: 0.99 }}>
-        <div className="h-full min-h-0 w-full rounded-xl bg-gray-950 overflow-hidden relative flex flex-col">
+        <div className="h-full min-h-0 w-full rounded-xl bg-bg overflow-hidden relative flex flex-col">
           <motion.div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ zIndex: 2, background: 'linear-gradient(105deg,transparent 40%,rgba(255,255,255,0.04) 50%,transparent 60%)', backgroundSize: '200% 100%' }} animate={hovered ? { backgroundPosition: ['100% 0', '-100% 0'] } : {}} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}/>
           {children}
         </div>
@@ -2327,32 +2358,32 @@ function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uplo
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
-      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-bold text-white mb-4">{tournament ? 'Edit Tournament' : 'Add Tournament'}</h2>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-bg rounded-2xl border border-border p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-text mb-4">{tournament ? 'Edit Tournament' : 'Add Tournament'}</h2>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
-          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-sky-500/40 cursor-pointer w-full">
-            <Camera size={16} className="text-gray-400"/>
-            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+          <label className="block text-xs text-text-muted font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface hover:border-secondary/40 cursor-pointer w-full">
+            <Camera size={16} className="text-text-muted"/>
+            <span className="text-sm text-text-muted">{photo ? 'Change photo' : 'Add Photo'}</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
           </label>
           {photo && (
             <div className="mt-2 flex items-center gap-2">
-              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
-              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-border"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-gap-high hover:text-red-300 font-semibold">Remove photo</button>
             </div>
           )}
         </div>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tournament name" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
-        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
-        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
-        <input value={division} onChange={e=>setDivision(e.target.value)} placeholder="Division" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tournament name" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text mb-3"/>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
+        <input value={division} onChange={e=>setDivision(e.target.value)} placeholder="Division" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 font-medium mb-1">Tournament type</label>
+          <label className="block text-xs text-text-muted font-medium mb-1">Tournament type</label>
           <select
             value={tournamentType}
             onChange={e=>setTournamentType(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white"
+            className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text"
           >
             <option value="singles">Singles</option>
             <option value="doubles">Doubles</option>
@@ -2360,11 +2391,11 @@ function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uplo
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">Placement</label>
-            <input value={placement} onChange={e=>setPlacement(e.target.value)} type="number" min="1" placeholder="1" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"/>
+            <label className="block text-xs text-text-muted font-medium mb-1">Placement</label>
+            <input value={placement} onChange={e=>setPlacement(e.target.value)} type="number" min="1" placeholder="1" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"/>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">
+            <label className="block text-xs text-text-muted font-medium mb-1">
               {tournamentType === 'doubles' ? '# Teams' : '# Players'}
             </label>
             {tournamentType === 'doubles' ? (
@@ -2374,7 +2405,7 @@ function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uplo
                 type="number"
                 min="0"
                 placeholder="0"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
               />
             ) : (
               <input
@@ -2383,7 +2414,7 @@ function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uplo
                 type="number"
                 min="0"
                 placeholder="0"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
               />
             )}
           </div>
@@ -2391,52 +2422,52 @@ function TournamentFormModal({ open, tournament, onClose, onSave, onDelete, uplo
         {tournamentType === 'doubles' && (
           <>
             <div className="mb-3">
-              <label className="block text-xs text-gray-500 font-medium mb-1">Partner / Teammate</label>
+              <label className="block text-xs text-text-muted font-medium mb-1">Partner / Teammate</label>
               <input
                 value={partnerName}
                 onChange={e=>setPartnerName(e.target.value)}
                 placeholder="Your teammate's name"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
               />
             </div>
             <div className="mb-3">
-              <label className="block text-xs text-gray-500 font-medium mb-1">Team name</label>
+              <label className="block text-xs text-text-muted font-medium mb-1">Team name</label>
               <input
                 value={teamName}
                 onChange={e=>setTeamName(e.target.value)}
                 placeholder="e.g. Disc Dynasty"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+                className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
               />
             </div>
           </>
         )}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">Number of rounds</label>
+            <label className="block text-xs text-text-muted font-medium mb-1">Number of rounds</label>
             <input
               value={rounds}
               onChange={e=>setRounds(e.target.value)}
               type="number"
               min="1"
               placeholder="1"
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 font-medium mb-1">Who were you with?</label>
+            <label className="block text-xs text-text-muted font-medium mb-1">Who were you with?</label>
             <input
               value={withWho}
               onChange={e=>setWithWho(e.target.value)}
               placeholder="Friends, card mates, etc."
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"
+              className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"
             />
           </div>
         </div>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-4 resize-none"/>
         <div className="flex gap-2">
-          {tournament && <button type="button" onClick={() => { onDelete(tournament.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+          {tournament && <button type="button" onClick={() => { onDelete(tournament.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-gap-high/10 text-gap-high text-sm font-semibold border border-gap-high/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold">Save</button>
         </div>
       </motion.div>
     </motion.div>
@@ -2486,39 +2517,39 @@ function LongestThrowFormModal({ open, throwRecord, discs, onClose, onSave, onDe
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
-      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-bold text-white mb-4">{throwRecord ? 'Edit Longest Throw' : 'Add Longest Throw'}</h2>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-bg rounded-2xl border border-border p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-text mb-4">{throwRecord ? 'Edit Longest Throw' : 'Add Longest Throw'}</h2>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
-          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-rose-500/40 cursor-pointer w-full">
-            <Camera size={16} className="text-gray-400"/>
-            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+          <label className="block text-xs text-text-muted font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface hover:border-gap-high/40 cursor-pointer w-full">
+            <Camera size={16} className="text-text-muted"/>
+            <span className="text-sm text-text-muted">{photo ? 'Change photo' : 'Add Photo'}</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
           </label>
           {photo && (
             <div className="mt-2 flex items-center gap-2">
-              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
-              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-border"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-gap-high hover:text-red-300 font-semibold">Remove photo</button>
             </div>
           )}
         </div>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 mb-1">Distance (feet)</label>
-          <input value={distanceFeet} onChange={e=>setDistanceFeet(e.target.value)} type="number" min="0" placeholder="e.g. 350" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500"/>
+          <label className="block text-xs text-text-muted mb-1">Distance (feet)</label>
+          <input value={distanceFeet} onChange={e=>setDistanceFeet(e.target.value)} type="number" min="0" placeholder="e.g. 350" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted"/>
         </div>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 mb-1">Disc</label>
-          <select value={discId} onChange={e=>setDiscId(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white">
+          <label className="block text-xs text-text-muted mb-1">Disc</label>
+          <select value={discId} onChange={e=>setDiscId(e.target.value)} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text">
             {discs.map(d => <option key={d.id} value={d.id}>{d.custom_name || d.mold} ({d.manufacturer})</option>)}
           </select>
         </div>
-        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course / location" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
-        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course / location" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text mb-3"/>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-4 resize-none"/>
         <div className="flex gap-2">
-          {throwRecord && <button type="button" onClick={() => { onDelete(throwRecord.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+          {throwRecord && <button type="button" onClick={() => { onDelete(throwRecord.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-gap-high/10 text-gap-high text-sm font-semibold border border-gap-high/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold">Save</button>
         </div>
       </motion.div>
     </motion.div>
@@ -2567,36 +2598,36 @@ function PersonalBestFormModal({ open, pb, onClose, onSave, onDelete, uploadImag
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose}/>
-      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-gray-950 rounded-2xl border border-gray-800 p-5 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-bold text-white mb-4">{pb ? 'Edit Personal Best' : 'Add Personal Best'}</h2>
+      <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="relative w-full max-w-md bg-bg rounded-2xl border border-border p-5 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold text-text mb-4">{pb ? 'Edit Personal Best' : 'Add Personal Best'}</h2>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 font-medium mb-1.5">Photo</label>
-          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:border-purple-500/40 cursor-pointer w-full">
-            <Camera size={16} className="text-gray-400"/>
-            <span className="text-sm text-gray-300">{photo ? 'Change photo' : 'Add Photo'}</span>
+          <label className="block text-xs text-text-muted font-medium mb-1.5">Photo</label>
+          <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-surface hover:border-gap-low/40 cursor-pointer w-full">
+            <Camera size={16} className="text-text-muted"/>
+            <span className="text-sm text-text-muted">{photo ? 'Change photo' : 'Add Photo'}</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handlePhoto}/>
           </label>
           {photo && (
             <div className="mt-2 flex items-center gap-2">
-              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-700"/>
-              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-red-400 hover:text-red-300 font-semibold">Remove photo</button>
+              <img src={photo} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-border"/>
+              <button type="button" onClick={()=>setPhoto(null)} className="text-xs text-gap-high hover:text-red-300 font-semibold">Remove photo</button>
             </div>
           )}
         </div>
         <div className="mb-3">
-          <label className="block text-xs text-gray-500 mb-1">Category</label>
-          <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white">
+          <label className="block text-xs text-text-muted mb-1">Category</label>
+          <select value={category} onChange={e=>setCategory(e.target.value)} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text">
             {PB_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <input value={value} onChange={e=>setValue(e.target.value)} placeholder="Value / score" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
-        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-3"/>
-        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white mb-3"/>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-500 mb-4 resize-none"/>
+        <input value={value} onChange={e=>setValue(e.target.value)} placeholder="Value / score" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
+        <input value={course} onChange={e=>setCourse(e.target.value)} placeholder="Course" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-3"/>
+        <input value={date} onChange={e=>setDate(e.target.value)} type="date" className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text mb-3"/>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Add a note... (e.g. Wind was crazy, threw a perfect hyzer line)" rows={2} className="w-full bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted mb-4 resize-none"/>
         <div className="flex gap-2">
-          {pb && <button type="button" onClick={() => { onDelete(pb.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-red-500/10 text-red-400 text-sm font-semibold border border-red-500/20">Delete</button>}
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-gray-400 text-sm font-semibold">Cancel</button>
-          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold">Save</button>
+          {pb && <button type="button" onClick={() => { onDelete(pb.id); onClose(); }} className="py-2.5 px-4 rounded-xl bg-gap-high/10 text-gap-high text-sm font-semibold border border-gap-high/20">Delete</button>}
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold">Cancel</button>
+          <button onClick={save} className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold">Save</button>
         </div>
       </motion.div>
     </motion.div>
@@ -2655,12 +2686,12 @@ function TrophyCasePage({
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
-          <Trophy size={24} className="text-amber-400"/>
+        <div className="w-12 h-12 rounded-xl bg-surface border border-border flex items-center justify-center">
+          <Trophy size={24} className="text-gap-medium"/>
         </div>
         <div>
-          <h2 className="text-xl font-black text-white">Trophy Case</h2>
-          <p className="text-xs text-gray-500">Your Hall of Fame</p>
+          <h2 className="text-xl font-black text-text">Trophy Case</h2>
+          <p className="text-xs text-text-muted">Your Hall of Fame</p>
         </div>
       </div>
 
@@ -2672,11 +2703,11 @@ function TrophyCasePage({
           const value = cat.id === 'longest' ? (maxLongest ? `${maxLongest}ft` : '—') : count;
           const active = category === cat.id;
           return (
-            <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${active ? `bg-gradient-to-br ${cat.accent} border-current` : 'bg-gray-900/80 border-gray-700 hover:border-gray-600'}`}>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${active ? 'bg-white/10' : 'bg-gray-800'}`}><Icon size={20} className={active ? 'text-white' : 'text-gray-400'}/></div>
+            <button key={cat.id} type="button" onClick={() => setCategory(cat.id)} className={`shrink-0 flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${active ? `bg-gradient-to-br ${cat.accent} border-current` : 'bg-card/80 border-border hover:border-border'}`}>
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${active ? 'bg-white/10' : 'bg-surface'}`}><Icon size={20} className={active ? 'text-text' : 'text-text-muted'}/></div>
               <div className="text-left">
-                <div className={`text-sm font-bold ${active ? 'text-white' : 'text-gray-300'}`}>{cat.label}</div>
-                <div className={`text-lg font-black ${active ? 'text-white' : 'text-gray-500'}`}>{value}</div>
+                <div className={`text-sm font-bold ${active ? 'text-text' : 'text-text-muted'}`}>{cat.label}</div>
+                <div className={`text-lg font-black ${active ? 'text-text' : 'text-text-muted'}`}>{value}</div>
               </div>
             </button>
           );
@@ -2685,15 +2716,15 @@ function TrophyCasePage({
 
       {/* Toolbar: sort + Add (only show Add when category has entries; empty state has its own CTA) */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+        <select value={sortBy} onChange={e=>setSortBy(e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text">
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
           <option value="rarity">Rarity</option>
         </select>
-        {category === 'aces' && sortedAces.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={onLogAce} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30"><Trophy size={16}/>Add an Ace</motion.button>}
-        {category === 'tournaments' && sortedTournaments.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30"><Award size={16}/>Add Tournament</motion.button>}
-        {category === 'longest' && sortedLongestThrows.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30"><Target size={16}/>Add Throw</motion.button>}
-        {category === 'pbs' && sortedPBs.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30"><Star size={16}/>Add Personal Best</motion.button>}
+        {category === 'aces' && sortedAces.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={onLogAce} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-medium/20 text-gap-medium border border-gap-medium/30 hover:bg-gap-medium/30"><Trophy size={16}/>Add an Ace</motion.button>}
+        {category === 'tournaments' && sortedTournaments.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"><Award size={16}/>Add Tournament</motion.button>}
+        {category === 'longest' && sortedLongestThrows.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-high/20 text-gap-high border border-gap-high/30 hover:bg-gap-high/30"><Target size={16}/>Add Throw</motion.button>}
+        {category === 'pbs' && sortedPBs.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-low/20 text-gap-low border border-gap-low/30 hover:bg-gap-low/30"><Star size={16}/>Add Personal Best</motion.button>}
       </div>
 
       {/* Content grid */}
@@ -2701,9 +2732,9 @@ function TrophyCasePage({
         {category === 'aces' && (sortedAces.length === 0 ? (
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
             <AceEmblem size={100}/>
-            <h3 className="text-lg font-bold text-white mt-4">Your first ace card is waiting to be earned!</h3>
-            <p className="text-sm text-gray-500 max-w-xs mt-2">Log your first ace to start your collection.</p>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={onLogAce} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-gray-950"><Trophy size={16}/>Log Your First Ace</motion.button>
+            <h3 className="text-lg font-bold text-text mt-4">Your first ace card is waiting to be earned!</h3>
+            <p className="text-sm text-text-muted max-w-xs mt-2">Log your first ace to start your collection.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={onLogAce} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gap-medium text-on-primary"><Trophy size={16}/>Log Your First Ace</motion.button>
           </div>
         ) : sortedAces.map((a, i) => (
           <div key={a.id} className="aspect-[2.5/3.5] min-h-[180px] max-h-[320px] flex">
@@ -2713,10 +2744,10 @@ function TrophyCasePage({
 
         {category === 'tournaments' && (sortedTournaments.length === 0 ? (
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-            <Award size={64} className="text-sky-500/50 mx-auto"/>
-            <h3 className="text-lg font-bold text-white mt-4">Add your tournament results!</h3>
-            <p className="text-sm text-gray-500 max-w-xs mt-2">Track placements and divisions.</p>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-sky-500 text-white"><Award size={16}/>Add Tournament</motion.button>
+            <Award size={64} className="text-secondary/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-text mt-4">Add your tournament results!</h3>
+            <p className="text-sm text-text-muted max-w-xs mt-2">Track placements and divisions.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-secondary text-text"><Award size={16}/>Add Tournament</motion.button>
           </div>
         ) : sortedTournaments.map((t, i) => {
           const rarity = getTournamentRarity(t.placement);
@@ -2735,12 +2766,12 @@ function TrophyCasePage({
                     <img src={t.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
                     <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 55%)' }}/>
                     <div className="absolute top-2 left-0 right-0 px-3 flex items-center justify-center pointer-events-none">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-950/80 border border-sky-500/70 shadow-lg">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/80 border border-secondary/70 shadow-lg">
                         <span className="text-xl" role="img" aria-label="placement medal">{rarity.medalEmoji || '🎗️'}</span>
                         <div className="flex flex-col leading-tight text-left">
-                          <span className="text-[11px] font-black tracking-widest uppercase text-sky-100">{rarity.label}</span>
+                          <span className="text-[11px] font-black tracking-widest uppercase text-secondary">{rarity.label}</span>
                           {placementNum >= 1 && (
-                            <span className="text-[10px] font-semibold text-sky-300">
+                            <span className="text-[10px] font-semibold text-secondary">
                               {placementStr} of {groupLabel}
                             </span>
                           )}
@@ -2748,7 +2779,7 @@ function TrophyCasePage({
                       </div>
                     </div>
                     <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/30 text-sky-50 border border-sky-400/60 backdrop-blur-sm">
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-secondary/30 text-secondary border border-secondary/60 backdrop-blur-sm">
                         {typeLabel}{t.division ? ` · ${t.division}` : ''}
                       </span>
                       {placementNum >= 1 && (
@@ -2765,51 +2796,51 @@ function TrophyCasePage({
                       <div className="inline-flex items-center gap-2">
                         <span className="text-2xl" role="img" aria-label="placement medal">{rarity.medalEmoji || '🎗️'}</span>
                         <div className="flex flex-col leading-tight">
-                          <span className="text-[11px] font-black uppercase tracking-widest text-sky-100">{rarity.label}</span>
+                          <span className="text-[11px] font-black uppercase tracking-widest text-secondary">{rarity.label}</span>
                           {placementNum >= 1 && (
-                            <span className="text-[10px] font-semibold text-sky-300">
+                            <span className="text-[10px] font-semibold text-secondary">
                               {placementStr} of {groupLabel}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-end gap-0.5 h-6">
-                        <span className="w-1.5 h-3 rounded-t-full bg-sky-900/80"/>
-                        <span className="w-1.5 h-4 rounded-t-full bg-sky-600/90"/>
-                        <span className="w-1.5 h-5 rounded-t-full bg-sky-400/90"/>
+                        <span className="w-1.5 h-3 rounded-t-full bg-secondary/80"/>
+                        <span className="w-1.5 h-4 rounded-t-full bg-secondary/90"/>
+                        <span className="w-1.5 h-5 rounded-t-full bg-secondary/90"/>
                       </div>
                     </div>
                   )}
-                  <h3 className="text-sm font-black text-white truncate">{t.name}</h3>
-                  <p className="text-[10px] text-gray-500 truncate">{t.course}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
+                  <h3 className="text-sm font-black text-text truncate">{t.name}</h3>
+                  <p className="text-[10px] text-text-muted truncate">{t.course}</p>
+                  <p className="text-[10px] text-text-muted mt-0.5">
                     {typeLabel}{t.division ? ` · ${t.division}` : ''}{groupCount > 0 ? ` · ${groupLabel}` : ''}
                   </p>
                   {isDoubles && t.teamName && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">
+                    <p className="text-[10px] text-text-muted mt-0.5">
                       Team: {t.teamName}
                     </p>
                   )}
                   {isDoubles && t.partnerName && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">Partner: {t.partnerName}</p>
+                    <p className="text-[10px] text-text-muted mt-0.5">Partner: {t.partnerName}</p>
                   )}
                   {t.rounds > 0 && (
-                    <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
-                      <Calendar size={10} className="text-sky-400"/>
+                    <p className="text-[10px] text-text-muted mt-0.5 flex items-center gap-1">
+                      <Calendar size={10} className="text-secondary"/>
                       {t.rounds} {t.rounds === 1 ? 'Round' : 'Rounds'}
                     </p>
                   )}
                   {t.withWho && (
-                    <p className="text-[10px] text-gray-500 mt-0.5 truncate">
+                    <p className="text-[10px] text-text-muted mt-0.5 truncate">
                       With: {t.withWho}
                     </p>
                   )}
-                  <p className="text-[10px] text-gray-500 mt-1">{fmtD(t.date)}</p>
-                  {t.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{t.notes}"</p>}
+                  <p className="text-[10px] text-text-muted mt-1">{fmtD(t.date)}</p>
+                  {t.notes && <p className="text-[10px] text-text-muted italic mt-1 line-clamp-2">"{t.notes}"</p>}
                 </div>
                 <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
-                  <button onClick={() => { setEditingTournament(t); setTournamentFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-sky-400 border border-gray-700/50"><Edit3 size={12}/></button>
-                  <button onClick={() => setConfirmDelete({ type: 'tournament', id: t.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                  <button onClick={() => { setEditingTournament(t); setTournamentFormOpen(true); }} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-secondary border border-border/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'tournament', id: t.id })} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-gap-high border border-border/50"><Trash2 size={12}/></button>
                 </div>
               </AchievementCardWrapper>
             </div>
@@ -2818,10 +2849,10 @@ function TrophyCasePage({
 
         {category === 'longest' && (sortedLongestThrows.length === 0 ? (
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-            <Target size={64} className="text-rose-500/50 mx-auto"/>
-            <h3 className="text-lg font-bold text-white mt-4">How far can you send it?</h3>
-            <p className="text-sm text-gray-500 max-w-xs mt-2">Log your longest throws with the disc you used.</p>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-rose-500 text-white"><Target size={16}/>Add Longest Throw</motion.button>
+            <Target size={64} className="text-gap-high/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-text mt-4">How far can you send it?</h3>
+            <p className="text-sm text-text-muted max-w-xs mt-2">Log your longest throws with the disc you used.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gap-high text-text"><Target size={16}/>Add Longest Throw</motion.button>
           </div>
         ) : sortedLongestThrows.map((t, i) => {
           const disc = dm[t.discId];
@@ -2838,14 +2869,14 @@ function TrophyCasePage({
                     <img src={t.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
                     <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.9) 0%,transparent 50%)' }}/>
                     <div className="absolute bottom-3 left-0 right-0 px-3 flex items-end justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white backdrop-blur-sm">{rarity.label}</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-text backdrop-blur-sm">{rarity.label}</span>
                       <div className="flex flex-col items-end gap-1">
                         <div className="inline-flex items-baseline gap-1">
-                          <Zap size={16} className="text-orange-400 drop-shadow" />
-                          <span className="text-3xl font-black text-white drop-shadow-lg">{dist}</span>
-                          <span className="text-sm font-bold text-rose-300 ml-0.5">ft</span>
+                          <Zap size={16} className="text-gap-medium drop-shadow" />
+                          <span className="text-3xl font-black text-text drop-shadow-lg">{dist}</span>
+                          <span className="text-sm font-bold text-gap-high ml-0.5">ft</span>
                         </div>
-                        <div className="w-24 h-1.5 rounded-full bg-gray-900/80 overflow-hidden border border-rose-500/40">
+                        <div className="w-24 h-1.5 rounded-full bg-card/80 overflow-hidden border border-gap-high/40">
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, background:'linear-gradient(90deg,#facc15,#fb923c,#ef4444)' }}/>
                         </div>
                       </div>
@@ -2856,33 +2887,33 @@ function TrophyCasePage({
                   {!hasPhoto && (
                     <div className="flex items-center justify-between mb-1.5 shrink-0">
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${rarity.bg} ${rarity.text}`}>{rarity.label}</span>
-                      <Target size={14} className="text-rose-400"/>
+                      <Target size={14} className="text-gap-high"/>
                     </div>
                   )}
                   {!hasPhoto && (
                     <div className="rounded-lg px-3 py-1.5 mb-1.5 shrink-0 flex items-baseline justify-between gap-2" style={{ background: 'linear-gradient(135deg,rgba(255,69,0,0.25),rgba(220,20,60,0.12))', border: '1px solid rgba(255,99,71,0.5)' }}>
                       <div className="inline-flex items-baseline gap-1">
-                        <Zap size={16} className="text-orange-400" />
-                        <span className="text-3xl font-black text-white">{dist}</span>
-                        <span className="text-sm text-rose-300 font-bold ml-1">ft</span>
+                        <Zap size={16} className="text-gap-medium" />
+                        <span className="text-3xl font-black text-text">{dist}</span>
+                        <span className="text-sm text-gap-high font-bold ml-1">ft</span>
                       </div>
                     </div>
                   )}
                   {!hasPhoto && (
                     <div className="mb-1.5">
-                      <div className="w-full h-1.5 rounded-full bg-gray-900/90 overflow-hidden border border-rose-500/40">
+                      <div className="w-full h-1.5 rounded-full bg-card/90 overflow-hidden border border-gap-high/40">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, background:'linear-gradient(90deg,#facc15,#fb923c,#ef4444)' }}/>
                       </div>
-                      <p className="text-[9px] text-gray-500 mt-0.5 text-right">Power meter</p>
+                      <p className="text-[9px] text-text-muted mt-0.5 text-right">Power meter</p>
                     </div>
                   )}
-                  <p className="text-[11px] text-gray-400 truncate">{disc ? (disc.custom_name || disc.mold) : 'Unknown disc'}</p>
-                  <p className="text-[10px] text-gray-500">{t.course} · {fmtD(t.date)}</p>
-                  {t.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{t.notes}"</p>}
+                  <p className="text-[11px] text-text-muted truncate">{disc ? (disc.custom_name || disc.mold) : 'Unknown disc'}</p>
+                  <p className="text-[10px] text-text-muted">{t.course} · {fmtD(t.date)}</p>
+                  {t.notes && <p className="text-[10px] text-text-muted italic mt-1 line-clamp-2">"{t.notes}"</p>}
                 </div>
                 <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
-                  <button onClick={() => { setEditingLongestThrow(t); setLongestThrowFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-rose-400 border border-gray-700/50"><Edit3 size={12}/></button>
-                  <button onClick={() => setConfirmDelete({ type: 'longest', id: t.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                  <button onClick={() => { setEditingLongestThrow(t); setLongestThrowFormOpen(true); }} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-gap-high border border-border/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'longest', id: t.id })} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-gap-high border border-border/50"><Trash2 size={12}/></button>
                 </div>
               </AchievementCardWrapper>
             </div>
@@ -2891,10 +2922,10 @@ function TrophyCasePage({
 
         {category === 'pbs' && (sortedPBs.length === 0 ? (
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-            <Star size={64} className="text-purple-500/50 mx-auto"/>
-            <h3 className="text-lg font-bold text-white mt-4">Track your greatest moments!</h3>
-            <p className="text-sm text-gray-500 max-w-xs mt-2">Lowest round, most birdies, longest putt, and more.</p>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-purple-500 text-white"><Star size={16}/>Add Personal Best</motion.button>
+            <Star size={64} className="text-gap-low/50 mx-auto"/>
+            <h3 className="text-lg font-bold text-text mt-4">Track your greatest moments!</h3>
+            <p className="text-sm text-text-muted max-w-xs mt-2">Lowest round, most birdies, longest putt, and more.</p>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gap-low text-text"><Star size={16}/>Add Personal Best</motion.button>
           </div>
         ) : sortedPBs.map((pb, i) => {
           const rarity = getPBRarity();
@@ -2925,19 +2956,19 @@ function TrophyCasePage({
                     <img src={pb.photo} alt="" className="w-full h-full object-cover rounded-t-xl"/>
                     <div className="absolute inset-0 rounded-t-xl pointer-events-none" style={{ background: 'linear-gradient(to top,rgba(0,0,0,0.85) 0%,transparent 55%)' }}/>
                     <div className="absolute top-2 left-0 right-0 flex justify-center px-3">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/25 border border-emerald-400/60 backdrop-blur">
-                        <Star size={14} className="text-emerald-200" fill="currentColor"/>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100">New Record</span>
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/25 border border-primary/60 backdrop-blur">
+                        <Star size={14} className="text-primary" fill="currentColor"/>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">New Record</span>
                       </div>
                     </div>
                     <div className="absolute bottom-2 left-0 right-0 px-3 flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-gray-300">{pb.course}</span>
-                        <span className="text-[9px] text-gray-400">{fmtD(pb.date)}</span>
+                        <span className="text-[10px] font-bold text-text-muted">{pb.course}</span>
+                        <span className="text-[9px] text-text-muted">{fmtD(pb.date)}</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-semibold text-emerald-200">{pb.category}</p>
-                        <p className="text-xl font-black text-white mt-0.5">{pb.value}</p>
+                        <p className="text-xs font-semibold text-primary">{pb.category}</p>
+                        <p className="text-xl font-black text-text mt-0.5">{pb.value}</p>
                       </div>
                     </div>
                   </div>
@@ -2945,19 +2976,19 @@ function TrophyCasePage({
                 <div className={`px-3 py-2 flex-1 min-h-0 overflow-y-auto flex flex-col ${hasPhoto ? '' : 'pt-2'}`}>
                   {!hasPhoto && (
                     <div className="flex items-center justify-between mb-1.5 shrink-0">
-                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">NEW RECORD</span>
-                      <Star size={14} className="text-emerald-400" fill="currentColor"/>
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">NEW RECORD</span>
+                      <Star size={14} className="text-primary" fill="currentColor"/>
                     </div>
                   )}
-                  <h3 className="text-[11px] font-bold text-gray-400">{pb.category}</h3>
-                  <p className="text-lg font-black text-white mt-0.5">{pb.value}</p>
-                  {improvementLabel && <p className="text-[10px] text-emerald-300 font-semibold mt-0.5">{improvementLabel}</p>}
-                  <p className="text-[10px] text-gray-500 mt-1">{pb.course} · {fmtD(pb.date)}</p>
-                  {pb.notes && <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">"{pb.notes}"</p>}
+                  <h3 className="text-[11px] font-bold text-text-muted">{pb.category}</h3>
+                  <p className="text-lg font-black text-text mt-0.5">{pb.value}</p>
+                  {improvementLabel && <p className="text-[10px] text-primary font-semibold mt-0.5">{improvementLabel}</p>}
+                  <p className="text-[10px] text-text-muted mt-1">{pb.course} · {fmtD(pb.date)}</p>
+                  {pb.notes && <p className="text-[10px] text-text-muted italic mt-1 line-clamp-2">"{pb.notes}"</p>}
                 </div>
                 <div className="px-2.5 py-2 flex items-center gap-1.5 shrink-0 border-t border-white/5">
-                  <button onClick={() => { setEditingPersonalBest(pb); setPbFormOpen(true); }} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-emerald-400 border border-gray-700/50"><Edit3 size={12}/></button>
-                  <button onClick={() => setConfirmDelete({ type: 'pb', id: pb.id })} className="p-2 rounded-lg bg-gray-800/80 text-gray-500 hover:text-red-400 border border-gray-700/50"><Trash2 size={12}/></button>
+                  <button onClick={() => { setEditingPersonalBest(pb); setPbFormOpen(true); }} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-primary border border-border/50"><Edit3 size={12}/></button>
+                  <button onClick={() => setConfirmDelete({ type: 'pb', id: pb.id })} className="p-2 rounded-lg bg-surface/80 text-text-muted hover:text-gap-high border border-border/50"><Trash2 size={12}/></button>
                 </div>
               </AchievementCardWrapper>
             </div>
@@ -2988,34 +3019,34 @@ function BackupModal({open,disc,onClose}) {
   if (!open||!disc) return null;
   const sq = encodeURIComponent(`${disc.manufacturer} ${disc.mold} ${disc.plastic_type} disc golf`);
   const retailers = [
-    {name:'Amazon',est:'$16 – $22',text:'text-amber-400',url:`https://www.amazon.com/s?k=${sq}`},
-    {name:'Infinite Discs',est:'$14 – $20',text:'text-sky-400',url:`https://infinitediscs.com/search?query=${sq}`},
-    {name:'OTB Discs',est:'$15 – $21',text:'text-emerald-400',url:`https://otbdiscs.com/search?q=${sq}`},
+    {name:'Amazon',est:'$16 – $22',text:'text-gap-medium',url:`https://www.amazon.com/s?k=${sq}`},
+    {name:'Infinite Discs',est:'$14 – $20',text:'text-secondary',url:`https://infinitediscs.com/search?query=${sq}`},
+    {name:'OTB Discs',est:'$15 – $21',text:'text-primary',url:`https://otbdiscs.com/search?q=${sq}`},
   ];
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} className="relative w-full max-w-sm bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
-        <div className="p-5 border-b border-gray-800 flex items-center gap-3">
+      <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden">
+        <div className="p-5 mb-4 flex items-center gap-3">
           <DiscVisual disc={disc} size="sm"/>
-          <div className="flex-1 min-w-0"><h2 className="text-base font-bold text-white truncate">Buy: {disc.mold}</h2><p className="text-xs text-gray-500">{disc.manufacturer} · {disc.plastic_type}</p></div>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-800 text-gray-500 shrink-0"><X size={18}/></button>
+          <div className="flex-1 min-w-0"><h2 className="text-base font-bold text-text truncate">Buy: {disc.mold}</h2><p className="text-xs text-text-muted">{disc.manufacturer} · {disc.plastic_type}</p></div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-surface text-text-muted shrink-0"><X size={18}/></button>
         </div>
         <div className="p-5">
           <AnimatePresence mode="wait">
             {!ready ? (
               <motion.div key="ld" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col items-center py-8">
-                <motion.div animate={{rotate:360}} transition={{duration:1,repeat:Infinity,ease:'linear'}}><Loader size={24} className="text-emerald-400"/></motion.div>
-                <p className="text-sm text-gray-400 mt-3">Searching retailers…</p>
+                <motion.div animate={{rotate:360}} transition={{duration:1,repeat:Infinity,ease:'linear'}}><Loader size={24} className="text-primary"/></motion.div>
+                <p className="text-sm text-text-muted mt-3">Searching retailers…</p>
               </motion.div>
             ) : (
               <motion.div key="res" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="space-y-2.5">
                 {retailers.map((r,i) => (
                   <motion.a key={r.name} href={r.url} target="_blank" rel="noopener noreferrer" initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:i*0.1}}
                     onClick={() => ReactGA.event({ category: 'Affiliate', action: 'Shop Click', label: r.name })}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-700/50 bg-gray-800/50 hover:bg-gray-800 transition-all block">
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-surface/50 hover:bg-surface transition-all block">
                     <ShoppingCart size={16} className={r.text}/><div className="flex-1"><div className={`text-sm font-semibold ${r.text}`}>{r.name}</div></div>
-                    <div className="text-sm font-bold text-white">{r.est}</div><ExternalLink size={14} className="text-gray-600 shrink-0"/>
+                    <div className="text-sm font-bold text-text">{r.est}</div><ExternalLink size={14} className="text-text-muted shrink-0"/>
                   </motion.a>
                 ))}
               </motion.div>
@@ -3030,7 +3061,7 @@ function BackupModal({open,disc,onClose}) {
 // ═══════════════════════════════════════════════════════
 // ADD TO BAG PICKER MODAL
 // ═══════════════════════════════════════════════════════
-function AddToBagPicker({ open, onClose, discs, bag, onAdd }) {
+function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc }) {
   const [search, setSearch] = useState('');
   if (!open || !bag) return null;
 
@@ -3041,42 +3072,64 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd }) {
     return (d.mold || '').toLowerCase().includes(q) || (d.manufacturer || '').toLowerCase().includes(q) || (d.custom_name || '').toLowerCase().includes(q);
   });
 
+  const libraryEmpty = discs.length === 0;
+
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
-      <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} transition={{type:'spring',damping:28}} className="relative w-full max-w-md bg-gray-900 rounded-t-3xl sm:rounded-2xl border border-gray-800 flex flex-col overflow-hidden" style={{maxHeight:'80vh'}}>
-        <div className="flex items-center justify-between p-5 border-b border-gray-800 shrink-0">
+      <motion.div initial={{y:80,opacity:0}} animate={{y:0,opacity:1}} exit={{y:80,opacity:0}} transition={{type:'spring',damping:28}} className="relative w-full max-w-md bg-card rounded-t-3xl sm:rounded-2xl border border-border flex flex-col overflow-hidden shadow-card-lg" style={{maxHeight:'80vh'}}>
+        <div className="flex items-center justify-between p-5 mb-4 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-white">Add to {bag.name}</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{available.length} disc{available.length !== 1 ? 's' : ''} available</p>
+            <h2 className="text-lg font-bold text-text">Add to {bag.name}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{libraryEmpty ? 'No discs in library' : `${available.length} disc${available.length !== 1 ? 's' : ''} available`}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-400"><X size={20}/></button>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted"><X size={20}/></button>
         </div>
+        {libraryEmpty ? (
+          <div className="flex-1 p-5 flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-surface border border-border flex items-center justify-center mb-4 text-3xl" role="img" aria-label="Disc">🥏</div>
+            <h3 className="text-base font-bold text-text mb-2">Your disc library is empty</h3>
+            <p className="text-sm text-text-muted mb-6 max-w-xs">Add discs to your library first, then you can add them to this bag.</p>
+            <motion.button whileHover={{scale:1.03}} whileTap={{scale:0.98}} onClick={() => { onClose(); onAddDisc?.(); }} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25">
+              <Plus size={18}/>Add disc to library
+            </motion.button>
+          </div>
+        ) : (
+          <>
         <div className="px-5 pt-3 shrink-0">
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"/>
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search your discs…"
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+              className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
           </div>
         </div>
         <div className="overflow-y-auto flex-1 p-5 space-y-2">
           {filtered.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              {available.length === 0 ? 'All your discs are already in this bag!' : 'No discs match your search'}
+            <div className="text-center py-6">
+              <p className="text-text-muted text-sm mb-4">
+                {available.length === 0 ? 'All your discs are already in this bag!' : 'No discs match your search'}
+              </p>
+              {available.length === 0 && onAddDisc && (
+                <motion.button whileHover={{scale:1.03}} whileTap={{scale:0.98}} onClick={() => { onClose(); onAddDisc(); }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm mx-auto">
+                  <Plus size={16}/>Add new disc to library
+                </motion.button>
+              )}
             </div>
           ) : filtered.map(d => (
             <motion.button key={d.id} whileHover={{scale:1.01}} whileTap={{scale:0.98}}
               onClick={() => { onAdd(bag.id, d.id); }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 hover:border-emerald-500/30 transition-all text-left">
-              <div className="w-8 h-8 rounded-full border-2 border-gray-600 shrink-0" style={{backgroundColor: d.color || '#22c55e'}}/>
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border hover:border-primary/30 transition-all text-left">
+              <div className="w-8 h-8 rounded-full border-2 border-border shrink-0" style={{backgroundColor: d.color || '#22c55e'}}/>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{d.custom_name || d.mold}</p>
-                <p className="text-xs text-gray-500 truncate">{d.manufacturer} · {d.plastic_type}</p>
+                <p className="text-sm font-semibold text-text truncate">{d.custom_name || d.mold}</p>
+                <p className="text-xs text-text-muted truncate">{d.manufacturer} · {d.plastic_type}</p>
               </div>
-              <Plus size={18} className="text-emerald-400 shrink-0"/>
+              <Plus size={18} className="text-primary shrink-0"/>
             </motion.button>
           ))}
         </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -3095,74 +3148,74 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={onClose}/>
       <motion.div initial={{y:60,opacity:0}} animate={{y:0,opacity:1}} transition={{type:'spring',damping:30}}
-        className="relative w-full max-w-xl bg-gray-950 rounded-t-3xl sm:rounded-2xl border border-gray-800 flex flex-col overflow-hidden shadow-2xl" style={{maxHeight:'90vh'}}>
+        className="relative w-full max-w-xl bg-card rounded-t-3xl sm:rounded-2xl border border-border flex flex-col overflow-hidden shadow-card-lg" style={{maxHeight:'90vh'}}>
         <div className="h-1.5 shrink-0" style={{background:disc.color||'#6b7280'}}/>
-        <div className="shrink-0 p-5 pb-4 border-b border-gray-800/60">
+        <div className="shrink-0 p-5 pb-4 mb-4">
           <div className="flex items-start gap-4">
             <DiscVisual disc={disc} size="xl"/>
             <div className="flex-1 min-w-0 pt-1">
-              {disc.custom_name ? (<><h2 className="text-2xl font-black text-white leading-tight">{disc.custom_name}</h2><p className="text-sm text-gray-400 font-medium mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{disc.manufacturer}</p><h2 className="text-2xl font-black text-white leading-tight">{disc.mold}</h2><p className="text-sm text-gray-400 font-medium mt-0.5">{disc.plastic_type}</p></>)}
+              {disc.custom_name ? (<><h2 className="text-2xl font-black text-text leading-tight">{disc.custom_name}</h2><p className="text-sm text-text-muted font-medium mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><p className="text-xs text-text-muted font-semibold uppercase tracking-wider">{disc.manufacturer}</p><h2 className="text-2xl font-black text-text leading-tight">{disc.mold}</h2><p className="text-sm text-text-muted font-medium mt-0.5">{disc.plastic_type}</p></>)}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full border" style={{backgroundColor:stabM.color+'15',color:stabM.color,borderColor:stabM.color+'33'}}>{stabM.icon} {stabM.label}</span>
-                {st && <span className="flex items-center gap-1.5 text-xs text-gray-400"><span className={`w-2 h-2 rounded-full ${st.dot}`}/>{st.label}</span>}
+                {st && <span className="flex items-center gap-1.5 text-xs text-text-muted"><span className={`w-2 h-2 rounded-full ${st.dot}`}/>{st.label}</span>}
               </div>
               {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Backpack size={9}/>{b.name}</span>))}</div>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-800 text-gray-500 shrink-0 mt-1"><X size={20}/></button>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted shrink-0 mt-1"><X size={20}/></button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Flight Path */}
-          <section className="bg-gray-900/80 rounded-xl p-5 border border-gray-800/50">
-            <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Target size={12}/>Flight Path</h3>
+          <section className="bg-card/80 rounded-xl p-5 border border-border/50">
+            <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Target size={12}/>Flight Path</h3>
             <div className="flex justify-center"><FlightPath turn={disc.turn} fade={disc.fade} id={`detail-${disc.id}`} large defaultMode={disc.flight_preference || 'both'}/></div>
           </section>
           {/* Flight numbers */}
           <div className="grid grid-cols-4 gap-2">
             {FN_META.map(fn => (
-              <div key={fn.key} className={`rounded-xl py-3 text-center ${fn.bg} border border-gray-800/40`}>
+              <div key={fn.key} className={`rounded-xl py-3 text-center ${fn.bg} border border-border/40`}>
                 <div className={`font-black text-xl leading-none ${fn.text}`}>{disc[fn.key]}</div>
-                <div className="text-gray-500 text-xs mt-1 font-bold tracking-widest">{fn.label}</div>
+                <div className="text-text-muted text-xs mt-1 font-bold tracking-widest">{fn.label}</div>
               </div>
             ))}
           </div>
           {/* Specs */}
           <section>
-            <h3 className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3"><Info size={12}/>Specs</h3>
+            <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Info size={12}/>Specs</h3>
             <div className="grid grid-cols-2 gap-2">
               {[{l:'Weight',v:disc.weight_grams?`${disc.weight_grams}g`:'—'},{l:'Plastic',v:disc.plastic_type},{l:'Acquired',v:disc.date_acquired?fmtD(disc.date_acquired):'—'},{l:'Value',v:`$${disc.estimated_value||0}`}].map(s => (
-                <div key={s.l} className="bg-gray-900/60 border border-gray-800/40 rounded-lg px-3 py-2.5">
-                  <div className="text-xs text-gray-500">{s.l}</div><div className="text-sm text-white font-semibold truncate">{s.v}</div>
+                <div key={s.l} className="bg-card/60 border border-border/40 rounded-lg px-3 py-2.5">
+                  <div className="text-xs text-text-muted">{s.l}</div><div className="text-sm text-text font-semibold truncate">{s.v}</div>
                 </div>
               ))}
             </div>
-            <div className="mt-2 bg-gray-900/60 border border-gray-800/40 rounded-lg px-3 py-3">
-              <div className="flex items-center justify-between mb-1.5"><span className="text-xs text-gray-500">Condition</span><span className="text-xs text-gray-300 font-bold">{disc.wear_level}/10 · {ww(disc.wear_level)}</span></div>
-              <div className="h-2 bg-gray-800 rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.8}}/></div>
-              <p className="text-xs text-gray-400 mt-1">1 = Poor → 10 = Mint</p>
+            <div className="mt-2 bg-card/60 border border-border/40 rounded-lg px-3 py-3">
+              <div className="flex items-center justify-between mb-1.5"><span className="text-xs text-text-muted">Condition</span><span className="text-xs text-text-muted font-bold">{disc.wear_level}/10 · {ww(disc.wear_level)}</span></div>
+              <div className="h-2 bg-surface rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.8}}/></div>
+              <p className="text-xs text-text-muted mt-1">1 = Poor → 10 = Mint</p>
             </div>
           </section>
         </div>
         {/* Footer actions */}
-        <div className="shrink-0 border-t border-gray-800/60 p-4 bg-gray-950">
+        <div className="shrink-0 mt-4 pt-4 p-4 bg-surface/50">
           <div className="flex items-center gap-2">
-            <button onClick={() => onEdit(disc)} className="p-2.5 rounded-xl text-gray-400 hover:text-emerald-400 hover:bg-emerald-500/10 border border-gray-800"><Edit3 size={16}/></button>
-            <button onClick={() => onDelete(disc.id)} className="p-2.5 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-gray-800"><Trash2 size={16}/></button>
+            <button onClick={() => onEdit(disc)} className="p-2.5 rounded-xl text-text-muted hover:text-primary hover:bg-primary/10 border border-border"><Edit3 size={16}/></button>
+            <button onClick={() => onDelete(disc.id)} className="p-2.5 rounded-xl text-text-muted hover:text-gap-high hover:bg-gap-high/10 border border-border"><Trash2 size={16}/></button>
             <div className="flex-1 flex justify-center relative">
-              <button onClick={() => setBagDrop(!bagDrop)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${bagDrop?'bg-sky-500/25 text-sky-300 border-sky-500/40':'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}><Backpack size={14}/>Add to Bag</button>
+              <button onClick={() => setBagDrop(!bagDrop)} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all ${bagDrop?'bg-secondary/25 text-secondary border-secondary/40':'bg-secondary/10 text-secondary border-secondary/20'}`}><Backpack size={14}/>Add to Bag</button>
               {bagDrop && (
                 <>
                   <div className="fixed inset-0" style={{zIndex:9}} onClick={() => setBagDrop(false)}/>
-                  <div className="absolute bottom-full mb-2 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl w-52" style={{zIndex:10}}>
-                    {bags.length===0 && <div className="px-3 py-3 text-xs text-gray-500">No bags yet</div>}
+                  <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-52" style={{zIndex:10}}>
+                    {bags.length===0 && <div className="px-3 py-3 text-xs text-text-muted">No bags yet</div>}
                     {bags.map(b => {
                       const inBag = b.disc_ids.includes(disc.id);
                       return (
-                        <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-gray-700/60">
-                          <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${inBag?'border-emerald-500':'border-gray-600'}`} style={inBag?{backgroundColor:b.bagColor||'#10b981',borderColor:b.bagColor||'#10b981'}:{}}>{inBag&&<Check size={10} className="text-white"/>}</span>
+                        <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-surface/60">
+                          <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={10} className="text-text"/>}</span>
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor:b.bagColor||'#6b7280'}}/>
-                          <span className={inBag?'text-white font-semibold':'text-gray-400'}>{b.name}</span>
+                          <span className={inBag?'text-text font-semibold':'text-text-muted'}>{b.name}</span>
                         </button>
                       );
                     })}
@@ -3170,7 +3223,7 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
                 </>
               )}
             </div>
-            <button onClick={() => onBackup(disc)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><ShoppingCart size={14}/>Buy Backup</button>
+            <button onClick={() => onBackup(disc)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-primary/10 text-primary border border-primary/20"><ShoppingCart size={14}/>Buy Backup</button>
           </div>
         </div>
       </motion.div>
@@ -3188,69 +3241,74 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
   return (
     <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025}}
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
-      className={`bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden hover:border-emerald-600/40 transition-colors group cursor-pointer ${bagMenuOpen?'z-30 relative':'relative'}`}>
+      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-colors group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'}`}>
       <div className="h-1" style={{background:disc.color||'#6b7280'}}/>
-      <div className={`p-4 ${isGallery?'flex flex-col items-center':''}`}>
-        {/* Type badge + status */}
-        <div className={`flex items-center justify-between ${isGallery?'w-full':''} mb-2`}>
+      <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
+        {/* Type badge + status (list only) */}
+        {!isGallery && (
+        <div className="flex items-center justify-between mb-2">
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
           <div className="flex items-center gap-1.5">
-            {st && !isGallery && <span className="flex items-center gap-1 text-xs text-gray-500"><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
+            {st && <span className="flex items-center gap-1 text-xs text-text-muted"><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
           </div>
         </div>
+        )}
         {/* Main content */}
         {isGallery ? (
           <>
             <DiscVisual disc={disc} size="lg"/>
             <div className="text-center mt-3 w-full">
-              {hasNick ? (<><h3 className="text-base font-black text-white group-hover:text-emerald-400 truncate">{disc.custom_name}</h3><p className="text-xs text-gray-400 truncate">{disc.manufacturer} · {disc.mold}</p></>) : (<><span className="text-xs text-gray-500">{disc.manufacturer}</span><h3 className="text-base font-extrabold text-white group-hover:text-emerald-400 truncate">{disc.mold}</h3></>)}
+              {hasNick ? (<><h3 className="text-base font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted truncate">{disc.manufacturer} · {disc.mold}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-base font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3></>)}
             </div>
             <div className="flex items-center justify-center gap-2 mt-2 text-xs">{FN_META.map(fn => <span key={fn.key} className={`font-bold ${fn.text}`}>{disc[fn.key]}</span>)}</div>
+            {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-2 justify-center">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={7}/>{b.name}</span>))}</div>}
           </>
         ) : (
           <div className="flex gap-3 mb-3">
             <DiscVisual disc={disc} size="md"/>
             <div className="flex-1 min-w-0">
-              {hasNick ? (<><h3 className="text-lg font-black text-white group-hover:text-emerald-400 truncate">{disc.custom_name}</h3><p className="text-xs text-gray-400 mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-gray-500">{disc.manufacturer}</span><h3 className="text-lg font-extrabold text-white group-hover:text-emerald-400 truncate">{disc.mold}</h3><span className="text-xs text-gray-400">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
-              {disc.estimated_value && <span className="text-xs text-emerald-500/60 font-semibold block">${disc.estimated_value}</span>}
+              {hasNick ? (<><h3 className="text-lg font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-lg font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3><span className="text-xs text-text-muted">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
+              {disc.estimated_value && <span className="text-xs text-primary/60 font-semibold block">${disc.estimated_value}</span>}
               {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={8}/>{b.name}</span>))}</div>}
             </div>
             <div onClick={e=>e.stopPropagation()}><FlightPath turn={disc.turn} fade={disc.fade} id={disc.id} defaultMode={disc.flight_preference || 'both'}/></div>
           </div>
         )}
         {/* Flight numbers (list only) */}
-        {!isGallery && <div className="grid grid-cols-4 gap-1 mb-3">{FN_META.map(fn => (<div key={fn.key} className={`rounded-lg py-1 text-center ${fn.bg}`}><div className={`font-bold text-sm leading-none ${fn.text}`}>{disc[fn.key]}</div><div className="text-gray-600 text-xs mt-0.5 font-bold tracking-widest">{fn.label}</div></div>))}</div>}
-        {/* Condition bar */}
-        <div className={`flex items-center gap-2 ${isGallery?'w-full mt-2':'mb-3'}`}>
-          {!isGallery && <span className="text-xs text-gray-600 w-6">Condition</span>}
-          <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.6}}/></div>
-          <span className="text-xs text-gray-500">{disc.wear_level}/10</span>
+        {!isGallery && <div className="grid grid-cols-4 gap-1 mb-3">{FN_META.map(fn => (<div key={fn.key} className={`rounded-lg py-1 text-center ${fn.bg}`}><div className={`font-bold text-sm leading-none ${fn.text}`}>{disc[fn.key]}</div><div className="text-text-muted text-xs mt-0.5 font-bold tracking-widest">{fn.label}</div></div>))}</div>}
+        {/* Condition bar (list only) */}
+        {!isGallery && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-text-muted shrink-0 w-14">Condition</span>
+          <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden"><motion.div className={`h-full rounded-full ${wc(disc.wear_level)}`} initial={{width:0}} animate={{width:`${disc.wear_level*10}%`}} transition={{duration:.6}}/></div>
+          <span className="text-xs text-text-muted">{disc.wear_level}/10</span>
         </div>
+        )}
         {/* Actions */}
-        <div className={`flex items-center gap-${isGallery?'1.5':'2'} pt-2 border-t border-gray-800/60 ${isGallery?'w-full mt-1':''}`} onClick={e=>e.stopPropagation()}>
+        <div className={`flex items-center gap-${isGallery?'1.5':'2'} pt-2 mt-2 ${isGallery?'w-full mt-1':''}`} onClick={e=>e.stopPropagation()}>
           <div className="flex gap-0.5">
-            <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10"><Edit3 size={isGallery?12:14}/></button>
-            <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/10"><Trash2 size={isGallery?12:14}/></button>
+            <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10"><Edit3 size={isGallery?12:14}/></button>
+            <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10"><Trash2 size={isGallery?12:14}/></button>
           </div>
           {activeBagId ? (
-            <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20"><Minus size={11}/>Remove</button>
+            <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-gap-high/10 text-gap-high border border-gap-high/20"><Minus size={11}/>Remove</button>
           ) : (
             <div className="flex-1 flex justify-center relative">
-              <button onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bagMenuOpen?'bg-sky-500/25 text-sky-300 border-sky-500/40':'bg-sky-500/10 text-sky-400 border-sky-500/20'}`}>
+              <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bagMenuOpen?'bg-secondary/25 text-primary border-secondary/40':'bg-secondary/10 text-primary border-secondary/20'}`}>
                 <Backpack size={11}/>Bag
-              </button>
+              </motion.button>
               {bagMenuOpen && (
                 <>
                   <div className="fixed inset-0" style={{zIndex:39}} onClick={e=>{e.stopPropagation();setBagMenu(null);}}/>
-                  <div className="absolute bottom-full mb-2 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-2xl w-44 left-1/2 -translate-x-1/2" style={{zIndex:40}}>
-                    {bags.length===0 && <div className="px-3 py-2.5 text-xs text-gray-500">No bags yet</div>}
+                  <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-44 left-1/2 -translate-x-1/2" style={{zIndex:40}}>
+                    {bags.length===0 && <div className="px-3 py-2.5 text-xs text-text-muted">No bags yet</div>}
                     {bags.map(b => {
                       const inBag = b.disc_ids.includes(disc.id);
                       return (
-                        <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-700/60">
-                          <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${inBag?'border-emerald-500':'border-gray-600'}`} style={inBag?{backgroundColor:b.bagColor||'#10b981',borderColor:b.bagColor||'#10b981'}:{}}>{inBag&&<Check size={8} className="text-white"/>}</span>
-                          <span className={`truncate ${inBag?'text-white':'text-gray-400'}`}>{b.name}</span>
+                        <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface/60">
+                          <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={8} className="text-text"/>}</span>
+                          <span className={`truncate ${inBag?'text-text':'text-text-muted'}`}>{b.name}</span>
                         </button>
                       );
                     })}
@@ -3259,17 +3317,29 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
               )}
             </div>
           )}
-          <button onClick={() => onBackup(disc)} className={`flex items-center gap-1 ${isGallery?'px-2':'px-2.5'} py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20`}><ShoppingCart size={11}/>{isGallery?'Buy':'Buy Backup'}</button>
+          <button onClick={() => onBackup(disc)} className={`flex items-center gap-1 ${isGallery?'px-2':'px-2.5'} py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20`}><ShoppingCart size={11}/>{isGallery?'Buy':'Buy Backup'}</button>
         </div>
       </div>
     </motion.div>
   );
 }
 
+// Google logo SVG for Sign in with Google button
+function GoogleLogo({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 // WELCOME / LANDING SCREEN
 // ═══════════════════════════════════════════════════════
-function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, googleButtonContainerRef }) {
+function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, googleButtonContainerRef, theme, onThemeChange }) {
   const [view, setView] = useState('main'); // 'main' | 'signup' | 'login'
   const [authError, setAuthError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -3314,8 +3384,28 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-gray-950 px-4 py-8 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-bg px-4 py-8 overflow-y-auto"
     >
+      {onThemeChange && (
+        <div className="absolute top-4 right-4 flex gap-1 p-0.5 bg-surface rounded-lg border border-border">
+          {[
+            { value: 'light', icon: Sun, label: 'Light' },
+            { value: 'dark', icon: Moon, label: 'Dark' },
+            { value: 'system', icon: Monitor, label: 'System' },
+          ].map(({ value, icon: Icon, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onThemeChange(value)}
+              className={`p-2 rounded-md transition-colors ${theme === value ? 'bg-card text-primary' : 'text-text-muted hover:text-text'}`}
+              title={label}
+              aria-label={`Theme: ${label}`}
+            >
+              <Icon size={18}/>
+            </button>
+          ))}
+        </div>
+      )}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -3323,97 +3413,94 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
         className="text-center max-w-sm w-full"
       >
         <span className="text-6xl sm:text-7xl block mb-4" role="img" aria-label="Disc">🥏</span>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight mb-2">Disc Golf Companion</h1>
-        <p className="text-gray-400 text-sm sm:text-base mb-6">Track your bag. Improve your game.</p>
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight mb-2">Disc Golf Companion</h1>
+        <p className="text-text-muted text-sm sm:text-base mb-6">Track your bag. Improve your game.</p>
 
         {view === 'signup' && (
           <motion.div key="signup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-left">
-            <button type="button" onClick={goMain} className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm mb-4">
+            <button type="button" onClick={goMain} className="flex items-center gap-1.5 text-text-muted hover:text-text text-sm mb-4">
               <ChevronRight size={16} className="rotate-180"/> Back
             </button>
             <form onSubmit={handleSignUp} className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Email</label>
-                <input type="email" value={signupEmail} onChange={e=>setSignupEmail(e.target.value)} placeholder="you@example.com" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="email" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
+                <input type="email" value={signupEmail} onChange={e=>setSignupEmail(e.target.value)} placeholder="you@example.com" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="email" />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Display name</label>
-                <input type="text" value={signupName} onChange={e=>setSignupName(e.target.value)} placeholder="Your name" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="name" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Display name</label>
+                <input type="text" value={signupName} onChange={e=>setSignupName(e.target.value)} placeholder="Your name" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="name" />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Password</label>
-                <input type="password" value={signupPassword} onChange={e=>setSignupPassword(e.target.value)} placeholder="At least 6 characters" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="new-password" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Password</label>
+                <input type="password" value={signupPassword} onChange={e=>setSignupPassword(e.target.value)} placeholder="At least 6 characters" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="new-password" />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Confirm password</label>
-                <input type="password" value={signupConfirm} onChange={e=>setSignupConfirm(e.target.value)} placeholder="Repeat password" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="new-password" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Confirm password</label>
+                <input type="password" value={signupConfirm} onChange={e=>setSignupConfirm(e.target.value)} placeholder="Repeat password" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="new-password" />
               </div>
-              {authError && <p className="text-sm text-red-400">{authError}</p>}
-              <button type="submit" className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/25 transition-colors">Sign up</button>
+              {authError && <p className="text-sm text-gap-high">{authError}</p>}
+              <motion.button type="submit" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Sign up</motion.button>
             </form>
           </motion.div>
         )}
 
         {view === 'login' && (
           <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-left">
-            <button type="button" onClick={goMain} className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm mb-4">
+            <button type="button" onClick={goMain} className="flex items-center gap-1.5 text-text-muted hover:text-text text-sm mb-4">
               <ChevronRight size={16} className="rotate-180"/> Back
             </button>
             <form onSubmit={handleLogin} className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Email</label>
-                <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="email" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
+                <input type="email" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)} placeholder="you@example.com" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="email" />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 font-medium mb-1">Password</label>
-                <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Your password" className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500" autoComplete="current-password" />
+                <label className="block text-xs text-text-muted font-medium mb-1">Password</label>
+                <input type="password" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)} placeholder="Your password" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="current-password" />
               </div>
-              {authError && <p className="text-sm text-red-400">{authError}</p>}
-              <button type="submit" className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/25 transition-colors">Log in</button>
+              {authError && <p className="text-sm text-gap-high">{authError}</p>}
+              <motion.button type="submit" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Log in</motion.button>
             </form>
           </motion.div>
         )}
 
         {view === 'main' && (
           <div className="space-y-3 w-full">
-            <div className="w-full relative">
-              {googleButtonContainerRef && (
-                <div
-                  ref={googleButtonContainerRef}
-                  className="absolute opacity-0 pointer-events-none overflow-hidden"
-                  style={{ position: 'absolute', left: '-9999px', top: 0, width: '320px', height: '50px' }}
-                  aria-hidden="true"
-                />
-              )}
-              <button
-                type="button"
-                onClick={onGoogleClick}
-                className="relative w-full flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 font-semibold text-sm border border-gray-200 transition-colors z-[1]"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Sign in with Google
-              </button>
-            </div>
-            <button
+            {googleButtonContainerRef ? (
+              <div className="relative w-full h-[52px] overflow-hidden rounded-xl shrink-0 transition-transform duration-200 hover:scale-[1.08] active:scale-[0.95]">
+                {/* Custom-styled visual layer — matches Sign up with Email */}
+                <div className="absolute inset-0 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-surface border border-border pointer-events-none">
+                  <GoogleLogo className="w-[18px] h-[18px] shrink-0" />
+                  <span className="text-text font-semibold text-sm">Sign in with Google</span>
+                </div>
+                {/* Invisible Google button overlay — receives clicks (required for OAuth), constrained to visual bounds */}
+                <div ref={googleButtonContainerRef} className="absolute inset-0 min-h-[44px] opacity-0 cursor-pointer overflow-hidden [&>div]:!w-full [&>div]:!h-full [&>div]:!max-h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!max-h-full [&_iframe]:!min-h-[44px]" />
+              </div>
+            ) : (
+              <p className="text-sm text-gap-medium">Google Sign In is not configured.</p>
+            )}
+            <motion.button
               type="button"
               onClick={goSignup}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-semibold text-sm border border-gray-700 transition-colors"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative z-10 w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-surface hover:bg-surface text-text font-semibold text-sm border border-border transition-colors"
             >
               <Mail size={18}/> Sign up with Email
-            </button>
+            </motion.button>
             <button
               type="button"
               onClick={goLogin}
-              className="w-full text-sm text-gray-400 hover:text-emerald-400 transition-colors"
+              className="no-hover-scale group w-full text-sm text-text-muted transition-colors text-center py-2"
             >
-              Already have an account? Log in
+              Already have an account? <span className="font-semibold text-primary group-hover:text-primary/90 group-hover:underline transition-colors">Log in</span>
             </button>
             <motion.button
               type="button"
               onClick={onGuestClick}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/25 transition-colors"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors"
             >
               Continue as Guest
             </motion.button>
@@ -3449,11 +3536,19 @@ function DiscLibrary() {
   const [personalBests,setPersonalBests] = useState(() => { const s = loadState(); return s?.personalBests ?? []; });
 
   // One-time migration: clear old localStorage (including previous base64 photos)
+  // Preserve email accounts and auth so users can log back in
   useEffect(() => {
     try {
       const MIGRATION_KEY = 'discgolf_storage_migrated_v3';
       if (!localStorage.getItem(MIGRATION_KEY)) {
+        const preserved = {
+          [EMAIL_ACCOUNTS_KEY]: localStorage.getItem(EMAIL_ACCOUNTS_KEY),
+          [AUTH_KEY]: localStorage.getItem(AUTH_KEY),
+          [USER_PROFILE_PIC_KEY]: localStorage.getItem(USER_PROFILE_PIC_KEY),
+          [THEME_KEY]: localStorage.getItem(THEME_KEY),
+        };
         localStorage.clear();
+        Object.entries(preserved).forEach(([k, v]) => { if (v) localStorage.setItem(k, v); });
         localStorage.setItem(MIGRATION_KEY, '1');
       }
     } catch(_) {}
@@ -3610,9 +3705,11 @@ function DiscLibrary() {
       setUserAuth({ type: 'google', email: profile.email, displayName: profile.displayName, picture: profile.picture || null });
     };
     const tryInit = () => {
+      const container = googleButtonContainerRef.current;
+      if (container && !container.isConnected) googleInitializedRef.current = false;
       if (googleInitializedRef.current) return;
       if (typeof window === 'undefined' || !window.google?.accounts?.id) return;
-      if (!googleButtonContainerRef.current) return;
+      if (!container) return;
       googleInitializedRef.current = true;
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
@@ -3623,11 +3720,11 @@ function DiscLibrary() {
           if (profile && googleSignInSuccessRef.current) googleSignInSuccessRef.current(profile);
         },
       });
-      window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
+      window.google.accounts.id.renderButton(container, {
         type: 'standard',
         theme: 'outline',
         size: 'large',
-        width: 320,
+        width: 384,
       });
     };
     tryInit();
@@ -3661,7 +3758,26 @@ function DiscLibrary() {
   const [selectedBrand,setSelectedBrand] = useState('All');
   const [selectedSpeed,setSelectedSpeed] = useState('All');
   const [selectedSort,setSelectedSort] = useState('Recent');
-  const [viewMode,setViewMode] = useState('list');
+  const [viewMode,setViewMode] = useState(() => {
+    try { const v = localStorage.getItem(VIEW_MODE_KEY); return (v === 'gallery' || v === 'list') ? v : 'gallery'; } catch(_) { return 'gallery'; }
+  });
+  useEffect(() => { try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch(_) {} }, [viewMode]);
+
+  const [theme, setTheme] = useState(() => {
+    try { const t = localStorage.getItem(THEME_KEY); return (t === 'light' || t === 'dark' || t === 'system') ? t : 'system'; } catch(_) { return 'system'; }
+  });
+  useEffect(() => {
+    try {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem(THEME_KEY, theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const effectiveDark = theme === 'dark' || (theme === 'system' && prefersDark);
+        meta.setAttribute('content', effectiveDark ? '#161918' : '#E2E3DE');
+      }
+    } catch(_) {}
+  }, [theme]);
   const [formOpen,setFormOpen] = useState(false);
   const [editingDisc,setEditingDisc] = useState(null);
   const [bagMenuDisc,setBagMenuDisc] = useState(null);
@@ -3693,42 +3809,30 @@ function DiscLibrary() {
     }
   }, []);
 
-  const handleForceCloudSync = useCallback(() => {
-    const email = userAuth?.email;
-    if (!email) return;
-    const userId = emailToUserId(email);
-    setSyncStatus('syncing');
-    syncToFirestore(userId, discs, bags, aceHistory, tournaments, longestThrows, personalBests, true)
-      .then(() => { setSyncStatus('synced'); setToast('Cloud sync complete.'); })
-      .catch(() => { setSyncStatus('error'); setToast('Cloud sync failed.'); });
-  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
-
-  const handleSignOut = useCallback(async () => {
+  const handleSignOut = useCallback(() => {
     const email = userAuth?.email;
     if (email) {
       const userId = emailToUserId(email);
-      try {
-        // 1) Capture copies BEFORE any mutation
-        const discsCopy = [...discs];
-        const acesCopy = [...aceHistory];
-        const tournamentsCopy = [...tournaments];
-        const longestCopy = [...longestThrows];
-        const pbsCopy = [...personalBests];
-
-        // 2) Sync while still authenticated
-        await syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true);
-        console.log('[signOut] Firestore save SUCCESS on sign-out', { userId, aceCount: acesCopy.length, discCount: discsCopy.length });
-        // 3) Now sign out from Firebase Auth
-        try {
-          await firebaseSignOut(getAuth());
-        } catch (e) {
-          console.warn('[auth] Firebase signOut failed (continuing with local sign-out)', e);
-        }
-      } catch (e) {
-        console.warn('[syncAces] Firestore save FAILED on sign-out', e);
-      }
+      const discsCopy = [...discs];
+      const acesCopy = [...aceHistory];
+      const tournamentsCopy = [...tournaments];
+      const longestCopy = [...longestThrows];
+      const pbsCopy = [...personalBests];
+      // Sync in background — don't block sign-out (so user can always log out)
+      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true)
+        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
+        .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
+      firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
-    try { localStorage.clear(); } catch(_) {}
+    try {
+      const savedViewMode = localStorage.getItem(VIEW_MODE_KEY);
+      const savedEmailAccounts = localStorage.getItem(EMAIL_ACCOUNTS_KEY);
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      localStorage.clear();
+      if (savedViewMode === 'gallery' || savedViewMode === 'list') localStorage.setItem(VIEW_MODE_KEY, savedViewMode);
+      if (savedEmailAccounts) localStorage.setItem(EMAIL_ACCOUNTS_KEY, savedEmailAccounts);
+      if (savedTheme) localStorage.setItem(THEME_KEY, savedTheme);
+    } catch(_) {}
     firestoreSyncUserIdRef.current = null;
     firestoreInitialLoadDoneRef.current = false;
     setDiscs([]);
@@ -3782,6 +3886,8 @@ function DiscLibrary() {
   const brandOptions = useMemo(() => { const u=[...new Set(discs.map(d=>d.manufacturer))].sort(); return [{value:'All',label:'All Brands'},...u.map(b=>({value:b,label:b}))]; }, [discs]);
   const activeBag = useMemo(() => bags.find(b=>b.id===activeBagId)||null, [bags,activeBagId]);
   const bagDiscsForDashboard = useMemo(() => activeBag ? discs.filter(d=>activeBag.disc_ids.includes(d.id)) : [], [activeBag,discs]);
+  const bagDiscsSortedForGrid = useMemo(() => [...bagDiscsForDashboard].sort((a,b)=>b.speed-a.speed), [bagDiscsForDashboard]);
+  const bagTotalValue = useMemo(() => bagDiscsForDashboard.reduce((s,d)=>s+(d.estimated_value||0),0), [bagDiscsForDashboard]);
 
   const filteredDiscs = useMemo(() => {
     let result = [...discs];
@@ -3905,7 +4011,7 @@ function DiscLibrary() {
   }, []);
 
   const headerDiscCount = activeBag ? activeBag.disc_ids.length : discs.length;
-  const gridCls = viewMode==='gallery' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+  const gridCls = viewMode==='gallery' ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
 
   if (!showApp) {
     return (
@@ -3917,6 +4023,8 @@ function DiscLibrary() {
           onEmailSignUp={handleEmailSignUp}
           onEmailLogin={handleEmailLogin}
           googleButtonContainerRef={GOOGLE_CLIENT_ID ? googleButtonContainerRef : null}
+          theme={theme}
+          onThemeChange={setTheme}
         />
         <Analytics />
       </>
@@ -3930,25 +4038,25 @@ function DiscLibrary() {
   const goToDiscs = () => { setMainView('discs'); setActiveBagId(null); };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-gray-950 text-white">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-bg text-text">
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
       <InstallPromptBanner />
 
       {/* ── STICKY TOP: Header + Nav Tabs ── */}
-      <div className="sticky top-0 z-20 bg-gray-950 border-b border-gray-800/50 shadow-lg shadow-black/20">
+      <div className="sticky top-0 z-20 bg-bg border-b border-border/50 shadow-card">
         {/* Row 1: App header — logo left, profile right */}
-        <div className="bg-gradient-to-b from-emerald-950/40 to-transparent">
+        <div className="bg-gradient-to-b from-primary/20 to-transparent">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {showSingleBag ? (
-                <button onClick={goToBagsGrid} className="p-2 rounded-lg bg-gray-900 border border-gray-800 text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 shrink-0" aria-label="Back to My Bags"><ChevronLeft size={20}/></button>
+                <button onClick={goToBagsGrid} className="p-2 rounded-lg bg-card border border-border text-text-muted hover:text-primary hover:border-primary/30 shrink-0" aria-label="Back to My Bags"><ChevronLeft size={20}/></button>
               ) : null}
-              <h1 className="text-lg font-extrabold tracking-tight truncate text-white">
+              <h1 className="text-lg font-extrabold tracking-tight truncate text-text">
                 {showSingleBag ? (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:activeBag.bagColor||'#6b7280'}}/>
                     <span className="truncate">{activeBag.name}</span>
-                    <span className="text-gray-500 font-semibold text-sm">({headerDiscCount})</span>
+                    <span className="text-text-muted font-semibold text-sm">({headerDiscCount})</span>
                   </span>
                 ) : (
                   'Disc Golf Companion'
@@ -3956,32 +4064,35 @@ function DiscLibrary() {
               </h1>
               {showSingleBag && (
                 <span className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => setEditingBag(activeBag)} className="p-1.5 rounded-lg text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10" aria-label="Edit bag"><Edit3 size={14}/></button>
-                  <button onClick={() => requestDeleteBag(activeBag.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10" aria-label="Delete bag"><Trash2 size={14}/></button>
+                  <button onClick={() => setEditingBag(activeBag)} className="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10" aria-label="Edit bag"><Edit3 size={14}/></button>
+                  <button onClick={() => requestDeleteBag(activeBag.id)} className="p-1.5 rounded-lg text-text-muted hover:text-gap-high hover:bg-gap-high/10" aria-label="Delete bag"><Trash2 size={14}/></button>
                 </span>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {showDiscsHeader && (
                 <>
-                  <div className="flex bg-gray-900 rounded-lg border border-gray-800 p-0.5 shrink-0">
-                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><List size={14}/></button>
-                    <button onClick={() => setViewMode('gallery')} className={`p-1.5 rounded-md transition-all ${viewMode==='gallery'?'bg-gray-700 text-white':'text-gray-500 hover:text-gray-300'}`}><LayoutGrid size={14}/></button>
+                  <div className="flex bg-card rounded-lg border border-border p-0.5 shrink-0">
+                    <button onClick={() => setViewMode('gallery')} className={`p-1.5 rounded-md transition-all ${viewMode==='gallery'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}><LayoutGrid size={14}/></button>
+                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}><List size={14}/></button>
                   </div>
-                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={openAdd} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Disc</span></motion.button>
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={openAdd} className="flex items-center gap-1.5 bg-primary hover:bg-primary text-on-primary font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Disc</span></motion.button>
                 </>
               )}
+              {showSingleBag && (
+                <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-1.5 bg-primary hover:bg-primary text-on-primary font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Discs</span></motion.button>
+              )}
               {userAuth && syncStatus === 'synced' && (
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0" title="Data saved to cloud" aria-label="Synced"><Check size={12}/></span>
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0" title="Data saved to cloud" aria-label="Synced"><Check size={12}/></span>
               )}
               {userAuth && syncStatus === 'syncing' && (
-                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-gray-800 text-gray-400 shrink-0" title="Syncing…" aria-label="Syncing"><Loader size={12} className="animate-spin"/></span>
+                <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-surface text-text-muted shrink-0" title="Syncing…" aria-label="Syncing"><Loader size={12} className="animate-spin"/></span>
               )}
               <div className="relative shrink-0" ref={settingsRef}>
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(o => !o)}
-                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-gray-900 border border-gray-800 text-gray-300 hover:text-white hover:border-emerald-500/30 transition-all"
+                  className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-card border border-border text-text-muted hover:text-text hover:border-primary/30 transition-all"
                   aria-label="Profile and settings"
                   title="Profile"
                 >
@@ -3991,31 +4102,44 @@ function DiscLibrary() {
                 {settingsOpen && (
                   <>
                     <div className="fixed inset-0" style={{ zIndex: 45 }} onClick={() => setSettingsOpen(false)} aria-hidden="true"/>
-                    <div className="absolute right-0 top-full mt-1.5 py-1 min-w-[11rem] bg-gray-800 border border-gray-700 rounded-xl shadow-xl overflow-hidden" style={{ zIndex: 46 }}>
+                    <div className="absolute right-0 top-full mt-1.5 py-1 min-w-[11rem] bg-card border border-border rounded-xl shadow-card overflow-hidden" style={{ zIndex: 46 }}>
                       {userAuth && (
                         <>
-                          <div className="flex items-center gap-3 px-3 py-2.5 border-b border-gray-700/80">
+                          <div className="flex items-center gap-3 px-3 py-2.5 mb-2">
                             <ProfileAvatar src={effectiveProfilePic} displayName={userAuth.displayName} size="md" />
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-white truncate">{userAuth.displayName}</p>
-                              {userAuth.email && <p className="text-xs text-gray-500 truncate">{userAuth.email}</p>}
+                              <p className="text-sm font-semibold text-text truncate">{userAuth.displayName}</p>
+                              {userAuth.email && <p className="text-xs text-text-muted truncate">{userAuth.email}</p>}
                             </div>
                           </div>
-                          <button type="button" onClick={() => { setShowProfileModal(true); setSettingsOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors">
-                            <User size={16} className="shrink-0 text-gray-500"/> Edit Profile
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { handleForceCloudSync(); setSettingsOpen(false); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs text-gray-400 hover:bg-gray-700/80 hover:text-emerald-300 transition-colors"
-                          >
-                            <Upload size={14} className="shrink-0 text-gray-500"/>
-                            Sync data to cloud
+                          <button type="button" onClick={() => { setShowProfileModal(true); setSettingsOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-text-muted hover:bg-surface/80 hover:text-text transition-colors">
+                            <User size={16} className="shrink-0 text-text-muted"/> Edit Profile
                           </button>
                         </>
                       )}
-                      <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-700/80 hover:text-white transition-colors">
-                        <LogOut size={16} className="shrink-0 text-gray-500"/> Sign Out
+                      <div className="px-3 py-2 border-t border-border/50">
+                        <p className="text-xs text-text-muted font-medium mb-2">Theme</p>
+                        <div className="flex gap-1 p-0.5 bg-surface rounded-lg">
+                          {[
+                            { value: 'light', icon: Sun, label: 'Light' },
+                            { value: 'dark', icon: Moon, label: 'Dark' },
+                            { value: 'system', icon: Monitor, label: 'System' },
+                          ].map(({ value, icon: Icon, label }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => { setTheme(value); }}
+                              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${theme === value ? 'bg-card text-primary shadow-sm' : 'text-text-muted hover:text-text'}`}
+                              title={label}
+                            >
+                              <Icon size={14} className="shrink-0"/>
+                              <span className="hidden sm:inline">{label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-text-muted hover:bg-surface/80 hover:text-text transition-colors">
+                        <LogOut size={16} className="shrink-0 text-text-muted"/> Sign Out
                       </button>
                     </div>
                   </>
@@ -4031,15 +4155,15 @@ function DiscLibrary() {
         {/* Navigation cards row — only when not in single-bag subview */}
         {!showSingleBag && (
           <div className="grid grid-cols-2 gap-2 mb-4" aria-label="Main navigation">
-            <button type="button" onClick={goToDiscs} className={`flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'discs' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'bg-gray-900/80 border-gray-700/80 text-gray-300 hover:border-gray-600 hover:bg-gray-800/90'}`}>
+            <button type="button" onClick={goToDiscs} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'discs' ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
               <LayoutGrid size={22} className="shrink-0 mb-1.5 opacity-90"/>
               <span className="text-xl font-black tabular-nums">{discs.length}</span>
-              <span className="text-[11px] font-semibold text-gray-500 mt-0.5">Disc Library</span>
+              <span className="text-[11px] font-semibold text-text-muted mt-0.5">Disc Library</span>
             </button>
-            <button type="button" onClick={goToBagsGrid} className={`flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'bags' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400 shadow-lg shadow-emerald-500/10' : 'bg-gray-900/80 border-gray-700/80 text-gray-300 hover:border-gray-600 hover:bg-gray-800/90'}`}>
+            <button type="button" onClick={goToBagsGrid} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'bags' ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
               <Backpack size={22} className="shrink-0 mb-1.5 opacity-90"/>
               <span className="text-xl font-black tabular-nums">{bags.length}</span>
-              <span className="text-[11px] font-semibold text-gray-500 mt-0.5">My Bags</span>
+              <span className="text-[11px] font-semibold text-text-muted mt-0.5">My Bags</span>
             </button>
           </div>
         )}
@@ -4047,22 +4171,22 @@ function DiscLibrary() {
         {mainView === 'discs' && (
           <>
             <div className="relative mb-3">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"/>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search mold, plastic, nickname…" className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-10 pr-10 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500/50 transition-colors"/>
-              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"><X size={16}/></button>}
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted"/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search mold, plastic, nickname…" className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary/50 transition-colors"/>
+              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"><X size={16}/></button>}
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-2">
-              <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-emerald-500/20 text-emerald-400 border-emerald-500/30':'bg-gray-900 text-gray-500 border-gray-800'}`}>All ({counts.all})</button>
+              <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-accent text-primary border-primary/20':'bg-card text-text-muted border-border'}`}>All ({counts.all})</button>
               {Object.entries(DT).map(([k,c]) => (
-                <button key={k} onClick={() => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`${c.bg} ${c.text} ${c.border}`:'bg-gray-900 text-gray-500 border-gray-800'}`}>{c.label} ({counts[k]||0})</button>
+                <button key={k} onClick={() => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`bg-accent ${c.text} border-primary/20`:'bg-card text-text-muted border-border'}`}>{c.label} ({counts[k]||0})</button>
               ))}
             </div>
             <div className="flex items-center gap-2 flex-wrap pb-1">
-              <Filter size={14} className="text-gray-600 shrink-0"/>
+              <Filter size={14} className="text-text-muted shrink-0"/>
               <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
               <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
               {activeFilterCount>0 && (
-                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/20"><X size={12}/>Clear ({activeFilterCount})</button>
+                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gap-high bg-gap-high/10 border border-gap-high/20"><X size={12}/>Clear ({activeFilterCount})</button>
               )}
               <div className="flex-1"/>
               <FilterDropdown label="Sort" value={selectedSort} options={SORT_OPTIONS.map(s=>({value:s.value,label:s.label}))} onChange={setSelectedSort}/>
@@ -4072,9 +4196,9 @@ function DiscLibrary() {
         {/* My Bags grid */}
         {showBagsGrid && <MyBagsGridPage bags={bags} discs={discs} onSelectBag={(id) => setActiveBagId(id)} onCreateBag={createBag}/>}
 
-        {/* Single bag view: dashboard + Add Disc above gap finder + disc list */}
+        {/* Single bag view: dashboard + Add Disc above gap finder + disc grid */}
         {showSingleBag && (
-          <>
+          <div className="relative">
             <BagDashboard
               key={activeBag.id}
               bagDiscs={bagDiscsForDashboard}
@@ -4083,35 +4207,39 @@ function DiscLibrary() {
               onAddToBag={addDiscToBag}
               onRemoveFromBag={removeDiscFromBag}
               onBuySearch={handleBuySearch}
-              slotAboveGapFinder={
-                <div className="flex justify-end mb-3">
-                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-semibold text-sm border border-emerald-500/30 transition-all">
-                    <Plus size={16}/>Add Discs to Bag
-                  </motion.button>
-                </div>
-              }
+              slotAboveGapFinder={null}
             />
             {bagDiscsForDashboard.length === 0 ? (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
-                <Backpack size={40} className="text-gray-500 mb-4"/>
-                <h2 className="text-lg font-bold text-white mb-2">This bag is empty</h2>
-                <p className="text-gray-400 text-sm max-w-xs mb-4">Add discs from your collection.</p>
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"><Plus size={18}/>Add Discs to Bag</motion.button>
+                <Backpack size={40} className="text-text-muted mb-4"/>
+                <h2 className="text-lg font-bold text-text mb-2">This bag is empty</h2>
+                <p className="text-text-muted text-sm max-w-xs mb-4">Add discs from your collection.</p>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm"><Plus size={18}/>Add Discs to Bag</motion.button>
               </motion.div>
             ) : (
-              <motion.div layout className={`grid ${gridCls} gap-4 mt-4`}>
-                <AnimatePresence mode="popLayout">
-                  {filteredDiscs.map((d,i) => (
-                    <DiscCard key={d.id} disc={d} bags={bags} viewMode={viewMode}
-                      onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
-                      onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
-                      bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
-                  ))}
-                </AnimatePresence>
-              </motion.div>
+              <>
+                <h3 className="text-sm font-bold text-text mt-6 mb-3">Discs in this bag</h3>
+                <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+                  <AnimatePresence mode="popLayout">
+                    {bagDiscsSortedForGrid.map((d,i) => (
+                      <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery"
+                        onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
+                        onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
+                        bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              </>
             )}
-          </>
+            {bagDiscsForDashboard.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-border flex justify-end">
+                <div className="text-right">
+                  <span className="text-xs text-text-muted uppercase tracking-wider block">Bag value</span>
+                  <span className="text-2xl font-black text-primary">${Math.round(bagTotalValue)}</span>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* My Discs: all discs (activeBagId is null when on this tab) */}
@@ -4119,10 +4247,10 @@ function DiscLibrary() {
           <>
             {discs.length === 0 ? (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col items-center justify-center py-20 sm:py-28 text-center">
-                <div className="w-24 h-24 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-6 text-4xl" role="img" aria-label="Disc">🥏</div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Start building your collection!</h2>
-                <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-xs">Tap + to add your first disc 🥏</p>
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={openAdd} className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-base shadow-lg shadow-emerald-600/25"><Plus size={20}/>Add Your First Disc</motion.button>
+                <div className="w-24 h-24 rounded-2xl bg-card border border-border flex items-center justify-center mb-6 text-4xl" role="img" aria-label="Disc">🥏</div>
+                <h2 className="text-xl sm:text-2xl font-bold text-text mb-2">Start building your collection!</h2>
+                <p className="text-text-muted text-sm sm:text-base mb-8 max-w-xs">Tap + to add your first disc 🥏</p>
+                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={openAdd} className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-base shadow-lg shadow-primary/25"><Plus size={20}/>Add Your First Disc</motion.button>
               </motion.div>
             ) : filteredDiscs.length > 0 ? (
               <motion.div layout className={`grid ${gridCls} gap-4`}>
@@ -4137,9 +4265,9 @@ function DiscLibrary() {
               </motion.div>
             ) : (
               <motion.div initial={{opacity:0}} animate={{opacity:1}} className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4"><Search size={28} className="text-gray-700"/></div>
-                <h3 className="text-lg font-semibold text-gray-400 mb-1">No discs match your filters</h3>
-                <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={clearAllFilters} className="mt-3 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold shadow-lg"><X size={14} className="inline mr-1"/>Reset All Filters</motion.button>
+                <div className="w-16 h-16 rounded-2xl bg-card border border-border flex items-center justify-center mb-4"><Search size={28} className="text-text-muted"/></div>
+                <h3 className="text-lg font-semibold text-text-muted mb-1">No discs match your filters</h3>
+                <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={clearAllFilters} className="mt-3 px-5 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold shadow-lg"><X size={14} className="inline mr-1"/>Reset All Filters</motion.button>
               </motion.div>
             )}
           </>
@@ -4149,13 +4277,13 @@ function DiscLibrary() {
       {bagMenuDisc && <div className="fixed inset-0 z-20" onClick={() => setBagMenuDisc(null)}/>}
 
       {/* ── FOOTER ── */}
-      <div className="border-t border-gray-800/60 mt-8">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] sm:text-xs text-gray-500">
-          <span className="text-gray-600">Disc Golf Companion · Your digital disc library</span>
+      <div className="mt-8 pt-6">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] sm:text-xs text-text-muted">
+          <span className="text-text-muted">Disc Golf Companion · Your digital disc library</span>
           <button
             type="button"
             onClick={() => setShowPrivacy(true)}
-            className="text-emerald-400 hover:text-emerald-300 font-medium underline-offset-4 hover:underline"
+            className="text-primary hover:text-primary font-medium underline-offset-4 hover:underline"
           >
             Privacy Policy
           </button>
@@ -4166,7 +4294,7 @@ function DiscLibrary() {
       <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag}/>}</AnimatePresence>
       <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage}/>
       <BackupModal open={!!backupDisc} disc={backupDisc} onClose={() => setBackupDisc(null)}/>
-      <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }}/>}</AnimatePresence>
+      <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }} onAddDisc={() => { setAddToBagPickerOpen(false); openAdd(); }}/>}</AnimatePresence>
       <AnimatePresence>{editingBag && <EditBagModal open bag={editingBag} onClose={() => setEditingBag(null)} onSave={(id, data) => { updateBag(id, data); setEditingBag(null); }} onDelete={id => { requestDeleteBag(id); setEditingBag(null); }}/>}</AnimatePresence>
       <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently?`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
       <AnimatePresence>{duplicateDiscConfirm && (

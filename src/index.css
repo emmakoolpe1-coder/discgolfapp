@@ -1,11 +1,124 @@
 @import "tailwindcss";
 
-html,
-body,
-#root {
+@theme {
+  /* Outdoor analytical palette — light mode */
+  --color-primary: #1F3D2B;
+  --color-primary-muted: #2d5a3d;
+  --color-secondary: #6B8F71;
+  --color-bg: #E2E3DE;
+  --color-card: #FFFFFF;
+  --color-surface: #EEEFEB;
+  --color-accent: #E8F0EC;
+  --color-text: #1C1C1C;
+  --color-text-muted: #4A4A4A;
+  --color-border: #E6E7E3;
+  --color-gap-high: #B23A3A;
+  --color-gap-medium: #C08A2E;
+  --color-gap-low: #4C7A67;
+  --color-on-primary: #FFFFFF;
+  --shadow-card: 0 2px 8px rgba(31, 61, 43, 0.08), 0 1px 2px rgba(31, 61, 43, 0.04);
+  --shadow-card-lg: 0 4px 16px rgba(31, 61, 43, 0.08), 0 2px 4px rgba(31, 61, 43, 0.04);
+}
+
+/* Dark mode overrides */
+html[data-theme="dark"] {
+  --color-primary: #6B9B7A;
+  --color-primary-muted: #5a8a6a;
+  --color-secondary: #7FA884;
+  --color-bg: #161918;
+  --color-card: #1E211F;
+  --color-surface: #232623;
+  --color-accent: #2A3229;
+  --color-text: #E8E9E3;
+  --color-text-muted: #8A8F87;
+  --color-border: #2D3129;
+  --color-gap-high: #D45A5A;
+  --color-gap-medium: #D4A84A;
+  --color-gap-low: #5C9A7A;
+  --color-on-primary: #FFFFFF;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-card-lg: 0 4px 16px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --color-primary: #6B9B7A;
+    --color-primary-muted: #5a8a6a;
+    --color-secondary: #7FA884;
+    --color-bg: #161918;
+    --color-card: #1E211F;
+    --color-surface: #232623;
+    --color-accent: #2A3229;
+    --color-text: #E8E9E3;
+    --color-text-muted: #8A8F87;
+    --color-border: #2D3129;
+    --color-gap-high: #D45A5A;
+    --color-gap-medium: #D4A84A;
+    --color-gap-low: #5C9A7A;
+    --color-on-primary: #FFFFFF;
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+    --shadow-card-lg: 0 4px 16px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+}
+
+html {
   height: 100%;
+  min-height: 100dvh; /* dynamic viewport — correct on mobile when browser chrome shows/hides */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background-color: var(--color-bg);
+}
+
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+/* Safe area padding for notched devices (iPhone X+, etc.) when using viewport-fit=cover */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  box-sizing: border-box;
+}
+
+/* Pointer cursor and hover scale for clickable buttons */
+button:not(:disabled),
+[role="button"]:not(:disabled),
+a {
+  cursor: pointer;
+}
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  transition: transform 0.2s ease;
+}
+button:not(:disabled):hover,
+[role="button"]:not(:disabled):hover {
+  transform: scale(1.08);
+}
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+/* No hover scale for nav cards — prevents overlap */
+button.no-hover-scale:hover,
+button.no-hover-scale:active {
+  transform: none;
+}
+
+/* Warm card shadows — layered, subtle (theme-aware) */
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+.shadow-card-lg {
+  box-shadow: var(--shadow-card-lg);
 }
