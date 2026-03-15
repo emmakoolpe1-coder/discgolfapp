@@ -13,7 +13,7 @@ import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/a
 import { auth, googleProvider } from './firebase.js';
 import ReactGA from 'react-ga4';
 import {
-  Trophy, Plus, Search, X, ChevronDown, ChevronLeft, Check, Minus, Target,
+  Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
   ExternalLink, ChevronRight, Trash2, Package, Edit3, Calendar, Backpack,
   MapPin, Hash, ShoppingCart, Loader, LayoutGrid, List, Upload,
   Camera, Filter, Ruler, Library, Info,
@@ -1213,7 +1213,7 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
 // ═══════════════════════════════════════════════════════
 // DISC FORM MODAL (Add / Edit)
 // ═══════════════════════════════════════════════════════
-function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
+function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType}) {
   const [f,setF] = useState({...EMPTY_DISC});
   const fileRef = useRef(null);
   const moldDropdownRef = useRef(null);
@@ -1222,9 +1222,15 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
 
   useEffect(() => {
     if (open) {
-      setF(editDisc ? {...editDisc, story:editDisc.story||'', estimated_value:editDisc.estimated_value||18} : {...EMPTY_DISC, date_acquired:td()});
+      if (editDisc) {
+        setF({...editDisc, story:editDisc.story||'', estimated_value:editDisc.estimated_value||18});
+      } else {
+        const initial = {...EMPTY_DISC, date_acquired:td()};
+        if (defaultDiscType) initial.disc_type = defaultDiscType;
+        setF(initial);
+      }
     }
-  }, [open, editDisc]);
+  }, [open, editDisc, defaultDiscType]);
 
   const s = (k,v) => setF(p=>({...p,[k]:v}));
 
@@ -1821,6 +1827,240 @@ function TrophyRoomModal({open,onClose,aces,discs,onEditAce,onDeleteAce,onLogAce
 }
 
 // ═══════════════════════════════════════════════════════
+// GAP FINDER — reusable helpers for BagDashboard and AddToBagPicker
+// ═══════════════════════════════════════════════════════
+function computeBagGaps(bagDiscs) {
+  const typeCounts = {};
+  Object.keys(DT).forEach(t => { typeCounts[t] = bagDiscs.filter(d => d.disc_type === t).length; });
+  const g = [];
+  const seenKeys = new Set();
+  const add = (entry) => {
+    if (seenKeys.has(entry.key)) return;
+    seenKeys.add(entry.key);
+    g.push(entry);
+  };
+  const typeSuggestions = {
+    putter: { suggest: 'Add a putter — essential for short approaches and finishing holes', reasonTag: 'Putter — essential for short approaches and finishing holes', shortSummary: "You're missing a putter" },
+    midrange: { suggest: 'Add a midrange — reliable for accurate shots in the 150–300ft range', reasonTag: 'Midrange — reliable for accurate shots in the 150–300ft range', shortSummary: "You're missing a midrange" },
+    fairway_driver: { suggest: 'Add a fairway driver — great for controlled distance off the tee', reasonTag: 'Fairway — great for controlled distance off the tee', shortSummary: "You're missing a fairway driver" },
+    distance_driver: { suggest: 'Add a distance driver — maximize distance on open holes', reasonTag: 'Distance driver — maximize distance on open holes', shortSummary: "You're missing a distance driver" },
+  };
+  Object.entries(DT).forEach(([type, cfg]) => {
+    if (typeCounts[type] === 0) {
+      const ts = typeSuggestions[type] || { suggest: `Add a ${cfg.label.toLowerCase()}`, reasonTag: cfg.label, shortSummary: `You're missing a ${cfg.label.toLowerCase()}` };
+      add({ key: `type_${type}`, sev: 'high', msg: `No ${cfg.label}s in this bag`, suggest: ts.suggest, reasonTag: ts.reasonTag, shortSummary: ts.shortSummary, chipLabel: `No ${cfg.label}s`, filterType: 'disc_type', filterValue: type, buySuggestionKey: type === 'fairway_driver' ? 'fairway_driver' : type === 'distance_driver' ? 'distance_driver' : type });
+    }
+  });
+  const bySpeed = [...bagDiscs].sort((a, b) => a.speed - b.speed);
+  for (let i = 0; i < bySpeed.length - 1; i++) {
+    const low = bySpeed[i];
+    const high = bySpeed[i + 1];
+    const diff = high.speed - low.speed;
+    if (diff >= 3) {
+      const minS = low.speed + 1;
+      const maxS = high.speed - 1;
+      const sev = diff >= 4 ? 'high' : 'medium';
+      const lowName = low.custom_name || low.mold;
+      const highName = high.custom_name || high.mold;
+      add({
+        key: `speed_${low.id}_${high.id}`,
+        sev,
+        msg: `Speed gap between ${lowName} (speed ${low.speed}) and ${highName} (speed ${high.speed})`,
+        suggest: `Add a disc in the speed ${minS}–${maxS} range — you're missing coverage between your mids and drivers, leaving a distance gap in your game`,
+        reasonTag: `Speed ${minS}–${maxS} gap — bridge the distance between your mids and drivers`,
+        shortSummary: `You're missing coverage in the speed ${minS}–${maxS} range`,
+        chipLabel: `Speed ${minS}–${maxS} gap`,
+        filterType: 'speed_gap',
+        filterValue: { minSpeed: minS, maxSpeed: maxS },
+        disc1Name: lowName,
+        disc2Name: highName,
+        buySuggestionKey: maxS <= 5 ? 'speed_4_5' : maxS <= 8 ? 'speed_6_8' : 'speed_9_11',
+      });
+    }
+  }
+  SPEED_TIERS.forEach(tier => {
+    const inTier = bagDiscs.filter(d => d.speed >= tier.min && d.speed <= tier.max);
+    if (inTier.length === 0) return;
+    const hasUnder = inTier.some(d => classifyStability(d) === 'understable');
+    const hasOver = inTier.some(d => classifyStability(d) === 'overstable');
+    const slotName = tier.id === 'putters' ? 'putter' : tier.id === 'mids' ? 'mid' : tier.id === 'fairways' ? 'fairway' : 'driver';
+    if (!hasUnder) add({
+      key: `stab_${tier.id}_under`,
+      sev: 'medium',
+      msg: `${tier.label}: no understable option`,
+      suggest: `No understable ${slotName} — you're missing a disc that turns right (RHBH) for anhyzer lines and tailwind shots in the speed ${tier.min}–${tier.max} range`,
+      reasonTag: `No understable ${slotName} — turns right for anhyzer and tailwind shots`,
+      shortSummary: `You're missing an understable ${slotName}`,
+      chipLabel: `No understable ${slotName}`,
+      filterType: 'stability_slot',
+      filterValue: { tier: tier.id, stability: 'understable', minSpeed: tier.min, maxSpeed: tier.max },
+      buySuggestionKey: `stability_${tier.id}_understable`,
+    });
+    if (!hasOver) add({
+      key: `stab_${tier.id}_over`,
+      sev: 'medium',
+      msg: `${tier.label}: no overstable option`,
+      suggest: `No overstable ${slotName} — you need a reliable fade disc for headwinds and hard-finishing lines in the speed ${tier.min}–${tier.max} range`,
+      reasonTag: `No overstable ${slotName} — reliable fade for headwinds and hard finishes`,
+      shortSummary: `You're missing an overstable ${slotName}`,
+      chipLabel: `No overstable ${slotName}`,
+      filterType: 'stability_slot',
+      filterValue: { tier: tier.id, stability: 'overstable', minSpeed: tier.min, maxSpeed: tier.max },
+      buySuggestionKey: `stability_${tier.id}_overstable`,
+    });
+  });
+  const overstableApproach = bagDiscs.some(d => d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3);
+  if (!overstableApproach) add({
+    key: 'utility_overstable_approach',
+    sev: 'medium',
+    msg: 'No overstable approach disc (speed 2–4, fade ≥ 3)',
+    suggest: 'Add a Zone, Harp, or similar — overstable approaches give you a reliable fade for upshots that need to sit down fast',
+    reasonTag: 'Overstable approach — reliable fade for upshots that sit down',
+    shortSummary: "You're missing an overstable approach disc",
+    chipLabel: 'No overstable approach',
+    filterType: 'utility',
+    filterValue: 'overstable_approach',
+    buySuggestionKey: 'utility_overstable_approach',
+  });
+  const turnover = bagDiscs.some(d => d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2);
+  if (!turnover) add({
+    key: 'utility_turnover',
+    sev: 'medium',
+    msg: 'No understable turnover disc (speed 6–9, turn ≤ -2)',
+    suggest: 'Add a Leopard3, Roadrunner, or similar — turnover discs hold anhyzer lines and give you a right-finishing shot (RHBH) when you need it',
+    reasonTag: 'Turnover disc — holds anhyzer and finishes right',
+    shortSummary: "You're missing a turnover disc",
+    chipLabel: 'No turnover disc',
+    filterType: 'utility',
+    filterValue: 'turnover',
+    buySuggestionKey: 'utility_turnover',
+  });
+  const turn = d => d.turn ?? 0;
+  const fade = d => d.fade ?? 0;
+  const neutralMid = bagDiscs.some(d => d.speed >= 4 && d.speed <= 6 && turn(d) >= -1 && turn(d) <= 0 && fade(d) >= 0 && fade(d) <= 2);
+  if (!neutralMid) add({
+    key: 'utility_neutral_mid',
+    sev: 'medium',
+    msg: 'No straight flying neutral mid (speed 4–6, turn -1 to 0, fade 0–2)',
+    suggest: 'Add a Buzzz, Hex, or Mako3 — dead-straight mids go where you aim with minimal fade or turn',
+    reasonTag: 'Neutral mid — goes straight with minimal fade or turn',
+    shortSummary: "You're missing a neutral mid",
+    chipLabel: 'No neutral mid',
+    filterType: 'utility',
+    filterValue: 'neutral_mid',
+    buySuggestionKey: 'utility_neutral_mid',
+  });
+  const near = (a, b) => Math.abs((a ?? 0) - (b ?? 0)) <= 0.5;
+  const sameFlight = (d1, d2) => near(d1.speed, d2.speed) && near(d1.glide, d2.glide) && near(d1.turn, d2.turn) && near(d1.fade, d2.fade);
+  const flightStr = (d) => `${d.speed}/${d.glide ?? 0}/${d.turn ?? 0}/${d.fade ?? 0}`;
+  const redundantGroups = [];
+  const used = new Set();
+  bagDiscs.forEach(seed => {
+    if (used.has(seed.id)) return;
+    const group = [seed];
+    const queue = [seed];
+    used.add(seed.id);
+    while (queue.length) {
+      const d2 = queue.shift();
+      bagDiscs.forEach(other => {
+        if (used.has(other.id) || other.id === d2.id) return;
+        if (sameFlight(d2, other)) { group.push(other); used.add(other.id); queue.push(other); }
+      });
+    }
+    if (group.length >= 2) redundantGroups.push(group);
+  });
+  redundantGroups.forEach((group, idx) => {
+    const first = group[0];
+    const sharedNumbers = `Speed ${first.speed} / Glide ${first.glide ?? 0} / Turn ${first.turn ?? 0} / Fade ${first.fade ?? 0}`;
+    const discList = group.map(d => `${d.custom_name || d.mold} (${flightStr(d)})`).join(' and ');
+    const suggest = `These discs have nearly identical flight numbers (${sharedNumbers}). ${discList} overlap — very similar speed, turn, and fade. Consider swapping one for a more understable or overstable option to cover more shot shapes.`;
+    add({
+      key: `redundancy_${idx}`,
+      sev: 'low',
+      msg: 'These discs overlap — very similar flight numbers',
+      suggest,
+      reasonTag: 'Overlap — very similar flight numbers; consider swapping one for versatility',
+      chipLabel: 'Overlap',
+      filterType: 'redundancy',
+      filterValue: group.map(d => d.id),
+      discs: group,
+      isRedundancy: true,
+      buySuggestionKey: 'redundancy',
+    });
+  });
+  return g;
+}
+
+// Gap Finder UI: category and severity for grouping, sorting, and styling
+const GAP_CATEGORIES = [
+  { id: 'missing_types', label: 'Missing Types', severityOrder: 0 },
+  { id: 'speed_gaps', label: 'Speed Gaps', severityOrder: 1 },
+  { id: 'stability_gaps', label: 'Stability Gaps', severityOrder: 2 },
+  { id: 'utility_gaps', label: 'Utility Gaps', severityOrder: 3 },
+  { id: 'overlaps', label: 'Overlaps', severityOrder: 4 },
+];
+const SEVERITY_TIERS = {
+  critical:    { order: 0, border: 'border-l-[#B23A3A]', icon: 'text-[#B23A3A]', chip: 'bg-[#B23A3A]/15 border-[#B23A3A]/40 text-[#B23A3A]' },
+  recommended: { order: 1, border: 'border-l-[#C08A2E]', icon: 'text-[#C08A2E]', chip: 'bg-[#C08A2E]/15 border-[#C08A2E]/40 text-[#C08A2E]' },
+  nice_to_have:{ order: 2, border: 'border-l-[#2563eb]', icon: 'text-[#2563eb]', chip: 'bg-[#2563eb]/15 border-[#2563eb]/40 text-[#2563eb]' },
+  info:        { order: 3, border: 'border-l-[#6b7280]', icon: 'text-text-muted', chip: 'bg-surface border-border text-text-muted' },
+};
+function getGapCategoryAndSeverity(gap) {
+  if (gap.filterType === 'disc_type') return { category: 'missing_types', categoryLabel: 'Missing Types', severity: 'critical' };
+  if (gap.filterType === 'speed_gap') return { category: 'speed_gaps', categoryLabel: 'Speed Gaps', severity: 'recommended' };
+  if (gap.filterType === 'stability_slot') return { category: 'stability_gaps', categoryLabel: 'Stability Gaps', severity: 'recommended' };
+  if (gap.filterType === 'utility') {
+    const v = gap.filterValue;
+    if (v === 'overstable_approach') return { category: 'stability_gaps', categoryLabel: 'Stability Gaps', severity: 'recommended' };
+    return { category: 'utility_gaps', categoryLabel: 'Utility Gaps', severity: 'nice_to_have' };
+  }
+  if (gap.filterType === 'redundancy' || gap.isRedundancy) return { category: 'overlaps', categoryLabel: 'Overlaps', severity: 'info' };
+  return { category: 'utility_gaps', categoryLabel: 'Utility Gaps', severity: 'nice_to_have' };
+}
+function groupGapsByCategory(gaps) {
+  const withMeta = gaps.map(g => ({ ...g, ...getGapCategoryAndSeverity(g) }));
+  const groups = {};
+  withMeta.forEach(g => {
+    if (!groups[g.category]) groups[g.category] = { label: g.categoryLabel, gaps: [] };
+    groups[g.category].gaps.push(g);
+  });
+  // Sort within each group by severity (critical → recommended → nice_to_have → info)
+  Object.keys(groups).forEach(cat => {
+    groups[cat].gaps.sort((a, b) => (SEVERITY_TIERS[a.severity]?.order ?? 4) - (SEVERITY_TIERS[b.severity]?.order ?? 4));
+  });
+  // Return groups in category order
+  return GAP_CATEGORIES.filter(c => groups[c.id]).map(c => ({ id: c.id, label: c.label, gaps: groups[c.id].gaps }));
+}
+
+function getLibraryMatchesForGap(gap, allDiscs, bagDiscIds) {
+  if (!allDiscs || !bagDiscIds) return [];
+  return allDiscs.filter(d => {
+    if (bagDiscIds.includes(d.id)) return false;
+    if (gap.filterType === 'disc_type') return d.disc_type === gap.filterValue;
+    if (gap.filterType === 'stability') return classifyStability(d) === gap.filterValue;
+    if (gap.filterType === 'speed_gap') {
+      const { minSpeed, maxSpeed } = gap.filterValue || {};
+      return d.speed >= minSpeed && d.speed <= maxSpeed;
+    }
+    if (gap.filterType === 'stability_slot') {
+      const { tier, minSpeed, maxSpeed, stability } = gap.filterValue || {};
+      if (!tier || !stability) return false;
+      const inRange = d.speed >= minSpeed && d.speed <= maxSpeed;
+      return inRange && classifyStability(d) === stability;
+    }
+    if (gap.filterType === 'utility') {
+      const v = gap.filterValue;
+      if (v === 'overstable_approach') return d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3;
+      if (v === 'turnover') return d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2;
+      if (v === 'neutral_mid') return d.speed >= 4 && d.speed <= 6 && (d.turn ?? 0) >= -1 && (d.turn ?? 0) <= 0 && (d.fade ?? 0) >= 0 && (d.fade ?? 0) <= 2;
+      return false;
+    }
+    if (gap.filterType === 'redundancy') return false;
+    return false;
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 // BAG DASHBOARD with GAP FINDER
 // ═══════════════════════════════════════════════════════
 function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
@@ -1846,8 +2086,10 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
   );
 }
 
-function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,slotAboveGapFinder}) {
+function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,discListSlot,onEditBag,onRequestDeleteBag}) {
   const [expandedGap,setExpandedGap] = useState(null);
+  const [gapFinderSectionOpen, setGapFinderSectionOpen] = useState(true);
+  const [gapFilter, setGapFilter] = useState('all');
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
   const avgWeight = weights.length>0 ? (weights.reduce((a,b)=>a+b,0)/weights.length) : 0;
@@ -1863,176 +2105,19 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
 
   const bagDiscIds = useMemo(() => bag ? bag.disc_ids : [], [bag]);
 
-  // Gap Finder Logic — deep analysis
-  const gaps = useMemo(() => {
-    const g = [];
-    const seenKeys = new Set();
+  const gaps = useMemo(() => computeBagGaps(bagDiscs), [bagDiscs]);
+  const groupedGaps = useMemo(() => groupGapsByCategory(gaps), [gaps]);
+  const categoryCounts = useMemo(() => {
+    const c = { all: gaps.length };
+    groupedGaps.forEach(grp => { c[grp.id] = grp.gaps.length; });
+    return c;
+  }, [gaps.length, groupedGaps]);
+  const filteredGroups = useMemo(() => {
+    if (gapFilter === 'all') return groupedGaps;
+    return groupedGaps.filter(grp => grp.id === gapFilter);
+  }, [groupedGaps, gapFilter]);
 
-    const add = (entry) => {
-      if (seenKeys.has(entry.key)) return;
-      seenKeys.add(entry.key);
-      g.push(entry);
-    };
-
-    // 1) Missing entire disc type (high)
-    Object.entries(DT).forEach(([type, cfg]) => {
-      if (typeCounts[type] === 0) add({ key: `type_${type}`, sev: 'high', msg: `No ${cfg.label}s in this bag`, suggest: `Add a ${cfg.label.toLowerCase()}`, filterType: 'disc_type', filterValue: type, buySuggestionKey: type === 'fairway_driver' ? 'fairway_driver' : type === 'distance_driver' ? 'distance_driver' : type });
-    });
-
-    // 2) Speed gap analysis: consecutive discs (sorted by speed) with gap of 3+
-    const bySpeed = [...bagDiscs].sort((a, b) => a.speed - b.speed);
-    for (let i = 0; i < bySpeed.length - 1; i++) {
-      const low = bySpeed[i];
-      const high = bySpeed[i + 1];
-      const diff = high.speed - low.speed;
-      if (diff >= 3) {
-        const minS = low.speed + 1;
-        const maxS = high.speed - 1;
-        const sev = diff >= 4 ? 'high' : 'medium';
-        const lowName = low.custom_name || low.mold;
-        const highName = high.custom_name || high.mold;
-        add({
-          key: `speed_${low.id}_${high.id}`,
-          sev,
-          msg: `Speed gap between ${lowName} (speed ${low.speed}) and ${highName} (speed ${high.speed})`,
-          suggest: `Add a disc in the speed ${minS}–${maxS} range`,
-          filterType: 'speed_gap',
-          filterValue: { minSpeed: minS, maxSpeed: maxS },
-          disc1Name: lowName,
-          disc2Name: highName,
-          buySuggestionKey: maxS <= 5 ? 'speed_4_5' : maxS <= 8 ? 'speed_6_8' : 'speed_9_11',
-        });
-      }
-    }
-
-    // 3) Stability coverage per speed tier: need at least one understable and one overstable per tier
-    SPEED_TIERS.forEach(tier => {
-      const inTier = bagDiscs.filter(d => d.speed >= tier.min && d.speed <= tier.max);
-      if (inTier.length === 0) return;
-      const hasUnder = inTier.some(d => classifyStability(d) === 'understable');
-      const hasOver = inTier.some(d => classifyStability(d) === 'overstable');
-      if (!hasUnder) add({
-        key: `stab_${tier.id}_under`,
-        sev: 'medium',
-        msg: `${tier.label}: no understable option`,
-        suggest: `Add an understable disc in the speed ${tier.min}–${tier.max} range`,
-        filterType: 'stability_slot',
-        filterValue: { tier: tier.id, stability: 'understable', minSpeed: tier.min, maxSpeed: tier.max },
-        buySuggestionKey: `stability_${tier.id}_understable`,
-      });
-      if (!hasOver) add({
-        key: `stab_${tier.id}_over`,
-        sev: 'medium',
-        msg: `${tier.label}: no overstable option`,
-        suggest: `Add an overstable disc in the speed ${tier.min}–${tier.max} range`,
-        filterType: 'stability_slot',
-        filterValue: { tier: tier.id, stability: 'overstable', minSpeed: tier.min, maxSpeed: tier.max },
-        buySuggestionKey: `stability_${tier.id}_overstable`,
-      });
-    });
-
-    // 4) Missing utility shots
-    const overstableApproach = bagDiscs.some(d => d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3);
-    if (!overstableApproach) add({
-      key: 'utility_overstable_approach',
-      sev: 'medium',
-      msg: 'No overstable approach disc (speed 2–4, fade ≥ 3)',
-      suggest: 'Add a Zone, Harp, or similar for reliable fade upshots',
-      filterType: 'utility',
-      filterValue: 'overstable_approach',
-      buySuggestionKey: 'utility_overstable_approach',
-    });
-    const turnover = bagDiscs.some(d => d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2);
-    if (!turnover) add({
-      key: 'utility_turnover',
-      sev: 'medium',
-      msg: 'No understable turnover disc (speed 6–9, turn ≤ -2)',
-      suggest: 'Add a Leopard3, Roadrunner, or similar for turnover shots',
-      filterType: 'utility',
-      filterValue: 'turnover',
-      buySuggestionKey: 'utility_turnover',
-    });
-    const turn = d => d.turn ?? 0;
-    const fade = d => d.fade ?? 0;
-    const neutralMid = bagDiscs.some(d => d.speed >= 4 && d.speed <= 6 && turn(d) >= -1 && turn(d) <= 0 && fade(d) >= 0 && fade(d) <= 2);
-    if (!neutralMid) add({
-      key: 'utility_neutral_mid',
-      sev: 'medium',
-      msg: 'No straight flying neutral mid (speed 4–6, turn -1 to 0, fade 0–2)',
-      suggest: 'Add a Buzzz, Hex, or Mako3 for dead-straight mid shots',
-      filterType: 'utility',
-      filterValue: 'neutral_mid',
-      buySuggestionKey: 'utility_neutral_mid',
-    });
-
-    // 5) Overlap / redundancy: flight numbers within 0.5 (connected components)
-    const near = (a, b) => Math.abs((a ?? 0) - (b ?? 0)) <= 0.5;
-    const sameFlight = (d1, d2) => near(d1.speed, d2.speed) && near(d1.glide, d2.glide) && near(d1.turn, d2.turn) && near(d1.fade, d2.fade);
-    const redundantGroups = [];
-    const used = new Set();
-    bagDiscs.forEach(seed => {
-      if (used.has(seed.id)) return;
-      const group = [seed];
-      const queue = [seed];
-      used.add(seed.id);
-      while (queue.length) {
-        const d2 = queue.shift();
-        bagDiscs.forEach(other => {
-          if (used.has(other.id) || other.id === d2.id) return;
-          if (sameFlight(d2, other)) {
-            group.push(other);
-            used.add(other.id);
-            queue.push(other);
-          }
-        });
-      }
-      if (group.length >= 2) redundantGroups.push(group);
-    });
-    redundantGroups.forEach((group, idx) => {
-      const names = group.map(d => d.custom_name || d.mold).join(', ');
-      add({
-        key: `redundancy_${idx}`,
-        sev: 'low',
-        msg: 'These discs overlap — consider swapping one for something different',
-        suggest: names,
-        filterType: 'redundancy',
-        filterValue: group.map(d => d.id),
-        discs: group,
-        isRedundancy: true,
-        buySuggestionKey: 'redundancy',
-      });
-    });
-
-    return g;
-  }, [bagDiscs, typeCounts]);
-
-  const getLibraryMatches = useCallback((gap) => {
-    if (!allDiscs || !bag) return [];
-    return allDiscs.filter(d => {
-      if (bagDiscIds.includes(d.id)) return false;
-      if (gap.filterType === 'disc_type') return d.disc_type === gap.filterValue;
-      if (gap.filterType === 'stability') return classifyStability(d) === gap.filterValue;
-      if (gap.filterType === 'speed_gap') {
-        const { minSpeed, maxSpeed } = gap.filterValue || {};
-        return d.speed >= minSpeed && d.speed <= maxSpeed;
-      }
-      if (gap.filterType === 'stability_slot') {
-        const { tier, minSpeed, maxSpeed, stability } = gap.filterValue || {};
-        if (!tier || !stability) return false;
-        const inRange = d.speed >= minSpeed && d.speed <= maxSpeed;
-        return inRange && classifyStability(d) === stability;
-      }
-      if (gap.filterType === 'utility') {
-        const v = gap.filterValue;
-        if (v === 'overstable_approach') return d.speed >= 2 && d.speed <= 4 && (d.fade ?? 0) >= 3;
-        if (v === 'turnover') return d.speed >= 6 && d.speed <= 9 && (d.turn ?? 0) <= -2;
-        if (v === 'neutral_mid') return d.speed >= 4 && d.speed <= 6 && (d.turn ?? 0) >= -1 && (d.turn ?? 0) <= 0 && (d.fade ?? 0) >= 0 && (d.fade ?? 0) <= 2;
-        return false;
-      }
-      if (gap.filterType === 'redundancy') return false;
-      return false;
-    });
-  }, [allDiscs, bagDiscIds, bag]);
+  const getLibraryMatches = useCallback((gap) => getLibraryMatchesForGap(gap, allDiscs, bagDiscIds), [allDiscs, bagDiscIds]);
 
   const getBuySuggestions = useCallback((gap) => {
     const key = gap.buySuggestionKey ?? (gap.filterType === 'disc_type' || gap.filterType === 'stability' ? gap.filterValue : null);
@@ -2055,10 +2140,17 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
   return (
     <>
     <motion.div initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="space-y-4 mb-6">
-      {/* Bag name */}
+      {/* Bag name + disc count + actions */}
       <div className="flex items-center gap-2.5">
         <span className="w-3 h-3 rounded-full shrink-0" style={{backgroundColor:bagColor}}/>
         <h2 className="text-lg font-bold text-text truncate">{bag?.name || 'My Bag'}</h2>
+        <span className="text-sm font-semibold text-text-muted tabular-nums shrink-0">{bagDiscs.length} disc{bagDiscs.length !== 1 ? 's' : ''}</span>
+        {onEditBag && (
+          <button onClick={() => onEditBag(bag)} className="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 shrink-0" aria-label="Edit bag"><Edit3 size={14}/></button>
+        )}
+        {onRequestDeleteBag && (
+          <button onClick={() => onRequestDeleteBag(bag?.id)} className="p-1.5 rounded-lg text-text-muted hover:text-gap-high hover:bg-gap-high/10 shrink-0" aria-label="Delete bag"><Trash2 size={14}/></button>
+        )}
       </div>
 
       {/* Summary stats */}
@@ -2080,7 +2172,9 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           <div className="text-2xl font-black text-gap-low">{Math.min(...bagDiscs.map(d=>d.speed))}–{Math.max(...bagDiscs.map(d=>d.speed))}</div>
         </div>
       </div>
-      {/* Type + Stability breakdowns */}
+      {/* Discs in the bag */}
+      {discListSlot}
+      {/* Type Breakdown | Stability Spectrum — side by side, stack on mobile */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="bg-card rounded-xl p-4 border border-border shadow-card">
           <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><BarChart3 size={12}/>Type Breakdown</h3>
@@ -2121,165 +2215,204 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           </div>
         </div>
       </div>
-      {/* Flight comparison — curved flight paths like Innova-style chart */}
-      {bagDiscs.length > 0 && (() => {
-        const sorted = [...bagDiscs].sort((a,b) => b.speed - a.speed);
-        const colWidth = 52;
-        const pathHeight = 100;
-        const pathWidth = 28;
-        const centerX = pathWidth / 2;
-        const getFlightPath = (turn, fade) => {
-          const t = turn ?? 0, f = fade ?? 0;
-          const cpx = Math.max(4, Math.min(pathWidth - 4, centerX - t * 3));
-          const endX = Math.max(4, Math.min(pathWidth - 4, centerX - f * 3));
-          return `M ${centerX} 0 Q ${cpx} ${pathHeight/2} ${endX} ${pathHeight}`;
-        };
-        const getStabilityColor = (turn, fade) => {
-          const t = turn ?? 0, f = fade ?? 0;
-          const stability = -t + f;
-          if (stability >= 4) return '#B23A3A';
-          if (stability >= 2) return '#C08A2E';
-          if (stability >= 0) return '#6B8F71';
-          return '#4C7A67';
-        };
-        return (
-          <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-            <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><TrendingUp size={12}/>Flight Characteristics</h3>
-            <p className="text-xs text-text-muted mb-4">Each line shows the disc&apos;s typical flight path. Overstable discs curve left; understable curve right.</p>
-            <div className="overflow-x-auto pb-2 -mx-1 rounded-lg bg-surface/40">
-              <div className="flex gap-3 min-w-max py-4 px-3">
-                {sorted.map(d => {
-                  const turn = d.turn ?? 0, fade = d.fade ?? 0;
-                  const color = getStabilityColor(turn, fade);
-                  const path = getFlightPath(turn, fade);
-                  const endX = Math.max(4, Math.min(pathWidth - 4, pathWidth/2 - fade * 3));
-                  return (
-                    <div key={d.id} className="flex flex-col items-center shrink-0" style={{ width: colWidth }}>
-                      <div className="relative w-full flex justify-center" style={{ height: pathHeight }}>
-                        <svg viewBox={`0 0 ${pathWidth} ${pathHeight}`} className="w-14 h-full" preserveAspectRatio="xMidYMid meet">
-                          <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-                          <circle cx={endX} cy={pathHeight} r={2.5} fill={color}/>
-                        </svg>
-                      </div>
-                      <div className="mt-2 text-center min-h-[2.5rem]">
-                        <div className="text-[11px] font-bold text-text leading-tight px-0.5" title={`${d.custom_name || d.mold} · ${d.speed}/${d.glide}/${d.turn}/${d.fade}`}>
-                          {(d.custom_name || d.mold).toUpperCase().slice(0, 10)}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+      {/* Gap Finder — full width */}
+      <div className="min-w-0">
+          <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+            <button type="button" onClick={() => setGapFinderSectionOpen(o => !o)} className="no-hover-scale w-full flex items-center gap-2 text-left py-3 px-4 min-h-[44px] cursor-pointer bg-transparent hover:bg-surface/80 transition-colors duration-150 rounded-t-xl">
+              <AlertTriangle size={14} className="text-gap-medium shrink-0" aria-hidden/>
+              <span className="text-xs font-bold text-gap-medium uppercase tracking-widest flex-1 min-w-0 truncate">
+                Gap Finder
+                {gaps.length > 0 ? ` · ${gaps.length} gap${gaps.length !== 1 ? 's' : ''}` : ' · ✓ No gaps!'}
+              </span>
+              <ChevronDown size={16} className={`shrink-0 text-text-muted transition-transform duration-200 ${gapFinderSectionOpen ? 'rotate-180' : ''}`} aria-hidden/>
+            </button>
+            {gaps.length === 0 && (
+              <div className="flex items-center gap-3 bg-accent border-t border-primary/20 rounded-none px-4 py-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0"><Check size={20} className="text-primary"/></div>
+                <div><div className="text-sm font-bold text-primary">All categories covered!</div><div className="text-xs text-primary/60 mt-0.5">Your bag has all disc types and stability profiles.</div></div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-border/50 text-[10px] text-text-muted">
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#B23A3A]"/>Overstable — fades hard left</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#C08A2E]"/>Stable — controlled fade</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#6B8F71]"/>Neutral — straight fliers</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#4C7A67]"/>Understable — turns right</span>
-            </div>
-          </div>
-        );
-      })()}
-      {slotAboveGapFinder}
-      {/* GAP FINDER */}
-      <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-        <h3 className="flex items-center gap-2 text-xs font-bold text-gap-medium uppercase tracking-widest mb-3">
-          <AlertTriangle size={12}/>Gap Finder
-          {gaps.length>0 ? <span className="text-text-muted font-medium normal-case tracking-normal ml-1">· {gaps.length} gap{gaps.length!==1?'s':''}</span> : <span className="text-primary font-medium normal-case tracking-normal ml-1">· ✓ No gaps!</span>}
-        </h3>
-        {gaps.length===0 && (
-          <div className="flex items-center gap-3 bg-accent border border-primary/20 rounded-xl px-4 py-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0"><Check size={20} className="text-primary"/></div>
-            <div><div className="text-sm font-bold text-primary">All categories covered!</div><div className="text-xs text-primary/60 mt-0.5">Your bag has all disc types and stability profiles.</div></div>
-          </div>
-        )}
-        {gaps.length>0 && (
-          <div className="space-y-2">
-            {gaps.map(g => {
-              const isExp = expandedGap===g.key;
-              const libraryMatches = getLibraryMatches(g);
-              const buySuggestions = getBuySuggestions(g);
-              const isRedundancy = g.isRedundancy === true;
-              const cardCls = isRedundancy ? 'bg-secondary/5 border-secondary/20' : (g.sev==='high'?'bg-gap-high/5 border-gap-high/20':'bg-gap-medium/5 border-gap-medium/15');
-              const iconCls = isRedundancy ? 'text-secondary' : (g.sev==='high'?'text-gap-high':'text-gap-medium/70');
-              const titleCls = isRedundancy ? 'text-secondary' : (g.sev==='high'?'text-gap-high':'text-gap-medium');
-              return (
-                <div key={g.key} className={`rounded-xl border cursor-pointer transition-all overflow-hidden ${cardCls}`} onClick={() => setExpandedGap(isExp?null:g.key)}>
-                  <div className="flex items-start gap-2.5 px-3.5 py-3">
-                    {isRedundancy ? <Info size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/> : <AlertTriangle size={14} className={`mt-0.5 shrink-0 ${iconCls}`}/>}
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-xs font-bold ${titleCls}`}>{g.msg}</div>
-                      <div className="text-xs text-text-muted mt-0.5">{g.suggest}</div>
+            )}
+            <AnimatePresence>
+              {gaps.length > 0 && gapFinderSectionOpen && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                  <div className="px-4 pb-4 pt-1 border-t border-border/50">
+                    <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-0.5 min-h-[40px] items-center">
+                      <button type="button" onClick={() => setGapFilter('all')} className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${gapFilter === 'all' ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
+                        All ({categoryCounts.all})
+                      </button>
+                      {groupedGaps.map(grp => (
+                        <button key={grp.id} type="button" onClick={() => setGapFilter(gapFilter === grp.id ? 'all' : grp.id)} className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${gapFilter === grp.id ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
+                          {grp.id === 'missing_types' ? 'Missing' : grp.id === 'overlaps' ? 'Overlap' : grp.label.replace(/\s+Gaps?$/, '')} ({grp.gaps.length})
+                        </button>
+                      ))}
                     </div>
-                    <ChevronDown size={14} className={`text-text-muted transition-transform duration-200 shrink-0 ${isExp?'rotate-180':''}`}/>
-                  </div>
-                  <AnimatePresence>
-                    {isExp && (
-                      <motion.div initial={{height:0,opacity:0}} animate={{height:'auto',opacity:1}} exit={{height:0,opacity:0}} className="overflow-hidden">
-                        <div className="px-3.5 pb-4 space-y-3" onClick={e=>e.stopPropagation()}>
-                          <div className="pt-3 mt-3"/>
-                          {/* From your collection */}
-                          {libraryMatches.length > 0 && (
-                            <div>
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-primary uppercase tracking-wider mb-2"><Library size={11}/>From Your Collection ({libraryMatches.length})</h4>
-                              <div className="space-y-1.5">
-                                {libraryMatches.slice(0,4).map(d => (
-                                  <div key={d.id} className="flex items-center gap-2.5 bg-surface/60 rounded-lg px-3 py-2.5">
-                                    <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:d.color||'#6b7280'}}>
-                                      <span className="text-xs font-black" style={{color:luma(d.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{d.speed}</span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-sm font-bold text-text truncate block">{d.custom_name||d.mold}</span>
-                                      <span className="text-xs text-text-muted">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
-                                    </div>
-                                    <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => onAddToBag(bag.id,d.id)}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25">
-                                      <Plus size={12}/>Add
-                                    </motion.button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {libraryMatches.length === 0 && (
-                            <div className="flex items-center gap-2 bg-surface/40 rounded-lg px-3 py-2.5">
-                              <Library size={13} className="text-text-muted shrink-0"/><span className="text-xs text-text-muted">No matching discs in your collection</span>
-                            </div>
-                          )}
-                          {/* Buy suggestions */}
-                          {buySuggestions.length>0 && (
-                            <div className="relative">
-                              <h4 className="flex items-center gap-1.5 text-xs font-bold text-gap-medium uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy</h4>
-                              <div className="space-y-1.5">
-                                {buySuggestions.map((s,si) => (
-                                  <div key={si} className="flex items-center gap-2.5 bg-surface/40 rounded-lg px-3 py-2.5">
-                                    <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor:s.color||'#6b7280'}}>
-                                      <span className="text-xs font-black" style={{color:luma(s.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{s.speed}</span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="text-sm font-bold text-text">{s.mold}</div>
-                                      <div className="text-xs text-text-muted">{s.manufacturer} · {s.plastic}</div>
-                                    </div>
-                                    <span className="text-xs font-bold text-primary">{s.price}</span>
-                                    <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => onBuySearch(s)}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20">
-                                      <ShoppingCart size={10}/>Shop
-                                    </motion.button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+                    <div className="space-y-4">
+                      {filteredGroups.map(grp => (
+                        <div key={grp.id} className="space-y-1.5">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{grp.label} ({grp.gaps.length})</h4>
+                          <div className="space-y-1.5">
+                            {grp.gaps.map(g => {
+                              const isExp = expandedGap === g.key;
+                              const libraryMatches = getLibraryMatches(g);
+                              const buySuggestions = getBuySuggestions(g);
+                              const tier = SEVERITY_TIERS[g.severity] || SEVERITY_TIERS.info;
+                              const IconComponent = g.isRedundancy ? Info : AlertTriangle;
+                              return (
+                                <div key={g.key} className={`rounded-lg border border-border bg-card border-l-4 ${tier.border}`} style={{ borderLeftWidth: 4 }}>
+                                  <button type="button" onClick={() => setExpandedGap(isExp ? null : g.key)} className="no-hover-scale w-full flex items-center gap-2 text-left py-2 px-3 min-h-[40px] cursor-pointer bg-transparent hover:bg-surface/80 transition-colors duration-150 rounded-lg">
+                                    <IconComponent size={14} className={`shrink-0 ${tier.icon}`} aria-hidden/>
+                                    <span className="text-xs font-bold text-text flex-1 min-w-0 truncate">{g.msg}</span>
+                                    <ChevronDown size={14} className={`shrink-0 text-text-muted transition-transform duration-200 ${isExp ? 'rotate-180' : ''}`} aria-hidden/>
+                                  </button>
+                                  <AnimatePresence>
+                                    {isExp && (
+                                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                        <div className="px-3 pb-3 pt-1 space-y-2.5 border-t border-border/50 bg-surface/30" onClick={e => e.stopPropagation()}>
+                                          {g.isRedundancy && g.discs ? (
+                                            <>
+                                              <div className="flex gap-4 flex-wrap">
+                                                {g.discs.map(d => (
+                                                  <div key={d.id} className="flex items-center gap-2 min-w-0 flex-1 basis-0">
+                                                    <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center shadow-md border-2 border-border" style={{ backgroundColor: d.color || '#6b7280' }}>
+                                                      <span className="text-xs font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                      <p className="text-sm font-bold text-text truncate">{d.custom_name || d.mold}</p>
+                                                      <p className="text-[11px] text-text-muted truncate">{d.manufacturer} · {d.plastic_type ?? d.plastic ?? ''}</p>
+                                                      <p className="text-xs font-semibold text-text mt-0.5">{d.speed} / {d.glide ?? 0} / {d.turn ?? 0} / {d.fade ?? 0}</p>
+                                                    </div>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              <p className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</p>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <p className="text-xs text-text-muted">{g.suggest}</p>
+                                              {libraryMatches.length > 0 && (
+                                                <div>
+                                                  <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5"><Library size={11}/>From Your Collection ({libraryMatches.length})</h5>
+                                                  <div className="space-y-1">
+                                                    {libraryMatches.slice(0, 4).map(d => (
+                                                      <div key={d.id} className="flex items-center gap-2 bg-surface/60 rounded-lg px-2.5 py-2">
+                                                        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: d.color || '#6b7280' }}>
+                                                          <span className="text-[10px] font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                          <span className="text-xs font-bold text-text truncate block">{d.custom_name || d.mold}</span>
+                                                          <span className="text-[10px] text-text-muted">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
+                                                        </div>
+                                                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddToBag(bag.id, d.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25"><Plus size={12}/>Add</motion.button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {libraryMatches.length === 0 && (
+                                                <div className="flex items-center gap-2 bg-surface/40 rounded-lg px-2.5 py-2">
+                                                  <Library size={12} className="text-text-muted shrink-0"/><span className="text-[10px] text-text-muted">No matching discs in your collection</span>
+                                                </div>
+                                              )}
+                                              {buySuggestions.length > 0 && (
+                                                <div>
+                                                  <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-gap-medium uppercase tracking-wider mb-1.5"><ShoppingCart size={11}/>Popular Picks to Buy</h5>
+                                                  <div className="space-y-1">
+                                                    {buySuggestions.map((s, si) => (
+                                                      <div key={si} className="flex items-center gap-2 bg-surface/40 rounded-lg px-2.5 py-2">
+                                                        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: s.color || '#6b7280' }}>
+                                                          <span className="text-[10px] font-black" style={{ color: luma(s.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{s.speed}</span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                          <div className="text-xs font-bold text-text">{s.mold}</div>
+                                                          <div className="text-[10px] text-text-muted">{s.manufacturer} · {s.plastic}</div>
+                                                        </div>
+                                                        <span className="text-xs font-bold text-primary">{s.price}</span>
+                                                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onBuySearch(s)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20"><ShoppingCart size={10}/>Shop</motion.button>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
-      </div>
+        </div>
+      {/* Flight Chart — full width */}
+      <div className="min-w-0">
+          {bagDiscs.length > 0 && (() => {
+            const sorted = [...bagDiscs].sort((a,b) => b.speed - a.speed);
+            const colWidth = 52;
+            const pathHeight = 100;
+            const pathWidth = 28;
+            const centerX = pathWidth / 2;
+            const getFlightPath = (turn, fade) => {
+              const t = turn ?? 0, f = fade ?? 0;
+              const cpx = Math.max(4, Math.min(pathWidth - 4, centerX - t * 3));
+              const endX = Math.max(4, Math.min(pathWidth - 4, centerX - f * 3));
+              return `M ${centerX} 0 Q ${cpx} ${pathHeight/2} ${endX} ${pathHeight}`;
+            };
+            const getStabilityColor = (turn, fade) => {
+              const t = turn ?? 0, f = fade ?? 0;
+              const stability = -t + f;
+              if (stability >= 4) return '#B23A3A';
+              if (stability >= 2) return '#C08A2E';
+              if (stability >= 0) return '#6B8F71';
+              return '#4C7A67';
+            };
+            return (
+              <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+                <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><TrendingUp size={12}/>Flight Chart</h3>
+                <p className="text-xs text-text-muted mb-4">Each line shows the disc&apos;s typical flight path. Overstable discs curve left; understable curve right.</p>
+                <div className="overflow-x-auto pb-2 -mx-1 rounded-lg bg-surface/40">
+                  <div className="flex gap-3 min-w-max py-4 px-3">
+                    {sorted.map(d => {
+                      const turn = d.turn ?? 0, fade = d.fade ?? 0;
+                      const color = getStabilityColor(turn, fade);
+                      const path = getFlightPath(turn, fade);
+                      const endX = Math.max(4, Math.min(pathWidth - 4, pathWidth/2 - fade * 3));
+                      return (
+                        <div key={d.id} className="flex flex-col items-center shrink-0" style={{ width: colWidth }}>
+                          <div className="relative w-full flex justify-center" style={{ height: pathHeight }}>
+                            <svg viewBox={`0 0 ${pathWidth} ${pathHeight}`} className="w-14 h-full" preserveAspectRatio="xMidYMid meet">
+                              <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+                              <circle cx={endX} cy={pathHeight} r={2.5} fill={color}/>
+                            </svg>
+                          </div>
+                          <div className="mt-2 text-center min-h-[2.5rem]">
+                            <div className="text-[11px] font-bold text-text leading-tight px-0.5" title={`${d.custom_name || d.mold} · ${d.speed}/${d.glide}/${d.turn}/${d.fade}`}>
+                              {(d.custom_name || d.mold).toUpperCase().slice(0, 10)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-border/50 text-[10px] text-text-muted">
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#B23A3A]"/>Overstable — fades hard left</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#C08A2E]"/>Stable — controlled fade</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#6B8F71]"/>Neutral — straight fliers</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#4C7A67]"/>Understable — turns right</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
     </motion.div>
     </>
   );
@@ -3174,16 +3307,78 @@ function BackupModal({open,disc,onClose}) {
 // ═══════════════════════════════════════════════════════
 // ADD TO BAG PICKER MODAL
 // ═══════════════════════════════════════════════════════
-function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc }) {
+function getBuySuggestionsForGap(gap) {
+  const key = gap.buySuggestionKey ?? (gap.filterType === 'disc_type' || gap.filterType === 'stability' ? gap.filterValue : null);
+  if (key && BUY_SUGGESTIONS[key]) return BUY_SUGGESTIONS[key];
+  if (gap.filterType === 'speed_gap' && gap.filterValue) {
+    const { minSpeed, maxSpeed } = gap.filterValue;
+    const k = maxSpeed <= 5 ? 'speed_4_5' : maxSpeed <= 8 ? 'speed_6_8' : 'speed_9_11';
+    return BUY_SUGGESTIONS[k] || [];
+  }
+  return [];
+}
+
+function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAddDisc, onBuySearch }) {
   const [search, setSearch] = useState('');
+  const [selectedGapKey, setSelectedGapKey] = useState(null);
+  const [suggestionExpanded, setSuggestionExpanded] = useState(false);
+  const [overlapCardExpanded, setOverlapCardExpanded] = useState(false);
+  useEffect(() => { if (open) setSelectedGapKey(null); }, [open]);
+  useEffect(() => { setSuggestionExpanded(false); setOverlapCardExpanded(false); }, [selectedGapKey]);
+
+  const bagDiscs = useMemo(() => (bag && discs) ? discs.filter(d => bag.disc_ids.includes(d.id)) : [], [discs, bag]);
+  const gaps = useMemo(() => computeBagGaps(bagDiscs), [bagDiscs]);
+  const bagDiscIds = bag ? bag.disc_ids : [];
+  const available = (discs && bag) ? discs.filter(d => !bag.disc_ids.includes(d.id)) : [];
+
+  const selectedGap = selectedGapKey ? gaps.find(g => g.key === selectedGapKey) : null;
+  const baseList = selectedGap
+    ? getLibraryMatchesForGap(selectedGap, discs || [], bagDiscIds)
+    : available;
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return baseList;
+    const q = search.toLowerCase();
+    return baseList.filter(d =>
+      (d.mold || '').toLowerCase().includes(q) ||
+      (d.manufacturer || '').toLowerCase().includes(q) ||
+      (d.custom_name || '').toLowerCase().includes(q)
+    );
+  }, [baseList, search]);
+
+  const recommended = useMemo(() => {
+    if (selectedGapKey || gaps.length === 0 || !discs) return [];
+    const sevOrder = { high: 0, medium: 1, low: 2 };
+    const sorted = [...gaps].sort((a, b) => (sevOrder[a.sev] ?? 3) - (sevOrder[b.sev] ?? 3));
+    const seen = new Set();
+    const out = [];
+    for (const gap of sorted) {
+      const matches = getLibraryMatchesForGap(gap, discs, bagDiscIds);
+      for (const d of matches) {
+        if (seen.has(d.id)) continue;
+        seen.add(d.id);
+        out.push({ disc: d, gap });
+        if (out.length >= 5) return out;
+      }
+    }
+    return out;
+  }, [selectedGapKey, gaps, discs, bagDiscIds]);
+
+  const recommendedIds = new Set(recommended.map(r => r.disc.id));
+  const mainList = selectedGapKey ? filtered : filtered.filter(d => !recommendedIds.has(d.id));
+
+  const defaultDiscTypeForAdd = selectedGap?.filterType === 'disc_type' ? selectedGap.filterValue : undefined;
+  const buySuggestions = selectedGap ? getBuySuggestionsForGap(selectedGap) : [];
+  const showPopularPicks = selectedGapKey && filtered.length === 0 && buySuggestions.length > 0;
+
   if (!open || !bag) return null;
 
-  const available = discs.filter(d => !bag.disc_ids.includes(d.id));
-  const filtered = available.filter(d => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (d.mold || '').toLowerCase().includes(q) || (d.manufacturer || '').toLowerCase().includes(q) || (d.custom_name || '').toLowerCase().includes(q);
-  });
+  const chipStyle = (g) => {
+    if (g.isRedundancy) return 'bg-secondary/15 text-secondary border-secondary/30';
+    if (g.sev === 'high') return 'bg-gap-high/15 text-gap-high border-gap-high/30';
+    if (g.sev === 'medium') return 'bg-gap-medium/15 text-gap-medium border-gap-medium/30';
+    return 'bg-surface text-text-muted border-border';
+  };
 
   const libraryEmpty = discs.length === 0;
 
@@ -3209,6 +3404,101 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc }) {
           </div>
         ) : (
           <>
+        {gaps.length > 0 && (
+          <div className="px-5 pb-3 shrink-0 mb-1">
+            <div className="flex gap-2 overflow-x-auto overflow-y-visible py-2 pl-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:[display:none]">
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedGapKey(null)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${!selectedGapKey ? 'bg-accent text-primary border-primary/20' : 'bg-card text-text-muted border-border'}`}
+              >
+                All Discs
+              </motion.button>
+              {gaps.map(g => (
+                <motion.button
+                  key={g.key}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedGapKey(selectedGapKey === g.key ? null : g.key)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${selectedGapKey === g.key ? 'ring-2 ring-primary/40 ' : ''} ${chipStyle(g)}`}
+                >
+                  {g.chipLabel || g.msg}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+        )}
+        {selectedGap && (
+          <div className="px-5 py-3 shrink-0">
+            <div className="rounded-xl border border-border bg-surface/60 p-3">
+              {selectedGap.isRedundancy && selectedGap.discs ? (
+                <>
+                  <button type="button" onClick={() => setOverlapCardExpanded(s => !s)} className="w-full flex items-center justify-between gap-2 text-left">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base" role="img" aria-label="Warning">⚠️</span>
+                      <span className="text-xs font-bold text-text">Overlap Detected</span>
+                    </div>
+                    <ChevronDown size={14} className={`text-text-muted shrink-0 transition-transform duration-200 ${overlapCardExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  <AnimatePresence>
+                    {overlapCardExpanded && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                        <div className="space-y-3 pt-3">
+                          <div className="flex gap-4 flex-wrap">
+                            {selectedGap.discs.map(d => (
+                              <div key={d.id} className="flex items-center gap-2 min-w-0 flex-1 basis-0">
+                                <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center shadow-md border-2 border-border" style={{ backgroundColor: d.color || '#6b7280' }}>
+                                  <span className="text-xs font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-bold text-text truncate">{d.custom_name || d.mold}</p>
+                                  <p className="text-[11px] text-text-muted truncate">{d.manufacturer} · {d.plastic_type}</p>
+                                  <p className="text-xs font-semibold text-text mt-0.5">{d.speed} / {d.glide ?? 0} / {d.turn ?? 0} / {d.fade ?? 0}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                <>
+                  {!suggestionExpanded && (
+                    <div className="flex items-center justify-center">
+                      <motion.button type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSuggestionExpanded(true)} className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                        Why?
+                        <ChevronDown size={12} className="transition-transform duration-200" />
+                      </motion.button>
+                    </div>
+                  )}
+                  <AnimatePresence>
+                    {suggestionExpanded && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <AlertTriangle size={14} className="text-gap-medium shrink-0" />
+                              <span className="text-xs font-bold text-text truncate">
+                                {selectedGap.filterType === 'disc_type' && DT[selectedGap.filterValue] ? `Missing ${DT[selectedGap.filterValue].label}` : selectedGap.filterType === 'speed_gap' && selectedGap.filterValue ? `Speed Gap: ${selectedGap.filterValue.minSpeed}–${selectedGap.filterValue.maxSpeed}` : selectedGap.chipLabel || selectedGap.msg}
+                              </span>
+                            </div>
+                            <motion.button type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSuggestionExpanded(false)} className="shrink-0 p-1 rounded-lg text-text-muted hover:text-text hover:bg-surface/80" aria-label="Collapse">
+                              <ChevronDown size={14} className="rotate-180 transition-transform duration-200" />
+                            </motion.button>
+                          </div>
+                          <p className="text-xs text-text-muted">{selectedGap.suggest}</p>
+                          <p className="text-[11px] text-text-muted italic">Consider adding a disc from your library or the list below to fill this gap.</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <div className="px-5 pt-3 shrink-0">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"/>
@@ -3217,29 +3507,92 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc }) {
           </div>
         </div>
         <div className="overflow-y-auto flex-1 p-5 space-y-2">
-          {filtered.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-text-muted text-sm mb-4">
-                {available.length === 0 ? 'All your discs are already in this bag!' : 'No discs match your search'}
-              </p>
-              {available.length === 0 && onAddDisc && (
-                <motion.button whileHover={{scale:1.03}} whileTap={{scale:0.98}} onClick={() => { onClose(); onAddDisc(); }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm mx-auto">
-                  <Plus size={16}/>Add new disc to library
-                </motion.button>
+          {!selectedGapKey && recommended.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Recommended to Fill Gaps</h4>
+              <div className="space-y-2">
+                {recommended.map(({ disc: d, gap }) => (
+                  <motion.button key={d.id} whileHover={{scale:1.01}} whileTap={{scale:0.98}}
+                    onClick={() => { onAdd(bag.id, d.id); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/5 border border-primary/20 hover:border-primary/40 transition-all text-left"
+                  >
+                    <div className="w-8 h-8 rounded-full border-2 border-border shrink-0" style={{backgroundColor: d.color || '#22c55e'}}/>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text truncate">{d.custom_name || d.mold}</p>
+                      <p className="text-xs text-text-muted truncate">{d.manufacturer} · {d.plastic_type}</p>
+                      <span className="text-[10px] font-medium text-primary mt-0.5 inline-block">Fills: {gap.reasonTag || gap.chipLabel || gap.msg}</span>
+                    </div>
+                    <Plus size={18} className="text-primary shrink-0"/>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+          )}
+          {filtered.length === 0 && mainList.length === 0 ? (
+            <div className="space-y-4">
+              {showPopularPicks ? (
+                <>
+                  <div className="flex items-center gap-2 bg-surface/60 rounded-lg px-3 py-2.5">
+                    <Library size={13} className="text-text-muted shrink-0"/><span className="text-xs text-text-muted">No matching discs in your collection</span>
+                  </div>
+                  {onBuySearch && buySuggestions.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center gap-1.5 text-xs font-bold text-gap-medium uppercase tracking-wider mb-2"><ShoppingCart size={11}/>Popular Picks to Buy</h4>
+                      <div className="space-y-1.5">
+                        {buySuggestions.map((s, si) => (
+                          <div key={si} className="flex items-center gap-2.5 bg-surface/40 rounded-lg px-3 py-2.5">
+                            <div className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{backgroundColor: s.color||'#6b7280'}}>
+                              <span className="text-xs font-black" style={{color: luma(s.color||'#888')>160?'rgba(0,0,0,0.7)':'rgba(255,255,255,0.85)'}}>{s.speed}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-bold text-text">{s.mold}</div>
+                              <div className="text-xs text-text-muted">{s.manufacturer} · {s.plastic}</div>
+                            </div>
+                            <span className="text-xs font-bold text-primary">{s.price}</span>
+                            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={() => onBuySearch(s)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20"><ShoppingCart size={10}/>Shop</motion.button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {onOpenAddDisc && (
+                    <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={() => onOpenAddDisc({ defaultDiscType: defaultDiscTypeForAdd })} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm"><Plus size={16}/>Add New Disc</motion.button>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-text-muted text-sm mb-4">
+                    {available.length === 0 ? 'All your discs are already in this bag!' : selectedGapKey ? 'No discs in your library fill this gap' : 'No discs match your search'}
+                  </p>
+                  {available.length === 0 && onAddDisc && (
+                    <motion.button whileHover={{scale:1.03}} whileTap={{scale:0.98}} onClick={() => { onClose(); onAddDisc(); }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm mx-auto">
+                      <Plus size={16}/>Add new disc to library
+                    </motion.button>
+                  )}
+                </div>
               )}
             </div>
-          ) : filtered.map(d => (
-            <motion.button key={d.id} whileHover={{scale:1.01}} whileTap={{scale:0.98}}
-              onClick={() => { onAdd(bag.id, d.id); }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border hover:border-primary/30 transition-all text-left">
-              <div className="w-8 h-8 rounded-full border-2 border-border shrink-0" style={{backgroundColor: d.color || '#22c55e'}}/>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text truncate">{d.custom_name || d.mold}</p>
-                <p className="text-xs text-text-muted truncate">{d.manufacturer} · {d.plastic_type}</p>
-              </div>
-              <Plus size={18} className="text-primary shrink-0"/>
-            </motion.button>
-          ))}
+          ) : (
+            <>
+              {!selectedGapKey && recommended.length > 0 && mainList.length > 0 && <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">All your discs</h4>}
+              {mainList.map(d => (
+                <motion.button key={d.id} whileHover={{scale:1.01}} whileTap={{scale:0.98}}
+                  onClick={() => { onAdd(bag.id, d.id); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-surface border border-border hover:border-primary/30 transition-all text-left"
+                >
+                  <div className="w-8 h-8 rounded-full border-2 border-border shrink-0" style={{backgroundColor: d.color || '#22c55e'}}/>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text truncate">{d.custom_name || d.mold}</p>
+                    <p className="text-xs text-text-muted truncate">{d.manufacturer} · {d.plastic_type}</p>
+                    {selectedGap && (selectedGap.reasonTag || selectedGap.chipLabel || selectedGap.msg) && (
+                      <span className="text-[10px] font-medium text-primary mt-0.5 inline-block">Fills: {selectedGap.reasonTag || selectedGap.chipLabel || selectedGap.msg}</span>
+                    )}
+                  </div>
+                  <Plus size={18} className="text-primary shrink-0"/>
+                </motion.button>
+              ))}
+            </>
+          )}
         </div>
           </>
         )}
@@ -3905,6 +4258,7 @@ function DiscLibrary() {
   }, [theme]);
   const [formOpen,setFormOpen] = useState(false);
   const [editingDisc,setEditingDisc] = useState(null);
+  const [addDiscContext,setAddDiscContext] = useState(null);
   const [bagMenuDisc,setBagMenuDisc] = useState(null);
   const [editingBag,setEditingBag] = useState(null);
   const [backupDisc,setBackupDisc] = useState(null);
@@ -4064,9 +4418,17 @@ function DiscLibrary() {
     ReactGA.event({ category: 'Disc', action: 'Add Disc' });
     console.log('[performAddDisc] adding disc', { id: data.id, hasPhoto: !!data.photo, photoBytes: typeof data.photo === 'string' ? data.photo.length : 0 });
     setDiscs(p=>[...p,{...data,date_acquired:data.date_acquired||td()}]);
-    setToast(`✅ ${data.mold} added!`);
+    if (addDiscContext) {
+      const bag = bags.find(b => b.id === addDiscContext.bagId);
+      addDiscToBag(addDiscContext.bagId, data.id);
+      setToast(bag ? `✅ ${data.mold} added and added to ${bag.name}!` : `✅ ${data.mold} added!`);
+      setAddDiscContext(null);
+      setAddToBagPickerOpen(true);
+    } else {
+      setToast(`✅ ${data.mold} added!`);
+    }
     setEditingDisc(null); setFormOpen(false);
-  }, []);
+  }, [addDiscContext, bags, addDiscToBag]);
 
   const handleSaveDisc = useCallback((data) => {
     console.log('[handleSaveDisc] saving disc', {
@@ -4156,7 +4518,6 @@ function DiscLibrary() {
     );
   }
 
-  const showDiscsHeader = mainView === 'discs';
   const showBagsGrid = mainView === 'bags' && !activeBagId;
   const showSingleBag = mainView === 'bags' && activeBagId && activeBag;
   const goToBagsGrid = () => { setMainView('bags'); setActiveBagId(null); };
@@ -4167,46 +4528,17 @@ function DiscLibrary() {
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
       <InstallPromptBanner />
 
-      {/* ── STICKY TOP: Header + Nav Tabs ── */}
+      {/* ── STICKY TOP: One consistent nav across all views ── */}
       <div className="sticky top-0 z-20 bg-bg border-b border-border/50 shadow-card">
-        {/* Row 1: App header — logo left, profile right */}
         <div className="bg-gradient-to-b from-primary/20 to-transparent">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              {showSingleBag ? (
-                <button onClick={goToBagsGrid} className="p-2 rounded-lg bg-card border border-border text-text-muted hover:text-primary hover:border-primary/30 shrink-0" aria-label="Back to My Bags"><ChevronLeft size={20}/></button>
-              ) : null}
-              <h1 className="text-lg font-extrabold tracking-tight truncate text-text">
-                {showSingleBag ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor:activeBag.bagColor||'#6b7280'}}/>
-                    <span className="truncate">{activeBag.name}</span>
-                    <span className="text-text-muted font-semibold text-sm">({headerDiscCount})</span>
-                  </span>
-                ) : (
-                  'Disc Golf Companion'
-                )}
-              </h1>
-              {showSingleBag && (
-                <span className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => setEditingBag(activeBag)} className="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10" aria-label="Edit bag"><Edit3 size={14}/></button>
-                  <button onClick={() => requestDeleteBag(activeBag.id)} className="p-1.5 rounded-lg text-text-muted hover:text-gap-high hover:bg-gap-high/10" aria-label="Delete bag"><Trash2 size={14}/></button>
-                </span>
-              )}
-            </div>
+            <h1 className="text-lg font-extrabold tracking-tight truncate text-text">Disc Golf Companion</h1>
             <div className="flex items-center gap-2 shrink-0">
-              {showDiscsHeader && (
-                <>
-                  <div className="flex bg-card rounded-lg border border-border p-0.5 shrink-0">
-                    <button onClick={() => setViewMode('gallery')} className={`p-1.5 rounded-md transition-all ${viewMode==='gallery'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}><LayoutGrid size={14}/></button>
-                    <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}><List size={14}/></button>
-                  </div>
-                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={openAdd} className="flex items-center gap-1.5 bg-primary hover:bg-primary text-on-primary font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Disc</span></motion.button>
-                </>
-              )}
-              {showSingleBag && (
-                <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-1.5 bg-primary hover:bg-primary text-on-primary font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Discs</span></motion.button>
-              )}
+              <div className="flex bg-card rounded-lg border border-border p-0.5 shrink-0">
+                <button onClick={() => setViewMode('gallery')} className={`p-1.5 rounded-md transition-all ${viewMode==='gallery'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`} aria-label="Grid view"><LayoutGrid size={14}/></button>
+                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md transition-all ${viewMode==='list'?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`} aria-label="List view"><List size={14}/></button>
+              </div>
+              <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} onClick={() => showSingleBag ? setAddToBagPickerOpen(true) : openAdd()} className="flex items-center gap-1.5 bg-primary hover:bg-primary text-on-primary font-semibold text-xs px-3 py-2 rounded-lg shrink-0"><Plus size={16}/><span className="hidden sm:inline">Add Disc</span></motion.button>
               {userAuth && syncStatus === 'synced' && (
                 <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0" title="Data saved to cloud" aria-label="Synced"><Check size={12}/></span>
               )}
@@ -4277,15 +4609,15 @@ function DiscLibrary() {
 
       {/* ── PAGE CONTENT (below sticky header) ── */}
       <div className="max-w-7xl mx-auto px-4 pt-4 pb-8">
-        {/* Navigation cards row — only when not in single-bag subview */}
-        {!showSingleBag && (
+        {/* Navigation cards row — dashboard and bag view (breadcrumb / quick nav) */}
+        {(mainView === 'discs' || mainView === 'bags') && (
           <div className="grid grid-cols-2 gap-2 mb-4" aria-label="Main navigation">
-            <button type="button" onClick={goToDiscs} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'discs' ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
+            <button type="button" onClick={goToDiscs} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'discs' && !showSingleBag ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
               <LayoutGrid size={22} className="shrink-0 mb-1.5 opacity-90"/>
               <span className="text-xl font-black tabular-nums">{discs.length}</span>
               <span className="text-[11px] font-semibold text-text-muted mt-0.5">Disc Library</span>
             </button>
-            <button type="button" onClick={goToBagsGrid} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'bags' ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
+            <button type="button" onClick={goToBagsGrid} className={`no-hover-scale flex flex-col items-center justify-center py-4 px-2 rounded-xl border-2 transition-all text-left min-w-0 ${mainView === 'bags' && !showSingleBag ? 'bg-accent border-primary/30 text-primary shadow-card' : 'bg-card border-border text-text-muted hover:border-border hover:bg-surface/80'}`}>
               <Backpack size={22} className="shrink-0 mb-1.5 opacity-90"/>
               <span className="text-xl font-black tabular-nums">{bags.length}</span>
               <span className="text-[11px] font-semibold text-text-muted mt-0.5">My Bags</span>
@@ -4322,48 +4654,58 @@ function DiscLibrary() {
         {/* My Bags grid */}
         {showBagsGrid && <MyBagsGridPage bags={bags} discs={discs} onSelectBag={(id) => setActiveBagId(id)} onCreateBag={createBag}/>}
 
-        {/* Single bag view: dashboard + Add Disc above gap finder + disc grid */}
+        {/* Single bag view: nav cards above, then dashboard (stats → gap finder → disc list → flight chart) */}
         {showSingleBag && (
           <div className="relative">
-            <BagDashboard
-              key={activeBag.id}
-              bagDiscs={bagDiscsForDashboard}
-              bag={activeBag}
-              allDiscs={discs}
-              onAddToBag={addDiscToBag}
-              onRemoveFromBag={removeDiscFromBag}
-              onBuySearch={handleBuySearch}
-              slotAboveGapFinder={null}
-            />
             {bagDiscsForDashboard.length === 0 ? (
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
-                <Backpack size={40} className="text-text-muted mb-4"/>
-                <h2 className="text-lg font-bold text-text mb-2">This bag is empty</h2>
-                <p className="text-text-muted text-sm max-w-xs mb-4">Add discs from your collection.</p>
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm"><Plus size={18}/>Add Discs to Bag</motion.button>
-              </motion.div>
-            ) : (
               <>
-                <h3 className="text-sm font-bold text-text mt-6 mb-3">Discs in this bag</h3>
-                <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
-                  <AnimatePresence mode="popLayout">
-                    {bagDiscsSortedForGrid.map((d,i) => (
-                      <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery"
-                        onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
-                        onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
-                        bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
-                    ))}
-                  </AnimatePresence>
+                <div className="flex items-center gap-2.5 mb-4">
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: activeBag.bagColor || '#6b7280' }}/>
+                  <h2 className="text-lg font-bold text-text truncate">{activeBag?.name || 'My Bag'}</h2>
+                  <span className="text-sm font-semibold text-text-muted tabular-nums shrink-0">0 discs</span>
+                  <button onClick={() => setEditingBag(activeBag)} className="p-1.5 rounded-lg text-text-muted hover:text-primary hover:bg-primary/10 shrink-0" aria-label="Edit bag"><Edit3 size={14}/></button>
+                  <button onClick={() => requestDeleteBag(activeBag.id)} className="p-1.5 rounded-lg text-text-muted hover:text-gap-high hover:bg-gap-high/10 shrink-0" aria-label="Delete bag"><Trash2 size={14}/></button>
+                </div>
+                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
+                  <Backpack size={40} className="text-text-muted mb-4"/>
+                  <h2 className="text-lg font-bold text-text mb-2">This bag is empty</h2>
+                  <p className="text-text-muted text-sm max-w-xs mb-4">Add discs from your collection.</p>
+                  <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => setAddToBagPickerOpen(true)} className="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm"><Plus size={18}/>Add Discs to Bag</motion.button>
                 </motion.div>
               </>
-            )}
-            {bagDiscsForDashboard.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-border flex justify-end">
-                <div className="text-right">
-                  <span className="text-xs text-text-muted uppercase tracking-wider block">Bag value</span>
-                  <span className="text-2xl font-black text-primary">${Math.round(bagTotalValue)}</span>
-                </div>
-              </div>
+            ) : (
+              <BagDashboard
+                key={activeBag.id}
+                bagDiscs={bagDiscsForDashboard}
+                bag={activeBag}
+                allDiscs={discs}
+                onAddToBag={addDiscToBag}
+                onRemoveFromBag={removeDiscFromBag}
+                onBuySearch={handleBuySearch}
+                onEditBag={setEditingBag}
+                onRequestDeleteBag={requestDeleteBag}
+                discListSlot={
+                  <>
+                    <h3 className="text-sm font-bold text-text mt-6 mb-3">Discs in this bag</h3>
+                    <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+                      <AnimatePresence mode="popLayout">
+                        {bagDiscsSortedForGrid.map((d,i) => (
+                          <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery"
+                            onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
+                            onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
+                            bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                        ))}
+                      </AnimatePresence>
+                    </motion.div>
+                    <div className="mt-8 pt-6 border-t border-border flex justify-end">
+                      <div className="text-right">
+                        <span className="text-xs text-text-muted uppercase tracking-wider block">Bag value</span>
+                        <span className="text-2xl font-black text-primary">${Math.round(bagTotalValue)}</span>
+                      </div>
+                    </div>
+                  </>
+                }
+              />
             )}
           </div>
         )}
@@ -4418,9 +4760,9 @@ function DiscLibrary() {
 
       {/* ── MODALS ── */}
       <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag}/>}</AnimatePresence>
-      <DiscFormModal open={formOpen} onClose={() => {setFormOpen(false);setEditingDisc(null);}} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage}/>
+      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType}/>
       <BackupModal open={!!backupDisc} disc={backupDisc} onClose={() => setBackupDisc(null)}/>
-      <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }} onAddDisc={() => { setAddToBagPickerOpen(false); openAdd(); }}/>}</AnimatePresence>
+      <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }} onAddDisc={() => { setAddToBagPickerOpen(false); openAdd(); }} onOpenAddDisc={({ defaultDiscType } = {}) => { setAddDiscContext({ bagId: activeBag.id, defaultDiscType }); setAddToBagPickerOpen(false); setFormOpen(true); }} onBuySearch={handleBuySearch}/>}</AnimatePresence>
       <AnimatePresence>{editingBag && <EditBagModal open bag={editingBag} onClose={() => setEditingBag(null)} onSave={(id, data) => { updateBag(id, data); setEditingBag(null); }} onDelete={id => { requestDeleteBag(id); setEditingBag(null); }}/>}</AnimatePresence>
       <AnimatePresence>{deleteConfirm && <ConfirmDialog key="del" open title="Delete this disc?" message={`Remove ${deleteConfirm.disc?.custom_name||deleteConfirm.disc?.mold||'this disc'} permanently?`} danger confirmLabel="Delete Disc" discInfo={deleteConfirm.disc} onCancel={() => setDeleteConfirm(null)} onConfirm={confirmDeleteDisc}/>}</AnimatePresence>
       <AnimatePresence>{duplicateDiscConfirm && (
