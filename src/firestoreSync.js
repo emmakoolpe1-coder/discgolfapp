@@ -101,16 +101,25 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const discsCol = collection(userRef, 'discs');
     const acesCol = collection(userRef, 'aces');
 
+    const discsList = discs ?? [];
+    const currentDiscSnap = await getDocs(discsCol);
+    const remoteDiscCount = currentDiscSnap.size;
+
+    // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
+    if (discsList.length === 0 && remoteDiscCount > 0) {
+      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
+      return;
+    }
+    // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
+    if (discsList.length < remoteDiscCount) {
+      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
+      return;
+    }
+
     const batch = createBatch();
 
     // Sync discs subcollection
-    // GUARD: Only block empty overwrite when dataLoaded is false (startup state before load).
-    // When dataLoaded is true, empty arrays are intentional user deletions — allow them.
-    const discsList = discs ?? [];
-    const currentDiscSnap = await getDocs(discsCol);
-    if (!dataLoaded && discsList.length === 0 && currentDiscSnap.size > 0) {
-      console.warn('[sync] ⚠️ Skipping discs write: data not loaded yet, incoming empty but Firestore has', currentDiscSnap.size, 'discs — possible data loss prevented');
-    } else {
+    {
       console.log('[sync] Writing discs to Firestore for user:', userId, 'count:', discsList.length);
       const incomingDiscIds = new Set(discsList.map(d => d.id).filter(Boolean));
       currentDiscSnap.forEach(s => {
@@ -188,6 +197,19 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     console.log('[sync] ✅ Aces written successfully');
     console.log('[sync] ✅ Tournaments/LongestThrows/PersonalBests written successfully');
     console.log('[syncAces] Firestore save SUCCESS', { userId, aceCount: aces?.length ?? 0, discCount: discs?.length ?? 0 });
+    // Backup to localStorage on every successful write
+    try {
+      backupUserData(userId, {
+        discs: discs ?? [],
+        bags: bags ?? [],
+        aceHistory: aces ?? [],
+        tournaments: tournaments ?? [],
+        longestThrows: longestThrows ?? [],
+        personalBests: personalBests ?? [],
+      });
+    } catch (backupErr) {
+      console.warn('[sync] backupUserData after write failed', backupErr);
+    }
   } catch (e) {
     console.error('[sync] ❌ Firestore sync FAILED:', e);
     console.error('[sync] Error code:', e?.code);

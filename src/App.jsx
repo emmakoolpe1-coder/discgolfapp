@@ -3571,7 +3571,8 @@ function DiscLibrary() {
   const firestoreInitialLoadDoneRef = useRef(false);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
 
-  // After sign-in: load from Firestore (guest uses localStorage only)
+  // After sign-in: ALWAYS load from Firestore first (new device/domain has different localStorage)
+  // Then merge with any localStorage data (dedupe by id); Firestore wins for same id
   useEffect(() => {
     const email = userAuth?.email;
     if (!email) return;
@@ -3580,22 +3581,32 @@ function DiscLibrary() {
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
     setSyncStatus('syncing');
-    console.log('[DiscLibrary] Loading from Firestore for user:', userId);
+    console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
+        const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
         const remoteAces = data?.aceHistory ?? [];
         const remoteTournaments = data?.tournaments ?? [];
         const remoteLongestThrows = data?.longestThrows ?? [];
         const remotePersonalBests = data?.personalBests ?? [];
-
-        setDiscs(remoteDiscs);
-        setBags(remoteBags);
-        setAceHistory(remoteAces);
-        setTournaments(remoteTournaments);
-        setLongestThrows(remoteLongestThrows);
-        setPersonalBests(remotePersonalBests);
+        const localDiscs = local?.discs ?? [];
+        const localBags = local?.bags ?? [];
+        const localAces = local?.aceHistory ?? [];
+        const localTournaments = local?.tournaments ?? [];
+        const localLongestThrows = local?.longestThrows ?? [];
+        const localPersonalBests = local?.personalBests ?? [];
+        const mergeById = (remote, local, idKey = 'id') => {
+          const remoteIds = new Set((remote || []).map((x) => x && x[idKey]).filter(Boolean));
+          return [...(remote || []), ...(local || []).filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
+        };
+        setDiscs(mergeById(remoteDiscs, localDiscs));
+        setBags(mergeById(remoteBags, localBags));
+        setAceHistory(mergeById(remoteAces, localAces));
+        setTournaments(mergeById(remoteTournaments, localTournaments));
+        setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
+        setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
       .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; });
