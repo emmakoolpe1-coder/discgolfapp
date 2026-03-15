@@ -2088,8 +2088,7 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
 
 function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,discListSlot,onEditBag,onRequestDeleteBag}) {
   const [expandedGap,setExpandedGap] = useState(null);
-  const [gapFinderSectionOpen, setGapFinderSectionOpen] = useState(true);
-  const [gapFilter, setGapFilter] = useState('all');
+  const [gapFilter, setGapFilter] = useState(null);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
   const avgWeight = weights.length>0 ? (weights.reduce((a,b)=>a+b,0)/weights.length) : 0;
@@ -2113,9 +2112,32 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
     return c;
   }, [gaps.length, groupedGaps]);
   const filteredGroups = useMemo(() => {
+    if (gapFilter === null) return [];
     if (gapFilter === 'all') return groupedGaps;
     return groupedGaps.filter(grp => grp.id === gapFilter);
   }, [groupedGaps, gapFilter]);
+
+  const gapFinderTheme = useMemo(() => {
+    if (gaps.length === 0) return { isRed: false, bg: 'transparent', border: 'transparent', accent: '#C08A2E', label: 'text-gap-medium' };
+    const hasCritical = gaps.some(g => (getGapCategoryAndSeverity(g).severity === 'critical'));
+    const useRed = hasCritical || gaps.length >= 5;
+    if (useRed) {
+      return {
+        isRed: true,
+        bg: 'rgba(178, 58, 58, 0.06)',
+        border: 'rgba(178, 58, 58, 0.25)',
+        accent: '#B23A3A',
+        label: 'text-[#B23A3A]',
+      };
+    }
+    return {
+      isRed: false,
+      bg: 'rgba(255, 160, 50, 0.05)',
+      border: 'rgba(192, 138, 46, 0.3)',
+      accent: '#C08A2E',
+      label: 'text-gap-medium',
+    };
+  }, [gaps]);
 
   const getLibraryMatches = useCallback((gap) => getLibraryMatchesForGap(gap, allDiscs, bagDiscIds), [allDiscs, bagDiscIds]);
 
@@ -2153,99 +2175,47 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
         )}
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <div className="flex items-center gap-2 mb-1"><Backpack size={14} className="text-secondary"/><span className="text-xs text-secondary/80 font-bold uppercase tracking-wider">Discs</span></div>
-          <div className="text-2xl font-black text-secondary">{bagDiscs.length}</div>
-        </div>
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <div className="flex items-center gap-2 mb-1"><Zap size={14} className="text-secondary"/><span className="text-xs text-secondary/80 font-bold uppercase tracking-wider">Avg Weight</span></div>
-          <div className="text-2xl font-black text-secondary">{avgWeight.toFixed(1)}<span className="text-sm text-text-muted">g</span></div>
-        </div>
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <div className="flex items-center gap-2 mb-1"><BarChart3 size={14} className="text-gap-medium"/><span className="text-xs text-gap-medium/80 font-bold uppercase tracking-wider">Avg Speed</span></div>
-          <div className="text-2xl font-black text-gap-medium">{(bagDiscs.reduce((s,d)=>s+d.speed,0)/bagDiscs.length).toFixed(1)}</div>
-        </div>
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <div className="flex items-center gap-2 mb-1"><Crosshair size={14} className="text-gap-low"/><span className="text-xs text-gap-low/80 font-bold uppercase tracking-wider">Speed Range</span></div>
-          <div className="text-2xl font-black text-gap-low">{Math.min(...bagDiscs.map(d=>d.speed))}–{Math.max(...bagDiscs.map(d=>d.speed))}</div>
-        </div>
-      </div>
-      {/* Discs in the bag */}
-      {discListSlot}
-      {/* Type Breakdown | Stability Spectrum — side by side, stack on mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><BarChart3 size={12}/>Type Breakdown</h3>
-          <div className="space-y-2.5">
-            {Object.entries(DT).map(([k,cfg]) => {
-              const ct = typeCounts[k]; const pct = maxTC>0?(ct/maxTC)*100:0;
-              return (
-                <div key={k}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:cfg.color}}/><span className="text-xs text-text-muted font-medium">{cfg.label}s</span></div>
-                    <span className={`text-sm font-black ${ct===0?'text-text-muted':cfg.text}`}>{ct}</span>
-                  </div>
-                  <div className="h-2 bg-surface rounded-full overflow-hidden">
-                    <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:cfg.color,opacity:ct===0?0.2:0.7}}/>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Crosshair size={12}/>Stability Spectrum</h3>
-          <div className="space-y-2.5">
-            {Object.entries(STAB_META).map(([k,meta]) => {
-              const ct = stabCounts[k]; const pct = maxSC>0?(ct/maxSC)*100:0;
-              return (
-                <div key={k}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2"><span className="text-sm">{meta.icon}</span><span className="text-xs text-text-muted font-medium">{meta.label}</span></div>
-                    <span className={`text-sm font-black ${ct===0?'text-text-muted':meta.text}`}>{ct}</span>
-                  </div>
-                  <div className="h-2 bg-surface rounded-full overflow-hidden">
-                    <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:meta.color,opacity:ct===0?0.2:0.7}}/>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      {/* Gap Finder — full width */}
-      <div className="min-w-0">
-          <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-            <button type="button" onClick={() => setGapFinderSectionOpen(o => !o)} className="no-hover-scale w-full flex items-center gap-2 text-left py-3 px-4 min-h-[44px] cursor-pointer bg-transparent hover:bg-surface/80 transition-colors duration-150 rounded-t-xl">
-              <AlertTriangle size={14} className="text-gap-medium shrink-0" aria-hidden/>
-              <span className="text-xs font-bold text-gap-medium uppercase tracking-widest flex-1 min-w-0 truncate">
-                Gap Finder
-                {gaps.length > 0 ? ` · ${gaps.length} gap${gaps.length !== 1 ? 's' : ''}` : ' · ✓ No gaps!'}
-              </span>
-              <ChevronDown size={16} className={`shrink-0 text-text-muted transition-transform duration-200 ${gapFinderSectionOpen ? 'rotate-180' : ''}`} aria-hidden/>
-            </button>
-            {gaps.length === 0 && (
-              <div className="flex items-center gap-3 bg-accent border-t border-primary/20 rounded-none px-4 py-3">
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0"><Check size={20} className="text-primary"/></div>
-                <div><div className="text-sm font-bold text-primary">All categories covered!</div><div className="text-xs text-primary/60 mt-0.5">Your bag has all disc types and stability profiles.</div></div>
+      {/* Summary stats — left: Gap Finder + gap details (unified when expanded); right: 2x2 stat cards */}
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:min-h-0">
+        <div
+          className={`min-w-0 sm:flex-[1.4] self-stretch flex flex-col ${gapFilter !== null && gaps.length > 0 ? 'overflow-hidden shadow-card' : ''}`}
+          style={gapFilter !== null && gaps.length > 0 ? {
+            backgroundColor: gapFinderTheme.bg === 'transparent' ? 'rgba(255, 160, 50, 0.05)' : gapFinderTheme.bg,
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: gapFinderTheme.border === 'transparent' ? 'rgba(192, 138, 46, 0.25)' : gapFinderTheme.border,
+            borderRadius: '0.75rem',
+          } : undefined}
+        >
+          <div
+            className={`p-4 flex flex-col min-w-0 min-h-0 ${gapFilter !== null && gaps.length > 0 ? 'rounded-t-xl rounded-b-none border-0 flex-none' : 'rounded-xl shadow-card flex-1'}`}
+            style={gapFilter === null || gaps.length === 0 ? {
+              backgroundColor: gapFinderTheme.bg === 'transparent' ? 'rgba(255, 160, 50, 0.05)' : gapFinderTheme.bg,
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderColor: gapFinderTheme.border === 'transparent' ? 'rgba(192, 138, 46, 0.25)' : gapFinderTheme.border,
+            } : undefined}
+          >
+            <div className={`flex items-center gap-2 mb-1 ${gapFinderTheme.label}`}><AlertTriangle size={14} className="shrink-0"/><span className="text-xs font-bold uppercase tracking-wider opacity-90">Gap Finder</span></div>
+            <div className={`text-2xl font-black ${gapFinderTheme.label}`}>{gaps.length}<span className="text-sm font-semibold opacity-80 ml-0.5">gaps</span></div>
+            {gaps.length > 0 && (
+              <div className="flex flex-nowrap gap-1.5 mt-3 pt-2 border-t border-border/40 overflow-x-auto pb-0.5 -mx-0.5 min-h-[32px] items-center">
+                <button type="button" onClick={() => setGapFilter(prev => prev === 'all' ? null : 'all')} className={`shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${gapFilter === 'all' ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
+                  All ({categoryCounts.all})
+                </button>
+                {groupedGaps.map(grp => (
+                  <button key={grp.id} type="button" onClick={() => setGapFilter(prev => prev === grp.id ? null : grp.id)} className={`shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold border transition-colors ${gapFilter === grp.id ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
+                    {grp.id === 'missing_types' ? 'Missing' : grp.id === 'overlaps' ? 'Overlap' : grp.label.replace(/\s+Gaps?$/, '')} ({grp.gaps.length})
+                </button>
+                ))}
               </div>
             )}
+          </div>
+          {gaps.length > 0 && (
             <AnimatePresence>
-              {gaps.length > 0 && gapFinderSectionOpen && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                  <div className="px-4 pb-4 pt-1 border-t border-border/50">
-                    <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-0.5 min-h-[40px] items-center">
-                      <button type="button" onClick={() => setGapFilter('all')} className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${gapFilter === 'all' ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
-                        All ({categoryCounts.all})
-                      </button>
-                      {groupedGaps.map(grp => (
-                        <button key={grp.id} type="button" onClick={() => setGapFilter(gapFilter === grp.id ? 'all' : grp.id)} className={`shrink-0 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors ${gapFilter === grp.id ? 'bg-primary text-on-primary border-primary' : 'bg-surface border-border text-text-muted hover:text-text'}`}>
-                          {grp.id === 'missing_types' ? 'Missing' : grp.id === 'overlaps' ? 'Overlap' : grp.label.replace(/\s+Gaps?$/, '')} ({grp.gaps.length})
-                        </button>
-                      ))}
-                    </div>
+              {gapFilter !== null && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden rounded-b-xl flex-1 min-h-0" style={{ backgroundColor: gapFinderTheme.isRed ? 'rgba(178, 58, 58, 0.08)' : 'rgba(255, 160, 50, 0.07)' }}>
+                  <div className="px-4 pb-4 pt-3 border-t border-gap-medium/30">
                     <div className="space-y-4">
                       {filteredGroups.map(grp => (
                         <div key={grp.id} className="space-y-1.5">
@@ -2350,8 +2320,72 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                 </motion.div>
               )}
             </AnimatePresence>
+          )}
+        </div>
+        <div className="flex flex-col min-w-0 sm:flex-1 h-full">
+          <div className="grid grid-cols-2 grid-rows-[1fr_1fr] gap-2 flex-1 min-h-0">
+          <div className="bg-card rounded-xl p-3 border border-border shadow-card min-h-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-0.5"><BarChart3 size={12} className="text-gap-medium shrink-0"/><span className="text-[10px] text-gap-medium/80 font-bold uppercase tracking-wider">Avg Speed</span></div>
+            <div className="text-lg font-black text-gap-medium">{(bagDiscs.reduce((s,d)=>s+d.speed,0)/bagDiscs.length).toFixed(1)}</div>
+          </div>
+          <div className="bg-card rounded-xl p-3 border border-border shadow-card min-h-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-0.5"><Zap size={12} className="text-secondary shrink-0"/><span className="text-[10px] text-secondary/80 font-bold uppercase tracking-wider">Avg Weight</span></div>
+            <div className="text-lg font-black text-secondary">{avgWeight.toFixed(1)}<span className="text-xs text-text-muted">g</span></div>
+          </div>
+          <div className="bg-card rounded-xl p-3 border border-border shadow-card min-h-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-0.5"><Crosshair size={12} className="text-gap-low shrink-0"/><span className="text-[10px] text-gap-low/80 font-bold uppercase tracking-wider">Speed Range</span></div>
+            <div className="text-lg font-black text-gap-low">{Math.min(...bagDiscs.map(d=>d.speed))}–{Math.max(...bagDiscs.map(d=>d.speed))}</div>
+          </div>
+          <div className="bg-card rounded-xl p-3 border border-border shadow-card min-h-0 flex flex-col">
+            <div className="flex items-center gap-1.5 mb-0.5"><DollarSign size={12} className="text-gap-medium shrink-0"/><span className="text-[10px] text-gap-medium/80 font-bold uppercase tracking-wider">Bag Value</span></div>
+            <div className="text-lg font-black text-gap-medium tabular-nums">${Math.round(totalValue)}</div>
+          </div>
           </div>
         </div>
+      </div>
+      {/* Type Breakdown | Stability Spectrum — side by side, stack on mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><BarChart3 size={12}/>Type Breakdown</h3>
+          <div className="space-y-2.5">
+            {Object.entries(DT).map(([k,cfg]) => {
+              const ct = typeCounts[k]; const pct = maxTC>0?(ct/maxTC)*100:0;
+              return (
+                <div key={k}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:cfg.color}}/><span className="text-xs text-text-muted font-medium">{cfg.label}s</span></div>
+                    <span className={`text-sm font-black ${ct===0?'text-text-muted':cfg.text}`}>{ct}</span>
+                  </div>
+                  <div className="h-2 bg-surface rounded-full overflow-hidden">
+                    <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:cfg.color,opacity:ct===0?0.2:0.7}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="bg-card rounded-xl p-4 border border-border shadow-card">
+          <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Crosshair size={12}/>Stability Spectrum</h3>
+          <div className="space-y-2.5">
+            {Object.entries(STAB_META).map(([k,meta]) => {
+              const ct = stabCounts[k]; const pct = maxSC>0?(ct/maxSC)*100:0;
+              return (
+                <div key={k}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2"><span className="text-sm">{meta.icon}</span><span className="text-xs text-text-muted font-medium">{meta.label}</span></div>
+                    <span className={`text-sm font-black ${ct===0?'text-text-muted':meta.text}`}>{ct}</span>
+                  </div>
+                  <div className="h-2 bg-surface rounded-full overflow-hidden">
+                    <motion.div initial={{width:0}} animate={{width:`${pct}%`}} transition={{duration:.6}} className="h-full rounded-full" style={{backgroundColor:meta.color,opacity:ct===0?0.2:0.7}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {/* Discs in the bag */}
+      {discListSlot}
       {/* Flight Chart — full width */}
       <div className="min-w-0">
           {bagDiscs.length > 0 && (() => {
@@ -4697,12 +4731,6 @@ function DiscLibrary() {
                         ))}
                       </AnimatePresence>
                     </motion.div>
-                    <div className="mt-8 pt-6 border-t border-border flex justify-end">
-                      <div className="text-right">
-                        <span className="text-xs text-text-muted uppercase tracking-wider block">Bag value</span>
-                        <span className="text-2xl font-black text-primary">${Math.round(bagTotalValue)}</span>
-                      </div>
-                    </div>
                   </>
                 }
               />
