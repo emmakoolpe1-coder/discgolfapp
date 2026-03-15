@@ -3239,9 +3239,9 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
   const isGallery = viewMode==='gallery';
 
   return (
-    <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025}}
+    <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025,layout:{duration:0.25,ease:'easeOut'}}}
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
-      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-colors group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'}`}>
+      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'}`}>
       <div className="h-1" style={{background:disc.color||'#6b7280'}}/>
       <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
         {/* Type badge + status (list only) */}
@@ -3285,15 +3285,45 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
         </div>
         )}
         {/* Actions */}
-        <div className={`flex items-center gap-${isGallery?'1.5':'2'} pt-2 mt-2 ${isGallery?'w-full mt-1':''}`} onClick={e=>e.stopPropagation()}>
-          <div className="flex gap-0.5">
-            <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10"><Edit3 size={isGallery?12:14}/></button>
-            <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10"><Trash2 size={isGallery?12:14}/></button>
+        <div className={`pt-2 mt-2 transition-[gap,padding] duration-200 ease-out ${isGallery?'w-full mt-1 grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto_1fr] grid-rows-[auto_auto] md:grid-rows-1 gap-1.5 items-center':'flex items-center gap-1.5'}`} onClick={e=>e.stopPropagation()}>
+          <div className="flex gap-0.5 shrink-0">
+            <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors duration-200" aria-label="Edit"><Edit3 size={isGallery?12:14}/></button>
+            <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10 transition-colors duration-200" aria-label="Delete"><Trash2 size={isGallery?12:14}/></button>
           </div>
           {activeBagId ? (
-            <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-gap-high/10 text-gap-high border border-gap-high/20"><Minus size={11}/>Remove</button>
+            <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-gap-high/10 text-gap-high border border-gap-high/20 shrink-0"><Minus size={11}/>Remove</button>
+          ) : isGallery ? (
+            <>
+              <div className="min-w-0" aria-hidden="true" />
+              <div className="flex flex-col md:contents items-center gap-1 col-span-2 row-start-2 md:row-start-auto min-w-0">
+                <div className="relative md:col-start-3 w-full flex justify-center md:w-auto">
+                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200 ${bagMenuOpen?'bg-secondary/25 text-primary border-secondary/40':'bg-secondary/10 text-primary border-secondary/20'}`}>
+                    <Backpack size={11}/>Bag
+                  </motion.button>
+                  {bagMenuOpen && (
+                    <>
+                      <div className="fixed inset-0" style={{zIndex:39}} onClick={e=>{e.stopPropagation();setBagMenu(null);}}/>
+                      <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-44 left-1/2 -translate-x-1/2" style={{zIndex:40}}>
+                        {bags.length===0 && <div className="px-3 py-2.5 text-xs text-text-muted">No bags yet</div>}
+                        {bags.map(b => {
+                          const inBag = b.disc_ids.includes(disc.id);
+                          return (
+                            <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface/60">
+                              <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={8} className="text-text"/>}</span>
+                              <span className={`truncate ${inBag?'text-text':'text-text-muted'}`}>{b.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button onClick={() => onBackup(disc)} title="Buy backup" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20 transition-colors duration-200 hover:bg-primary/15 shrink-0 md:col-start-4 md:justify-self-end" aria-label="Buy backup"><ShoppingCart size={11}/>Buy</button>
+              </div>
+            </>
           ) : (
-            <div className="flex-1 flex justify-center relative">
+            <div className="flex-1 min-w-[60px] flex justify-center relative shrink-0">
               <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${bagMenuOpen?'bg-secondary/25 text-primary border-secondary/40':'bg-secondary/10 text-primary border-secondary/20'}`}>
                 <Backpack size={11}/>Bag
@@ -3317,7 +3347,7 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
               )}
             </div>
           )}
-          <button onClick={() => onBackup(disc)} className={`flex items-center gap-1 ${isGallery?'px-2':'px-2.5'} py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20`}><ShoppingCart size={11}/>{isGallery?'Buy':'Buy Backup'}</button>
+          {!isGallery && <button onClick={() => onBackup(disc)} title="Buy backup" className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20" aria-label="Buy backup"><ShoppingCart size={11}/>Buy Backup</button>}
         </div>
       </div>
     </motion.div>
