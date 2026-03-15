@@ -48,6 +48,10 @@ function normalizeDisc(data, docId) {
     date_acquired: d.date_acquired ?? '',
     story: d.story ?? '',
     estimated_value: typeof d.estimated_value === 'number' ? d.estimated_value : (d.estimated_value != null ? parseFloat(d.estimated_value) : 18) ?? 18,
+    hasAce: !!d.hasAce,
+    aceDate: d.aceDate ?? '',
+    aceLocation: d.aceLocation ?? '',
+    aceHole: d.aceHole ?? '',
   };
 }
 

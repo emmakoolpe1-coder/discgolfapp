@@ -9,7 +9,8 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore } from './firestoreSync.js';
-import { getAuth, signOut as firebaseSignOut } from 'firebase/auth';
+import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from './firebase.js';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, ChevronLeft, Check, Minus, Target,
@@ -50,6 +51,88 @@ const SORT_OPTIONS = [
 const DISC_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#ffffff','#1e1e1e','#6b7280','#14b8a6'];
 const BAG_COLORS = ['#1e3a5f','#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#7c3aed','#db2777','#475569','#f59e0b','#0ea5e9','#84cc16'];
 const PB_CATEGORIES = ['Lowest Round','Most Birdies','Longest Putt','Best Score','First Under Par','Other'];
+
+// Mold flight number lookup: { manufacturer, mold, speed, glide, turn, fade } — used for auto-fill in add/edit disc form
+const MOLD_LOOKUP = [
+  // Innova (20)
+  { manufacturer:'Innova', mold:'Aviar', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Innova', mold:'Aviar3', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Innova', mold:'AviarX3', speed:2, glide:2, turn:0, fade:3 },
+  { manufacturer:'Innova', mold:'Mako3', speed:5, glide:5, turn:0, fade:0 }, { manufacturer:'Innova', mold:'Roc', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Roc3', speed:5, glide:4, turn:0, fade:3 },
+  { manufacturer:'Innova', mold:'Leopard', speed:6, glide:5, turn:-2, fade:1 }, { manufacturer:'Innova', mold:'Leopard3', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Innova', mold:'Teebird', speed:7, glide:5, turn:0, fade:2 },
+  { manufacturer:'Innova', mold:'Teebird3', speed:8, glide:4, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Thunderbird', speed:9, glide:5, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Firebird', speed:9, glide:3, turn:0, fade:4 },
+  { manufacturer:'Innova', mold:'Sidewinder', speed:9, glide:5, turn:-3, fade:1 }, { manufacturer:'Innova', mold:'Valkyrie', speed:9, glide:4, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Roadrunner', speed:9, glide:5, turn:-4, fade:1 },
+  { manufacturer:'Innova', mold:'Beast', speed:10, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Orc', speed:10, glide:4, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Wraith', speed:11, glide:5, turn:-1, fade:3 },
+  { manufacturer:'Innova', mold:'Tern', speed:11, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Destroyer', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Shryke', speed:13, glide:6, turn:-2, fade:2 },
+  // Discraft (20)
+  { manufacturer:'Discraft', mold:'Luna', speed:3, glide:3, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Fierce', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Discraft', mold:'Zone', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Discraft', mold:'Buzzz', speed:5, glide:4, turn:-1, fade:1 }, { manufacturer:'Discraft', mold:'Buzzz SS', speed:5, glide:4, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Comet', speed:5, glide:5, turn:-2, fade:1 },
+  { manufacturer:'Discraft', mold:'Stalker', speed:7, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Mantis', speed:8, glide:5, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Undertaker', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Discraft', mold:'Raptor', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Avenger SS', speed:10, glide:5, turn:-3, fade:1 }, { manufacturer:'Discraft', mold:'Vulture', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Discraft', mold:'Thrasher', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Zeus', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Force', speed:12, glide:5, turn:0, fade:3 },
+  { manufacturer:'Discraft', mold:'Crank', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Nuke', speed:13, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Hades', speed:12, glide:6, turn:-3, fade:2 },
+  { manufacturer:'Discraft', mold:'Scorch', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Passion', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Cicada', speed:8, glide:6, turn:-2, fade:1 },
+  // Dynamic Discs (18)
+  { manufacturer:'Dynamic Discs', mold:'Judge', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Deputy', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Dynamic Discs', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Dynamic Discs', mold:'Truth', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Verdict', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Emac Truth', speed:5, glide:5, turn:0, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Escape', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Getaway', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Felon', speed:9, glide:4, turn:0, fade:4 },
+  { manufacturer:'Dynamic Discs', mold:'Raider', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Enforcer', speed:12, glide:5, turn:0, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Sheriff', speed:12, glide:6, turn:-1, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Lucid-X Felon', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Evader', speed:8, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Maverick', speed:7, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Slammer', speed:3, glide:2, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Warden', speed:2, glide:4, turn:0, fade:1 },
+  // MVP (18)
+  { manufacturer:'MVP', mold:'Ion', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'MVP', mold:'Anode', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'MVP', mold:'Entropy', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Hex', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Reactor', speed:5, glide:5, turn:-0.5, fade:1.5 }, { manufacturer:'MVP', mold:'Matrix', speed:5, glide:4, turn:0, fade:2 },
+  { manufacturer:'MVP', mold:'Servo', speed:6, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Resistor', speed:6, glide:4, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Volt', speed:8, glide:5, turn:-0.5, fade:2 }, { manufacturer:'MVP', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 }, { manufacturer:'MVP', mold:'Wave', speed:11, glide:5, turn:-2, fade:2 },
+  { manufacturer:'MVP', mold:'Photon', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Catalyst', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'MVP', mold:'Defy', speed:11, glide:5, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Tesla', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Motion', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'MVP', mold:'Relay', speed:6, glide:5, turn:-2, fade:1 },
+  // Latitude 64 (18)
+  { manufacturer:'Latitude 64', mold:'Pure', speed:3, glide:3, turn:0, fade:0 }, { manufacturer:'Latitude 64', mold:'Keystone', speed:3, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Latitude 64', mold:'Fuse', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Compass', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Latitude 64', mold:'River', speed:7, glide:7, turn:-1, fade:1 },
+  { manufacturer:'Latitude 64', mold:'Saint', speed:9, glide:7, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Saint Pro', speed:9, glide:6, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Explorer', speed:7, glide:5, turn:0, fade:2 },
+  { manufacturer:'Latitude 64', mold:'Pioneer', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Latitude 64', mold:'Grace', speed:11, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Rive', speed:12, glide:6, turn:0, fade:3 },
+  { manufacturer:'Latitude 64', mold:'Ballista', speed:14, glide:5, turn:-1, fade:3 }, { manufacturer:'Latitude 64', mold:'Sapphire', speed:10, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Diamond', speed:8, glide:6, turn:-3, fade:1 },
+  { manufacturer:'Latitude 64', mold:'Trust', speed:9, glide:5, turn:0, fade:2 }, { manufacturer:'Latitude 64', mold:'Anchor', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Recoil', speed:9, glide:5, turn:0, fade:3 },
+  // Kastaplast (18)
+  { manufacturer:'Kastaplast', mold:'Reko', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Kastaplast', mold:'Berg', speed:1, glide:1, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Järn', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Göte', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Kaxe', speed:6, glide:4, turn:0, fade:3 }, { manufacturer:'Kastaplast', mold:'Kaxe Z', speed:6, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Lots', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Stål', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Svea', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Grym X', speed:11, glide:5, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Grym', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Kastaplast', mold:'Guld', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 },
+  { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Stig', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Vass', speed:13, glide:5, turn:-1, fade:3 },
+  // Westside (18)
+  { manufacturer:'Westside', mold:'Shield', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Westside', mold:'Harp', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Westside', mold:'Maiden', speed:3, glide:4, turn:0, fade:0 },
+  { manufacturer:'Westside', mold:'Warship', speed:5, glide:6, turn:0, fade:0 }, { manufacturer:'Westside', mold:'Gatekeeper', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Sling', speed:5, glide:5, turn:-2, fade:0 },
+  { manufacturer:'Westside', mold:'Seer', speed:7, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Stag', speed:8, glide:6, turn:-1, fade:2 }, { manufacturer:'Westside', mold:'Northman', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Westside', mold:'Ahti', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Westside', mold:'Boatman', speed:11, glide:5, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Giant', speed:12, glide:5, turn:-1, fade:3 },
+  { manufacturer:'Westside', mold:'King', speed:14, glide:5, turn:-1.5, fade:2 }, { manufacturer:'Westside', mold:'Fortress', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Westside', mold:'Underworld', speed:7, glide:6, turn:-3, fade:1 },
+  { manufacturer:'Westside', mold:'Hatchet', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Destiny', speed:14, glide:6, turn:-2, fade:2 }, { manufacturer:'Westside', mold:'Adder', speed:13, glide:5, turn:-2, fade:2 },
+  // Prodigy (18)
+  { manufacturer:'Prodigy', mold:'PA-3', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Prodigy', mold:'PA-1', speed:2, glide:3, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'A2', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'Prodigy', mold:'M4', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Prodigy', mold:'M2', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'MX-3', speed:5, glide:5, turn:-1, fade:1 },
+  { manufacturer:'Prodigy', mold:'F5', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Prodigy', mold:'F2', speed:7, glide:5, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'H3 V2', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Prodigy', mold:'H1 V2', speed:10, glide:4, turn:0, fade:4 }, { manufacturer:'Prodigy', mold:'D2', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Prodigy', mold:'D1', speed:12, glide:5, turn:0, fade:3 },
+  { manufacturer:'Prodigy', mold:'D3', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Prodigy', mold:'X3', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'Prodigy', mold:'FX-2', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Prodigy', mold:'PA-2', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'M3', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'D4', speed:13, glide:6, turn:-3, fade:2 },
+  // Axiom (8), Streamline (6), Lone Star (6), Mint (6), RPM (6), TSA (6), DGA (6), Gateway (6), Clash (6)
+  { manufacturer:'Axiom', mold:'Envy', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Axiom', mold:'Proxy', speed:3, glide:3, turn:-1, fade:0 }, { manufacturer:'Axiom', mold:'Pyro', speed:5, glide:4, turn:0, fade:3 },
+  { manufacturer:'Axiom', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'Axiom', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 }, { manufacturer:'Axiom', mold:'Wrath', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Axiom', mold:'Fireball', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Axiom', mold:'Defy', speed:11, glide:5, turn:0, fade:3 },
+  { manufacturer:'Streamline', mold:'Pilot', speed:2, glide:5, turn:0, fade:0 }, { manufacturer:'Streamline', mold:'Stabilizer', speed:3, glide:3, turn:0, fade:3 }, { manufacturer:'Streamline', mold:'Runway', speed:5, glide:4, turn:0, fade:3 },
+  { manufacturer:'Streamline', mold:'Flare', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Streamline', mold:'Trace', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'Streamline', mold:'Lift', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Lone Star', mold:'Armadillo', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Lone Star', mold:'Mad Cat', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Lone Star', mold:'Mongoose', speed:9, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Lone Star', mold:'Curve', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Lone Star', mold:'Walker', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Lone Star', mold:'Copperhead', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Mint', mold:'Lobster', speed:5, glide:5, turn:-3, fade:0 }, { manufacturer:'Mint', mold:'Mustang', speed:5, glide:5, turn:0, fade:2 }, { manufacturer:'Mint', mold:'Freetail', speed:9, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Mint', mold:'Alpha', speed:10, glide:5, turn:0, fade:3 }, { manufacturer:'Mint', mold:'Longhorn', speed:12, glide:5, turn:-1, fade:2 }, { manufacturer:'Mint', mold:'Goat', speed:13, glide:5, turn:0, fade:3 },
+  { manufacturer:'RPM', mold:'Tui', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'RPM', mold:'Ruru', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'RPM', mold:'Piwakawaka', speed:7, glide:6, turn:-3, fade:0 },
+  { manufacturer:'RPM', mold:'Kotuku', speed:5, glide:5, turn:0, fade:2 }, { manufacturer:'RPM', mold:'Pekapeka', speed:9, glide:5, turn:-2, fade:2 }, { manufacturer:'RPM', mold:'Cosmic', speed:13, glide:5, turn:-1, fade:3 },
+  { manufacturer:'TSA', mold:'Pathfinder', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'TSA', mold:'Mantra', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'TSA', mold:'Votum', speed:9, glide:5, turn:0, fade:3 },
+  { manufacturer:'TSA', mold:'Animus', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'TSA', mold:'Omen', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'TSA', mold:'Praxis', speed:2, glide:4, turn:0, fade:0 },
+  { manufacturer:'DGA', mold:'Breaker', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'DGA', mold:'Pipeline', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'DGA', mold:'Rogue', speed:13, glide:5, turn:-1, fade:3 },
+  { manufacturer:'DGA', mold:'Squall', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'DGA', mold:'Tremor', speed:8, glide:5, turn:-3, fade:1 }, { manufacturer:'DGA', mold:'Hurricane', speed:12, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Gateway', mold:'Wizard', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Gateway', mold:'Shaman', speed:2, glide:4, turn:-1, fade:0 }, { manufacturer:'Gateway', mold:'Devil Hawk', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'Gateway', mold:'Diamond', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Gateway', mold:'War Spear', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Gateway', mold:'Assassin', speed:10, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Clash', mold:'Berry', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'Clash', mold:'Peach', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Clash', mold:'Mint', speed:5, glide:5, turn:-1, fade:1 },
+  { manufacturer:'Clash', mold:'Cookie', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Clash', mold:'Soda', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Clash', mold:'Disc', speed:9, glide:5, turn:-1, fade:2 },
+];
 
 const STAB_META = {
   understable:{label:'Understable',color:'#6B8F71',bg:'bg-secondary/15',text:'text-secondary',border:'border-secondary/30',icon:'↗'},
@@ -244,13 +327,12 @@ function getPBRarity() {
 const APP_URL = 'Disc Golf Companion';
 const GUEST_MODE_KEY = 'discgolf_guest_mode';
 const AUTH_KEY = 'discgolf_auth';
-const GOOGLE_CLIENT_ID = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID ? import.meta.env.VITE_GOOGLE_CLIENT_ID : '';
 const EMAIL_ACCOUNTS_KEY = 'discgolf_email_accounts';
 const USER_PROFILE_PIC_KEY = 'discgolf_user_profile_pic';
 const PROFILE_PIC_MAX_SIZE = 200;
 const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
-const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18};
+const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:''};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
 const VIEW_MODE_KEY = 'discgolf_view_mode';
 const THEME_KEY = 'discgolf_theme';
@@ -1134,6 +1216,8 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
 function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
   const [f,setF] = useState({...EMPTY_DISC});
   const fileRef = useRef(null);
+  const moldDropdownRef = useRef(null);
+  const [moldDropdownOpen, setMoldDropdownOpen] = useState(false);
   const isEdit = !!editDisc;
 
   useEffect(() => {
@@ -1143,6 +1227,24 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
   }, [open, editDisc]);
 
   const s = (k,v) => setF(p=>({...p,[k]:v}));
+
+  const moldSuggestions = useMemo(() => {
+    if (!f.manufacturer) return [];
+    const q = (f.mold || '').trim().toLowerCase();
+    return MOLD_LOOKUP.filter(row => row.manufacturer === f.manufacturer && (!q || row.mold.toLowerCase().includes(q))).slice(0, 20);
+  }, [f.manufacturer, f.mold]);
+
+  const applyMoldLookup = useCallback((manufacturer, mold) => {
+    const match = MOLD_LOOKUP.find(row => row.manufacturer === manufacturer && row.mold.toLowerCase() === (mold || '').trim().toLowerCase());
+    if (match) return { speed: match.speed, glide: match.glide, turn: match.turn, fade: match.fade };
+    return null;
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => { if (moldDropdownRef.current && !moldDropdownRef.current.contains(e.target)) setMoldDropdownOpen(false); };
+    if (moldDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [moldDropdownOpen]);
   const ok = f.manufacturer && f.mold && f.plastic_type;
   const save = () => {
     const discId = isEdit ? f.id : Date.now().toString();
@@ -1200,14 +1302,35 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
             <section>
               <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Identity</h3>
               <div className="space-y-2">
-                <select value={f.manufacturer} onChange={e=>s('manufacturer',e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
+                <select value={f.manufacturer} onChange={e=>{ s('manufacturer',e.target.value); setMoldDropdownOpen(false); }} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
                   <option value="">Select manufacturer…</option>{MFRS.map(m=><option key={m}>{m}</option>)}
                 </select>
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={f.mold} onChange={e=>s('mold',e.target.value)} placeholder="Mold *" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                  <div className="relative" ref={moldDropdownRef}>
+                    <input value={f.mold} onChange={e=>{ s('mold',e.target.value); setMoldDropdownOpen(true); }} onFocus={()=>setMoldDropdownOpen(true)} placeholder="Mold *" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                    {moldDropdownOpen && f.manufacturer && (
+                      <ul className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-card border border-border rounded-lg shadow-card py-1">
+                        {moldSuggestions.length ? moldSuggestions.map(row => (
+                          <li key={row.manufacturer+row.mold}>
+                            <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-surface focus:bg-surface focus:outline-none" onClick={()=>{ s('mold',row.mold); const flight = applyMoldLookup(f.manufacturer, row.mold); if(flight) setF(p=>({...p,mold:row.mold,...flight})); setMoldDropdownOpen(false); }}>
+                              {row.mold} <span className="text-text-muted text-xs">({row.speed}/{row.glide}/{row.turn}/{row.fade})</span>
+                            </button>
+                          </li>
+                        )) : <li className="px-3 py-2 text-xs text-text-muted">No molds found — type to search or enter custom</li>}
+                      </ul>
+                    )}
+                  </div>
                   <input value={f.plastic_type} onChange={e=>s('plastic_type',e.target.value)} placeholder="Plastic *" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
                 </div>
                 <input value={f.custom_name} onChange={e=>s('custom_name',e.target.value)} placeholder="Nickname (optional)" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">Disc Color</label>
+                <div className="flex flex-wrap gap-2">
+                  {DISC_COLORS.map(c => (
+                    <button key={c} type="button" onClick={() => s('color',c)}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform ${f.color===c?'border-white scale-110':'border-border'}`}
+                      style={{backgroundColor:c}}/>
+                  ))}
+                </div>
               </div>
             </section>
             {/* Type & Status */}
@@ -1227,6 +1350,19 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
                   </button>
                 ))}
               </div>
+              <label className="flex items-center gap-2.5 mt-3 px-3 py-2.5 rounded-lg border border-border bg-surface cursor-pointer hover:border-primary/30 transition-colors">
+                <input type="checkbox" checked={!!f.hasAce} onChange={e=>{ const checked=e.target.checked; s('hasAce',checked); if(checked) { s('aceDate',f.aceDate||td()); } else { s('aceDate',''); s('aceLocation',''); s('aceHole',''); } }} className="rounded border-border text-gap-medium focus:ring-gap-medium"/>
+                <Trophy size={16} className="text-gap-medium shrink-0"/>
+                <span className="text-sm font-medium text-text">Record Ace</span>
+              </label>
+              {f.hasAce && (
+                <div className="mt-2 p-3 rounded-xl border border-gap-medium/30 bg-gap-medium/5 space-y-2">
+                  <p className="text-xs font-semibold text-gap-medium uppercase tracking-wider">Ace details</p>
+                  <input type="date" value={f.aceDate||''} onChange={e=>s('aceDate',e.target.value)} className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-primary" placeholder="Date"/>
+                  <input value={f.aceLocation||''} onChange={e=>s('aceLocation',e.target.value)} placeholder="Location (e.g. course name)" className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                  <input type="number" min={1} max={36} value={f.aceHole ?? ''} onChange={e=>{ const v=e.target.value; s('aceHole',v===''?'':(parseInt(v,10)||'')); }} placeholder="Hole number" className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                </div>
+              )}
             </section>
             {/* Flight Numbers */}
             <section>
@@ -1262,14 +1398,6 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage}) {
                 <input type="number" value={f.weight_grams} onChange={e=>s('weight_grams',parseInt(e.target.value)||0)} placeholder="Weight (g)" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/>
                 <input type="date" value={f.date_acquired} onChange={e=>s('date_acquired',e.target.value)} className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/>
                 <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span><input type="number" value={f.estimated_value} onChange={e=>s('estimated_value',parseFloat(e.target.value)||0)} className="w-full bg-surface border border-border rounded-lg pl-7 pr-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary"/></div>
-              </div>
-              <label className="block text-xs text-text-muted mb-1.5 font-medium">Disc Color</label>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {DISC_COLORS.map(c => (
-                  <button key={c} type="button" onClick={() => s('color',c)}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform ${f.color===c?'border-white scale-110':'border-border'}`}
-                    style={{backgroundColor:c}}/>
-                ))}
               </div>
               <label className="block text-xs text-text-muted mb-1">Condition: {f.wear_level}/10 · {ww(f.wear_level)}</label>
               <input type="range" min={1} max={10} value={f.wear_level} onChange={e=>s('wear_level',parseInt(e.target.value))} className="w-full accent-primary"/>
@@ -2239,7 +2367,6 @@ function RoundsPlaceholder() {
 
 // ── HALL OF FAME: Achievement category cards + trading cards ──
 const HOF_CATEGORIES = [
-  { id: 'aces', label: 'Aces', icon: Trophy, count: (a,t,lt,pb) => a.length, accent: 'from-gap-medium/20 to-gap-medium/10 border-gap-medium/30' },
   { id: 'tournaments', label: 'Tournaments', icon: Award, count: (a,t,lt,pb) => t.length, accent: 'from-secondary/20 to-secondary/10 border-secondary/30' },
   { id: 'longest', label: 'Longest Throw', icon: Target, count: (a,t,lt,pb) => lt.length, accent: 'from-gap-high/20 to-gap-high/10 border-gap-high/30' },
   { id: 'pbs', label: 'Personal Bests', icon: Star, count: (a,t,lt,pb) => pb.length, accent: 'from-gap-low/20 to-gap-low/10 border-gap-low/30' },
@@ -2642,7 +2769,7 @@ function TrophyCasePage({
   addPersonalBest, updatePersonalBest, deletePersonalBest,
   uploadImage,
 }) {
-  const [category, setCategory] = useState('aces');
+  const [category, setCategory] = useState('tournaments');
   const [sortBy, setSortBy] = useState('newest');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [editingTournament, setEditingTournament] = useState(null);
@@ -2721,7 +2848,6 @@ function TrophyCasePage({
           <option value="oldest">Oldest</option>
           <option value="rarity">Rarity</option>
         </select>
-        {category === 'aces' && sortedAces.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={onLogAce} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-medium/20 text-gap-medium border border-gap-medium/30 hover:bg-gap-medium/30"><Trophy size={16}/>Add an Ace</motion.button>}
         {category === 'tournaments' && sortedTournaments.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingTournament(null); setTournamentFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-secondary/20 text-secondary border border-secondary/30 hover:bg-secondary/30"><Award size={16}/>Add Tournament</motion.button>}
         {category === 'longest' && sortedLongestThrows.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-high/20 text-gap-high border border-gap-high/30 hover:bg-gap-high/30"><Target size={16}/>Add Throw</motion.button>}
         {category === 'pbs' && sortedPBs.length > 0 && <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }} onClick={() => { setEditingPersonalBest(null); setPbFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-gap-low/20 text-gap-low border border-gap-low/30 hover:bg-gap-low/30"><Star size={16}/>Add Personal Best</motion.button>}
@@ -2729,19 +2855,6 @@ function TrophyCasePage({
 
       {/* Content grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {category === 'aces' && (sortedAces.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-            <AceEmblem size={100}/>
-            <h3 className="text-lg font-bold text-text mt-4">Your first ace card is waiting to be earned!</h3>
-            <p className="text-sm text-text-muted max-w-xs mt-2">Log your first ace to start your collection.</p>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={onLogAce} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gap-medium text-on-primary"><Trophy size={16}/>Log Your First Ace</motion.button>
-          </div>
-        ) : sortedAces.map((a, i) => (
-          <div key={a.id} className="aspect-[2.5/3.5] min-h-[180px] max-h-[320px] flex">
-            <AceTradingCard ace={a} disc={dm[a.discId]} index={i} totalAces={sortedAces.length} onEdit={onEditAce} onDelete={id=>setConfirmDelete(id)}/>
-          </div>
-        )))}
-
         {category === 'tournaments' && (sortedTournaments.length === 0 ? (
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
             <Award size={64} className="text-secondary/50 mx-auto"/>
@@ -3162,7 +3275,24 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
               </div>
               {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Backpack size={9}/>{b.name}</span>))}</div>}
             </div>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted shrink-0 mt-1"><X size={20}/></button>
+            <div className="flex flex-row items-center gap-2 shrink-0 mt-1">
+              {disc.hasAce && (
+                <div className="rounded-xl px-3 py-2 border border-gap-medium/30 bg-gap-medium/10 flex flex-row items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 text-gap-medium shrink-0">
+                    <Trophy size={14} strokeWidth={2.5}/>
+                    <span className="text-xs font-bold uppercase tracking-wider">Ace</span>
+                  </div>
+                  {((disc.aceDate || disc.aceLocation) || (disc.aceHole != null && disc.aceHole !== '')) ? (
+                    <div className="text-[11px] text-text-muted flex flex-row items-center gap-1.5 flex-wrap">
+                      {disc.aceDate && <span>{fmtD(disc.aceDate)}</span>}
+                      {disc.aceLocation && <span className="truncate max-w-[120px]" title={disc.aceLocation}>{disc.aceLocation}</span>}
+                      {disc.aceHole != null && disc.aceHole !== '' && <span>Hole {disc.aceHole}</span>}
+                    </div>
+                  ) : <span className="text-[11px] text-text-muted">Recorded</span>}
+                </div>
+              )}
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted shrink-0"><X size={20}/></button>
+            </div>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -3243,6 +3373,9 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
       className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'}`}>
       <div className="h-1" style={{background:disc.color||'#6b7280'}}/>
+      {disc.hasAce && (
+        <span className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-gap-medium/90 text-on-primary flex items-center justify-center shadow-md" title="Ace disc"><Trophy size={14} strokeWidth={2.5}/></span>
+      )}
       <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
         {/* Type badge + status (list only) */}
         {!isGallery && (
@@ -3369,7 +3502,7 @@ function GoogleLogo({ className = '' }) {
 // ═══════════════════════════════════════════════════════
 // WELCOME / LANDING SCREEN
 // ═══════════════════════════════════════════════════════
-function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, googleButtonContainerRef, theme, onThemeChange }) {
+function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, theme, onThemeChange }) {
   const [view, setView] = useState('main'); // 'main' | 'signup' | 'login'
   const [authError, setAuthError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -3496,19 +3629,16 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
 
         {view === 'main' && (
           <div className="space-y-3 w-full">
-            {googleButtonContainerRef ? (
-              <div className="relative w-full h-[52px] overflow-hidden rounded-xl shrink-0 transition-transform duration-200 hover:scale-[1.08] active:scale-[0.95]">
-                {/* Custom-styled visual layer — matches Sign up with Email */}
-                <div className="absolute inset-0 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-surface border border-border pointer-events-none">
-                  <GoogleLogo className="w-[18px] h-[18px] shrink-0" />
-                  <span className="text-text font-semibold text-sm">Sign in with Google</span>
-                </div>
-                {/* Invisible Google button overlay — receives clicks (required for OAuth), constrained to visual bounds */}
-                <div ref={googleButtonContainerRef} className="absolute inset-0 min-h-[44px] opacity-0 cursor-pointer overflow-hidden [&>div]:!w-full [&>div]:!h-full [&>div]:!max-h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!max-h-full [&_iframe]:!min-h-[44px]" />
-              </div>
-            ) : (
-              <p className="text-sm text-gap-medium">Google Sign In is not configured.</p>
-            )}
+            <motion.button
+              type="button"
+              onClick={onGoogleClick}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-surface border border-border text-text font-semibold text-sm transition-colors"
+            >
+              <GoogleLogo className="w-[18px] h-[18px] shrink-0" />
+              Sign in with Google
+            </motion.button>
             <motion.button
               type="button"
               onClick={goSignup}
@@ -3730,66 +3860,19 @@ function DiscLibrary() {
     setToast('Profile picture updated!');
   }, []);
 
-  const googleSignInSuccessRef = useRef(null);
-  const googleInitializedRef = useRef(false);
-  const googleButtonContainerRef = useRef(null);
-
-  useEffect(() => {
-    if (showApp) {
-      googleInitializedRef.current = false;
-      return;
-    }
-    if (!GOOGLE_CLIENT_ID) return;
-    googleSignInSuccessRef.current = (profile) => {
-      try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
-      setGuestMode(false);
-      setUserAuth({ type: 'google', email: profile.email, displayName: profile.displayName, picture: profile.picture || null });
-    };
-    const tryInit = () => {
-      const container = googleButtonContainerRef.current;
-      if (container && !container.isConnected) googleInitializedRef.current = false;
-      if (googleInitializedRef.current) return;
-      if (typeof window === 'undefined' || !window.google?.accounts?.id) return;
-      if (!container) return;
-      googleInitializedRef.current = true;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        use_fedcm_for_prompt: false,
-        ux_mode: 'popup',
-        callback: (response) => {
-          const profile = decodeGoogleJwt(response.credential);
-          if (profile && googleSignInSuccessRef.current) googleSignInSuccessRef.current(profile);
-        },
-      });
-      window.google.accounts.id.renderButton(container, {
-        type: 'standard',
-        theme: 'outline',
-        size: 'large',
-        width: 384,
-      });
-    };
-    tryInit();
-    const t = setInterval(tryInit, 100);
-    return () => clearInterval(t);
-  }, [showApp]);
-
   const handleGoogleSignIn = useCallback(() => {
     ReactGA.event({ category: 'Auth', action: 'Google Sign In' });
-    if (!GOOGLE_CLIENT_ID) {
-      setToast('Google Sign In is not configured. Add VITE_GOOGLE_CLIENT_ID to .env.local.');
-      return;
-    }
-    if (typeof window === 'undefined' || !window.google?.accounts?.id) {
-      setToast('Loading Google Sign In…');
-      return;
-    }
-    const container = googleButtonContainerRef.current;
-    const googleButton = container?.querySelector?.('[role="button"]') || container?.firstElementChild;
-    if (googleButton && typeof googleButton.click === 'function') {
-      googleButton.click();
-    } else {
-      setToast('Google Sign In is still loading. Try again in a moment.');
-    }
+    signInWithPopup(auth, googleProvider)
+      .then((result) => {
+        const user = result.user;
+        try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
+        setGuestMode(false);
+        setUserAuth({ type: 'google', email: user.email, displayName: user.displayName, picture: user.photoURL || null });
+      })
+      .catch((err) => {
+        console.warn('[auth] Google sign-in failed', err);
+        setToast(err?.code === 'auth/popup-closed-by-user' ? 'Sign-in cancelled.' : 'Google Sign In failed. Try again or use Email.');
+      });
   }, []);
 
   const [activeBagId,setActiveBagId] = useState(null);
@@ -3798,6 +3881,7 @@ function DiscLibrary() {
   const [typeFilter,setTypeFilter] = useState('all');
   const [selectedBrand,setSelectedBrand] = useState('All');
   const [selectedSpeed,setSelectedSpeed] = useState('All');
+  const [aceFilter,setAceFilter] = useState(false);
   const [selectedSort,setSelectedSort] = useState('Recent');
   const [viewMode,setViewMode] = useState(() => {
     try { const v = localStorage.getItem(VIEW_MODE_KEY); return (v === 'gallery' || v === 'list') ? v : 'gallery'; } catch(_) { return 'gallery'; }
@@ -3937,19 +4021,20 @@ function DiscLibrary() {
     if (typeFilter!=='all') result = result.filter(d => d.disc_type===typeFilter);
     if (selectedBrand!=='All') result = result.filter(d => d.manufacturer===selectedBrand);
     if (selectedSpeed!=='All') { const range=SPEED_RANGES.find(sr=>sr.value===selectedSpeed); if(range)result=result.filter(d=>d.speed>=range.min&&d.speed<=range.max); }
+    if (aceFilter) result = result.filter(d => !!d.hasAce);
     switch(selectedSort) { case'Name':result.sort((a,b)=>a.mold.localeCompare(b.mold));break; case'Speed':result.sort((a,b)=>b.speed-a.speed);break; case'Wear':result.sort((a,b)=>a.wear_level-b.wear_level);break; default:result.sort((a,b)=>(b.date_acquired||'').localeCompare(a.date_acquired||'')); }
     return result;
-  }, [discs, activeBag, activeBagId, search, typeFilter, selectedBrand, selectedSpeed, selectedSort]);
+  }, [discs, activeBag, activeBagId, search, typeFilter, selectedBrand, selectedSpeed, aceFilter, selectedSort]);
 
   const counts = useMemo(() => {
     const base = activeBagId && activeBag ? discs.filter(d=>activeBag.disc_ids.includes(d.id)) : discs;
-    const c = {all:base.length}; Object.keys(DT).forEach(t => c[t]=base.filter(d=>d.disc_type===t).length); return c;
+    const c = {all:base.length}; Object.keys(DT).forEach(t => c[t]=base.filter(d=>d.disc_type===t).length); c.aces=base.filter(d=>!!d.hasAce).length; return c;
   }, [discs, activeBag, activeBagId]);
 
-  const activeFilterCount = [selectedBrand!=='All', selectedSpeed!=='All'].filter(Boolean).length;
+  const activeFilterCount = [selectedBrand!=='All', selectedSpeed!=='All', aceFilter].filter(Boolean).length;
 
   // ── Handlers ──
-  const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
+  const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setAceFilter(false); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
 
   const toggleBag = (bagId,discId) => setBags(p => p.map(b => b.id!==bagId ? b : {...b, disc_ids:b.disc_ids.includes(discId) ? b.disc_ids.filter(i=>i!==discId) : [...b.disc_ids,discId]}));
 
@@ -4063,7 +4148,6 @@ function DiscLibrary() {
           onGoogleClick={handleGoogleSignIn}
           onEmailSignUp={handleEmailSignUp}
           onEmailLogin={handleEmailLogin}
-          googleButtonContainerRef={GOOGLE_CLIENT_ID ? googleButtonContainerRef : null}
           theme={theme}
           onThemeChange={setTheme}
         />
@@ -4226,8 +4310,9 @@ function DiscLibrary() {
               <Filter size={14} className="text-text-muted shrink-0"/>
               <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
               <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
+              <button onClick={() => setAceFilter(a=>!a)} className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${aceFilter?'bg-gap-medium/20 text-gap-medium border-gap-medium/30':'bg-card text-text-muted border-border'}`} title="Show only discs you've aced with"><Trophy size={12}/>Aces ({counts.aces??0})</button>
               {activeFilterCount>0 && (
-                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gap-high bg-gap-high/10 border border-gap-high/20"><X size={12}/>Clear ({activeFilterCount})</button>
+                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');setAceFilter(false);}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gap-high bg-gap-high/10 border border-gap-high/20"><X size={12}/>Clear ({activeFilterCount})</button>
               )}
               <div className="flex-1"/>
               <FilterDropdown label="Sort" value={selectedSort} options={SORT_OPTIONS.map(s=>({value:s.value,label:s.label}))} onChange={setSelectedSort}/>
