@@ -61,6 +61,176 @@ html[data-theme="dark"] {
   }
 }
 
+/* Bag flight chart — theme tokens (inherits html data-theme: light | dark | system) */
+html[data-theme="dark"] {
+  --chart-card-bg: #111111;
+  --chart-card-border: rgba(255, 255, 255, 0.06);
+  --chart-title-text: #ffffff;
+  --chart-body-text: #cccccc;
+  --chart-muted-text: #888888;
+  --chart-dim-text: #555555;
+  --chart-legend-text: #999999;
+  --chart-hint-text: #666666;
+  --chart-toggle-bg: #1a1a1a;
+  --chart-toggle-active-bg: #4a7c2e;
+  --chart-toggle-active-text: #ffffff;
+  --chart-toggle-inactive-text: #888888;
+  --chart-skill-inactive-bg: #1a1a1a;
+  --chart-chip-bg: #252525;
+  --chart-chip-border: rgba(255, 255, 255, 0.12);
+  --chart-chip-hover-bg: #333333;
+  --chart-chip-hover-border: rgba(255, 255, 255, 0.25);
+  --chart-chip-press-bg: #1a1a1a;
+  --chart-chip-text: #cccccc;
+  --chart-chip-speed: #888888;
+  --chart-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-center-line: rgba(255, 255, 255, 0.04);
+  --chart-axis-label: #555555;
+  --chart-banner-bg: rgba(0, 0, 0, 0.6);
+  --chart-banner-border: rgba(255, 255, 255, 0.08);
+  --chart-banner-nums: #666666;
+  --chart-warning: #fbbf24;
+  --chart-path-opacity-default: 0.9;
+  --chart-path-dimmed: 0.2;
+  --chart-envelope-opacity: 0.12;
+  --chart-variant-opacity: 0.4;
+}
+
+html[data-theme="light"] {
+  --chart-card-bg: #ffffff;
+  --chart-card-border: rgba(0, 0, 0, 0.08);
+  --chart-title-text: #111111;
+  --chart-body-text: #333333;
+  --chart-muted-text: #666666;
+  --chart-dim-text: #999999;
+  --chart-legend-text: #777777;
+  --chart-hint-text: #999999;
+  --chart-toggle-bg: #f0f0f0;
+  --chart-toggle-active-bg: #4a7c2e;
+  --chart-toggle-active-text: #ffffff;
+  --chart-toggle-inactive-text: #777777;
+  --chart-skill-inactive-bg: #f0f0f0;
+  --chart-chip-bg: #f5f5f5;
+  --chart-chip-border: rgba(0, 0, 0, 0.1);
+  --chart-chip-hover-bg: #e8e8e8;
+  --chart-chip-hover-border: rgba(0, 0, 0, 0.2);
+  --chart-chip-press-bg: #dddddd;
+  --chart-chip-text: #333333;
+  --chart-chip-speed: #777777;
+  --chart-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --chart-grid: rgba(0, 0, 0, 0.07);
+  --chart-center-line: rgba(0, 0, 0, 0.04);
+  --chart-axis-label: #aaaaaa;
+  --chart-banner-bg: rgba(255, 255, 255, 0.85);
+  --chart-banner-border: rgba(0, 0, 0, 0.08);
+  --chart-banner-nums: #888888;
+  --chart-warning: #d97706;
+  --chart-path-opacity-default: 0.85;
+  --chart-path-dimmed: 0.15;
+  --chart-envelope-opacity: 0.1;
+  --chart-variant-opacity: 0.35;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --chart-card-bg: #111111;
+    --chart-card-border: rgba(255, 255, 255, 0.06);
+    --chart-title-text: #ffffff;
+    --chart-body-text: #cccccc;
+    --chart-muted-text: #888888;
+    --chart-dim-text: #555555;
+    --chart-legend-text: #999999;
+    --chart-hint-text: #666666;
+    --chart-toggle-bg: #1a1a1a;
+    --chart-toggle-active-bg: #4a7c2e;
+    --chart-toggle-active-text: #ffffff;
+    --chart-toggle-inactive-text: #888888;
+    --chart-skill-inactive-bg: #1a1a1a;
+    --chart-chip-bg: #252525;
+    --chart-chip-border: rgba(255, 255, 255, 0.12);
+    --chart-chip-hover-bg: #333333;
+    --chart-chip-hover-border: rgba(255, 255, 255, 0.25);
+    --chart-chip-press-bg: #1a1a1a;
+    --chart-chip-text: #cccccc;
+    --chart-chip-speed: #888888;
+    --chart-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --chart-grid: rgba(255, 255, 255, 0.06);
+    --chart-center-line: rgba(255, 255, 255, 0.04);
+    --chart-axis-label: #555555;
+    --chart-banner-bg: rgba(0, 0, 0, 0.6);
+    --chart-banner-border: rgba(255, 255, 255, 0.08);
+    --chart-banner-nums: #666666;
+    --chart-warning: #fbbf24;
+    --chart-path-opacity-default: 0.9;
+    --chart-path-dimmed: 0.2;
+    --chart-envelope-opacity: 0.12;
+    --chart-variant-opacity: 0.4;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  html[data-theme="system"] {
+    --chart-card-bg: #ffffff;
+    --chart-card-border: rgba(0, 0, 0, 0.08);
+    --chart-title-text: #111111;
+    --chart-body-text: #333333;
+    --chart-muted-text: #666666;
+    --chart-dim-text: #999999;
+    --chart-legend-text: #777777;
+    --chart-hint-text: #999999;
+    --chart-toggle-bg: #f0f0f0;
+    --chart-toggle-active-bg: #4a7c2e;
+    --chart-toggle-active-text: #ffffff;
+    --chart-toggle-inactive-text: #777777;
+    --chart-skill-inactive-bg: #f0f0f0;
+    --chart-chip-bg: #f5f5f5;
+    --chart-chip-border: rgba(0, 0, 0, 0.1);
+    --chart-chip-hover-bg: #e8e8e8;
+    --chart-chip-hover-border: rgba(0, 0, 0, 0.2);
+    --chart-chip-press-bg: #dddddd;
+    --chart-chip-text: #333333;
+    --chart-chip-speed: #777777;
+    --chart-chip-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --chart-grid: rgba(0, 0, 0, 0.07);
+    --chart-center-line: rgba(0, 0, 0, 0.04);
+    --chart-axis-label: #aaaaaa;
+    --chart-banner-bg: rgba(255, 255, 255, 0.85);
+    --chart-banner-border: rgba(0, 0, 0, 0.08);
+    --chart-banner-nums: #888888;
+    --chart-warning: #d97706;
+    --chart-path-opacity-default: 0.85;
+    --chart-path-dimmed: 0.15;
+    --chart-envelope-opacity: 0.1;
+    --chart-variant-opacity: 0.35;
+  }
+}
+
+.flight-chart-card {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.flight-chart-themed {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.chart-svg-path {
+  transition:
+    stroke 200ms ease,
+    fill 200ms ease,
+    opacity 200ms ease,
+    stroke-opacity 200ms ease,
+    fill-opacity 200ms ease;
+}
+
 html {
   height: 100%;
   min-height: 100dvh; /* dynamic viewport — correct on mobile when browser chrome shows/hides */

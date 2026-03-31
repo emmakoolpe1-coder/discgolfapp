@@ -11,13 +11,14 @@ import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore } from './firestoreSync.js';
 import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
+import FlightChart from './components/FlightChart.jsx';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
   ExternalLink, ChevronRight, Trash2, Package, Edit3, Calendar, Backpack,
   MapPin, Hash, ShoppingCart, Loader, LayoutGrid, List, Upload,
   Camera, Filter, Ruler, Library, Info,
-  AlertTriangle, TrendingUp, BarChart3, Crosshair, DollarSign,
+  AlertTriangle, BarChart3, Crosshair, DollarSign,
   Zap, Shield, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock, Award,
   Sun, Moon, Monitor
 } from 'lucide-react';
@@ -2386,67 +2387,10 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       </div>
       {/* Discs in the bag */}
       {discListSlot}
-      {/* Flight Chart — full width */}
-      <div className="min-w-0">
-          {bagDiscs.length > 0 && (() => {
-            const sorted = [...bagDiscs].sort((a,b) => b.speed - a.speed);
-            const colWidth = 52;
-            const pathHeight = 100;
-            const pathWidth = 28;
-            const centerX = pathWidth / 2;
-            const getFlightPath = (turn, fade) => {
-              const t = turn ?? 0, f = fade ?? 0;
-              const cpx = Math.max(4, Math.min(pathWidth - 4, centerX - t * 3));
-              const endX = Math.max(4, Math.min(pathWidth - 4, centerX - f * 3));
-              return `M ${centerX} 0 Q ${cpx} ${pathHeight/2} ${endX} ${pathHeight}`;
-            };
-            const getStabilityColor = (turn, fade) => {
-              const t = turn ?? 0, f = fade ?? 0;
-              const stability = -t + f;
-              if (stability >= 4) return '#B23A3A';
-              if (stability >= 2) return '#C08A2E';
-              if (stability >= 0) return '#6B8F71';
-              return '#4C7A67';
-            };
-            return (
-              <div className="bg-card rounded-xl p-4 border border-border shadow-card">
-                <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><TrendingUp size={12}/>Flight Chart</h3>
-                <p className="text-xs text-text-muted mb-4">Each line shows the disc&apos;s typical flight path. Overstable discs curve left; understable curve right.</p>
-                <div className="overflow-x-auto pb-2 -mx-1 rounded-lg bg-surface/40">
-                  <div className="flex gap-3 min-w-max py-4 px-3">
-                    {sorted.map(d => {
-                      const turn = d.turn ?? 0, fade = d.fade ?? 0;
-                      const color = getStabilityColor(turn, fade);
-                      const path = getFlightPath(turn, fade);
-                      const endX = Math.max(4, Math.min(pathWidth - 4, pathWidth/2 - fade * 3));
-                      return (
-                        <div key={d.id} className="flex flex-col items-center shrink-0" style={{ width: colWidth }}>
-                          <div className="relative w-full flex justify-center" style={{ height: pathHeight }}>
-                            <svg viewBox={`0 0 ${pathWidth} ${pathHeight}`} className="w-14 h-full" preserveAspectRatio="xMidYMid meet">
-                              <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-                              <circle cx={endX} cy={pathHeight} r={2.5} fill={color}/>
-                            </svg>
-                          </div>
-                          <div className="mt-2 text-center min-h-[2.5rem]">
-                            <div className="text-[11px] font-bold text-text leading-tight px-0.5" title={`${d.custom_name || d.mold} · ${d.speed}/${d.glide}/${d.turn}/${d.fade}`}>
-                              {(d.custom_name || d.mold).toUpperCase().slice(0, 10)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-border/50 text-[10px] text-text-muted">
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#B23A3A]"/>Overstable — fades hard left</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#C08A2E]"/>Stable — controlled fade</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#6B8F71]"/>Neutral — straight fliers</span>
-                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 rounded-full bg-[#4C7A67]"/>Understable — turns right</span>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
+      {/* Flight Chart — mobile-first (see components/FlightChart.jsx) */}
+      <div className="min-w-0 flex justify-center w-full px-2 sm:px-0">
+        {bagDiscs.length > 0 && <FlightChart bagDiscs={bagDiscs} />}
+      </div>
     </motion.div>
     </>
   );
@@ -3641,6 +3585,12 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
 function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onToggleBag}) {
   const [bagDrop,setBagDrop] = useState(false);
   useEffect(() => {if(open)setBagDrop(false);}, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
   if (!open||!disc) return null;
   const cfg = DT[disc.disc_type]; const st = SM[disc.status]; const stab = classifyStability(disc); const stabM = STAB_META[stab];
   const inBags = bags.filter(b => b.disc_ids.includes(disc.id));
@@ -3654,31 +3604,39 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
           <div className="flex items-start gap-4">
             <DiscVisual disc={disc} size="xl"/>
             <div className="flex-1 min-w-0 pt-1">
-              {disc.custom_name ? (<><h2 className="text-2xl font-black text-text leading-tight">{disc.custom_name}</h2><p className="text-sm text-text-muted font-medium mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><p className="text-xs text-text-muted font-semibold uppercase tracking-wider">{disc.manufacturer}</p><h2 className="text-2xl font-black text-text leading-tight">{disc.mold}</h2><p className="text-sm text-text-muted font-medium mt-0.5">{disc.plastic_type}</p></>)}
+              {disc.custom_name ? (
+                <>
+                  <h2 className="text-2xl font-black text-text leading-tight">{disc.custom_name}</h2>
+                  <p className="text-sm text-text-muted font-medium mt-0.5">{disc.manufacturer} · {disc.plastic_type}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-text-muted font-semibold uppercase tracking-wider">{disc.manufacturer}</p>
+                  <h2 className="text-2xl font-black text-text leading-tight">{disc.mold}</h2>
+                  <p className="text-sm text-text-muted font-medium mt-0.5">{disc.plastic_type}</p>
+                </>
+              )}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full border" style={{backgroundColor:stabM.color+'15',color:stabM.color,borderColor:stabM.color+'33'}}>{stabM.icon} {stabM.label}</span>
                 {st && <span className="flex items-center gap-1.5 text-xs text-text-muted"><span className={`w-2 h-2 rounded-full ${st.dot}`}/>{st.label}</span>}
               </div>
-              {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Backpack size={9}/>{b.name}</span>))}</div>}
-            </div>
-            <div className="flex flex-row items-center gap-2 shrink-0 mt-1">
               {disc.hasAce && (
-                <div className="rounded-xl px-3 py-2 border border-gap-medium/30 bg-gap-medium/10 flex flex-row items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5 text-gap-medium shrink-0">
-                    <Trophy size={14} strokeWidth={2.5}/>
-                    <span className="text-xs font-bold uppercase tracking-wider">Ace</span>
-                  </div>
-                  {((disc.aceDate || disc.aceLocation) || (disc.aceHole != null && disc.aceHole !== '')) ? (
-                    <div className="text-[11px] text-text-muted flex flex-row items-center gap-1.5 flex-wrap">
-                      {disc.aceDate && <span>{fmtD(disc.aceDate)}</span>}
-                      {disc.aceLocation && <span className="truncate max-w-[120px]" title={disc.aceLocation}>{disc.aceLocation}</span>}
-                      {disc.aceHole != null && disc.aceHole !== '' && <span>Hole {disc.aceHole}</span>}
-                    </div>
-                  ) : <span className="text-[11px] text-text-muted">Recorded</span>}
+                <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full border border-gap-medium/40 bg-gap-medium/10 text-[11px] text-gap-medium">
+                  <span className="text-sm">🏆</span>
+                  <span className="font-semibold">Ace — {disc.aceDate ? fmtD(disc.aceDate) : 'Recorded'}{disc.aceHole != null && disc.aceHole !== '' ? `, Hole ${disc.aceHole}` : ''}</span>
                 </div>
               )}
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-surface text-text-muted shrink-0"><X size={20}/></button>
+              {inBags.length>0 && <div className="flex flex-wrap gap-1.5 mt-2.5">{inBags.map(b => (<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'20',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}44`}}><Backpack size={9}/>{b.name}</span>))}</div>}
+            </div>
+            <div className="flex flex-row items-start gap-2 shrink-0 mt-1">
+              <button
+                onClick={onClose}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 shrink-0"
+                aria-label="Close"
+              >
+                <X size={20}/>
+              </button>
             </div>
           </div>
         </div>
@@ -3758,16 +3716,19 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
   return (
     <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025,layout:{duration:0.25,ease:'easeOut'}}}
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
-      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'}`}>
-      <div className="h-1" style={{background:disc.color||'#6b7280'}}/>
-      {disc.hasAce && (
-        <span className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-gap-medium/90 text-on-primary flex items-center justify-center shadow-md" title="Ace disc"><Trophy size={14} strokeWidth={2.5}/></span>
-      )}
+      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'} pb-14`}>
       <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
         {/* Type badge + status (list only) */}
         {!isGallery && (
         <div className="flex items-center justify-between mb-2">
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
+          <div className="flex items-center gap-1.5">
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
+            {disc.hasAce && (
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gap-medium/90 text-on-primary shadow-md" title="Ace disc">
+                <Trophy size={11} strokeWidth={2.2}/>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
             {st && <span className="flex items-center gap-1 text-xs text-text-muted"><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
           </div>
@@ -3805,13 +3766,27 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
         </div>
         )}
         {/* Actions */}
-        <div className={`pt-2 mt-2 transition-[gap,padding] duration-200 ease-out ${isGallery?'w-full mt-1 grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto_1fr] grid-rows-[auto_auto] md:grid-rows-1 gap-1.5 items-center':'flex items-center gap-1.5'}`} onClick={e=>e.stopPropagation()}>
+        <div className={`pt-2 mt-2 transition-[gap,padding] duration-200 ease-out ${isGallery?'w-full mt-1 grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto_1fr] grid-rows-[auto_auto] md:grid-rows-1 gap-1.5 items-center':'flex items-center gap-1.5'} relative`} onClick={e=>e.stopPropagation()}>
           <div className="flex gap-0.5 shrink-0">
-            <button onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors duration-200" aria-label="Edit"><Edit3 size={isGallery?12:14}/></button>
-            <button onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10 transition-colors duration-200" aria-label="Delete"><Trash2 size={isGallery?12:14}/></button>
+            {!isGallery && (
+              <>
+                <button type="button" onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors duration-200" aria-label="Edit">
+                  <Edit3 size={14}/>
+                </button>
+                <button type="button" onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10 transition-colors duration-200" aria-label="Delete">
+                  <Trash2 size={14}/>
+                </button>
+              </>
+            )}
           </div>
-          {activeBagId ? (
-            <button onClick={() => onRemoveFromBag(activeBagId,disc.id)} className="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-gap-high/10 text-gap-high border border-gap-high/20 shrink-0"><Minus size={11}/>Remove</button>
+          {activeBagId && !isGallery ? (
+            <button
+              onClick={() => onRemoveFromBag(activeBagId,disc.id)}
+              className="flex-1 min-w-0 flex items-center justify-center px-2 py-1.5 rounded-lg text-xs font-semibold bg-gap-high/10 text-gap-high border border-gap-high/20 shrink-0"
+              aria-label="Remove from bag"
+            >
+              <Minus size={11}/>
+            </button>
           ) : isGallery ? (
             <>
               <div className="min-w-0" aria-hidden="true" />
@@ -3870,6 +3845,26 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
           {!isGallery && <button onClick={() => onBackup(disc)} title="Buy backup" className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20" aria-label="Buy backup"><ShoppingCart size={11}/>Buy Backup</button>}
         </div>
       </div>
+      {isGallery && (
+        <>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onEdit(disc); }}
+            className="absolute bottom-3 left-3 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
+            aria-label="Edit disc"
+          >
+            <Edit3 size={18}/>
+          </button>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onDelete(disc.id); }}
+            className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
+            aria-label="Delete disc"
+          >
+            <Trash2 size={18}/>
+          </button>
+        </>
+      )}
     </motion.div>
   );
 }
@@ -4533,7 +4528,7 @@ function DiscLibrary() {
   }, []);
 
   const headerDiscCount = activeBag ? activeBag.disc_ids.length : discs.length;
-  const gridCls = viewMode==='gallery' ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+  const gridCls = viewMode==='gallery' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
 
   if (!showApp) {
     return (
@@ -4666,13 +4661,13 @@ function DiscLibrary() {
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search mold, plastic, nickname…" className="w-full bg-card border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary/50 transition-colors"/>
               {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"><X size={16}/></button>}
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-4">
               <button onClick={() => setTypeFilter('all')} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter==='all'?'bg-accent text-primary border-primary/20':'bg-card text-text-muted border-border'}`}>All ({counts.all})</button>
               {Object.entries(DT).map(([k,c]) => (
                 <button key={k} onClick={() => setTypeFilter(k)} className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${typeFilter===k?`bg-accent ${c.text} border-primary/20`:'bg-card text-text-muted border-border'}`}>{c.label} ({counts[k]||0})</button>
               ))}
             </div>
-            <div className="flex items-center gap-2 flex-wrap pb-1">
+            <div className="flex items-center gap-2 flex-wrap pb-2 mb-2">
               <Filter size={14} className="text-text-muted shrink-0"/>
               <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
               <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
