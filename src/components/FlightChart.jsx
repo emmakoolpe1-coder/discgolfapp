@@ -13,6 +13,7 @@ import {
   generatePowerEnvelopePaths,
   buildYGridTicks150,
   SKILL_PROFILES,
+  hasValidFlightNumbersForChart,
 } from '../flightChartMath.js';
 
 const CHART_W = 400;
@@ -23,11 +24,21 @@ const PATH_PAD = { left: 36, right: 8, top: 8, bottom: 8 };
 const PATH_TRANSITION = { duration: 0.3, ease: [0.42, 0, 0.58, 1] };
 const HINT_KEY = 'bagChart_discovered';
 
+/** Same disc id regardless of string vs number (Firestore / localStorage). 0 is valid; do not use == or truthiness on ids. */
+function discIdsEqual(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+function hasSelectedDiscId(id) {
+  return id != null && String(id).length > 0;
+}
+
 /** @param {import('../flightChartMath.js').DiscFlightData[]} a */
 /** @param {import('../flightChartMath.js').DiscFlightData[]} b */
 function flightsMatch(a, b) {
   if (!a || !b || a.length !== b.length) return false;
-  return a.every((f, i) => f.disc.id === b[i].disc.id);
+  return a.every((f, i) => discIdsEqual(f.disc.id, b[i].disc.id));
 }
 
 /** @param {string} hex */
@@ -44,6 +55,12 @@ const SKILL_OPTIONS = [
   { id: 'intermediate', label: 'Intermediate' },
   { id: 'advanced', label: 'Advanced' },
 ];
+
+/** RHBH/LHFH → unmirrored path; LHBH/RHFH → mirrored (same as legacy LHBH). */
+const HAND_FLIGHT_PAIR = {
+  RHBH_LHFH: 'RHBH_LHFH',
+  LHBH_RHFH: 'LHBH_RHFH',
+};
 
 function useNarrowChartHeight() {
   const [narrow, setNarrow] = useState(
@@ -88,12 +105,18 @@ function useChartEffectiveTheme() {
 export default function FlightChart({ bagDiscs }) {
   const chartH = useNarrowChartHeight();
   const effectiveChartMode = useChartEffectiveTheme();
-  const [throwMode, setThrowMode] = useState('RHBH');
+  const chartableDiscs = useMemo(
+    () => (bagDiscs ?? []).filter(hasValidFlightNumbersForChart),
+    [bagDiscs]
+  );
+  const [handPair, setHandPair] = useState(/** @type {keyof typeof HAND_FLIGHT_PAIR} */ (HAND_FLIGHT_PAIR.RHBH_LHFH));
   const [skillLevel, setSkillLevel] = useState('intermediate');
   const [selectedDiscId, setSelectedDiscId] = useState(/** @type {string | null} */ (null));
   const chipScrollRef = useRef(null);
   const chipRefs = useRef(/** @type {Record<string, HTMLButtonElement | null>} */ ({}));
   const userInteractedRef = useRef(false);
+  /** Set only from selectDisc when choosing a disc; never from auto-select — avoids scrollIntoView on load */
+  const pendingChipScrollRef = useRef(false);
   const [bounceChipId, setBounceChipId] = useState(/** @type {string | null} */ (null));
   const [hintPhase, setHintPhase] = useState(() => {
     try {
@@ -111,16 +134,16 @@ export default function FlightChart({ bagDiscs }) {
     /** @type {{ flights: import('../flightChartMath.js').DiscFlightData[]; maxDistance: number; maxLateral: number } | null} */ (null)
   );
 
-  const mirror = throwMode === 'LHBH';
+  const mirror = handPair === HAND_FLIGHT_PAIR.LHBH_RHFH;
 
   const discsForColorAssignment = useMemo(
     () =>
-      (bagDiscs ?? []).map((d) => ({
+      chartableDiscs.map((d) => ({
         id: d.id,
         speed: parseFlightNum(d.speed),
         userColor: parseDiscColor(d.userColor) ?? parseDiscColor(d.color),
       })),
-    [bagDiscs]
+    [chartableDiscs]
   );
 
   const colorById = useMemo(() => {
@@ -132,8 +155,8 @@ export default function FlightChart({ bagDiscs }) {
   }, [discsForColorAssignment]);
 
   const definitions = useMemo(() => {
-    if (!bagDiscs?.length) return [];
-    return bagDiscs.map((d) => {
+    if (!chartableDiscs.length) return [];
+    return chartableDiscs.map((d) => {
       const base = colorById.get(d.id) ?? '#888888';
       const color =
         effectiveChartMode === 'light' ? adjustColorForLightMode(base) : base;
@@ -147,7 +170,7 @@ export default function FlightChart({ bagDiscs }) {
         color,
       };
     });
-  }, [bagDiscs, colorById, effectiveChartMode]);
+  }, [chartableDiscs, colorById, effectiveChartMode]);
 
   const { flights, maxDistance, maxLateral, discWarnings } = useMemo(() => {
     if (!definitions.length) {
@@ -215,31 +238,31 @@ export default function FlightChart({ bagDiscs }) {
     [flights]
   );
 
-  /** Clear selection if bag empty or selected disc removed */
+  /** Clear selection if no chartable discs or selected disc removed */
   useEffect(() => {
-    if (!bagDiscs?.length) {
+    if (!chartableDiscs.length) {
       queueMicrotask(() => setSelectedDiscId(null));
       return;
     }
     queueMicrotask(() => {
       setSelectedDiscId((prev) =>
-        prev && !bagDiscs.some((d) => d.id === prev) ? null : prev
+        hasSelectedDiscId(prev) && !chartableDiscs.some((d) => discIdsEqual(d.id, prev)) ? null : prev
       );
     });
-  }, [bagDiscs]);
+  }, [chartableDiscs]);
 
-  /** Auto-select fastest disc on load / when selection invalid */
+  /** Auto-select fastest chartable disc on load / when selection invalid */
   useEffect(() => {
-    if (!bagDiscs?.length) return;
-    const sorted = [...bagDiscs].sort((a, b) => parseFlightNum(b.speed) - parseFlightNum(a.speed));
+    if (!chartableDiscs.length) return;
+    const sorted = [...chartableDiscs].sort((a, b) => parseFlightNum(b.speed) - parseFlightNum(a.speed));
     const firstId = sorted[0].id;
     queueMicrotask(() => {
       setSelectedDiscId((prev) => {
-        if (prev && bagDiscs.some((d) => d.id === prev)) return prev;
+        if (hasSelectedDiscId(prev) && chartableDiscs.some((d) => discIdsEqual(d.id, prev))) return prev;
         return firstId;
       });
     });
-  }, [bagDiscs]);
+  }, [chartableDiscs]);
 
   /** Second chip bounce @ 2s, once, if no interaction */
   useEffect(() => {
@@ -268,7 +291,7 @@ export default function FlightChart({ bagDiscs }) {
   );
 
   const selectedFlight = useMemo(
-    () => flights.find((f) => f.disc.id === selectedDiscId) ?? null,
+    () => flights.find((f) => discIdsEqual(f.disc.id, selectedDiscId)) ?? null,
     [flights, selectedDiscId]
   );
 
@@ -293,10 +316,10 @@ export default function FlightChart({ bagDiscs }) {
 
   const isAnimating = animDisplay != null;
   /** Envelope / variants / dot only when paths match (not mid-lerp) */
-  const showDetailLayers = Boolean(selectedDiscId && !isAnimating);
+  const showDetailLayers = hasSelectedDiscId(selectedDiscId) && !isAnimating;
 
   const selectedDisplayFlight = useMemo(
-    () => displayFlights.find((f) => f.disc.id === selectedDiscId) ?? null,
+    () => displayFlights.find((f) => discIdsEqual(f.disc.id, selectedDiscId)) ?? null,
     [displayFlights, selectedDiscId]
   );
 
@@ -313,10 +336,11 @@ export default function FlightChart({ bagDiscs }) {
     (id) => {
       userInteractedRef.current = true;
       setSelectedDiscId((prev) => {
-        if (prev === id) {
+        if (discIdsEqual(prev, id)) {
           queueMicrotask(finishHintForever);
           return null;
         }
+        pendingChipScrollRef.current = true;
         queueMicrotask(() => {
           setHintPhase((h) => (h === 'initial' ? 'second' : h));
         });
@@ -328,8 +352,10 @@ export default function FlightChart({ bagDiscs }) {
   );
 
   useEffect(() => {
-    if (!selectedDiscId) return;
-    const el = chipRefs.current[selectedDiscId];
+    if (!hasSelectedDiscId(selectedDiscId)) return;
+    if (!pendingChipScrollRef.current) return;
+    pendingChipScrollRef.current = false;
+    const el = chipRefs.current[String(selectedDiscId)];
     if (el && chipScrollRef.current) {
       el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
@@ -344,7 +370,11 @@ export default function FlightChart({ bagDiscs }) {
   }, [finishHintForever]);
 
   const skillLabel = SKILL_PROFILES[skillLevel]?.label ?? skillLevel;
-  const handLabel = throwMode;
+  const handLabel = useMemo(
+    () =>
+      handPair === HAND_FLIGHT_PAIR.LHBH_RHFH ? 'LHBH / RHFH' : 'RHBH / LHFH',
+    [handPair]
+  );
 
   const svgAria = useMemo(() => {
     const n = displayFlights.length;
@@ -353,12 +383,41 @@ export default function FlightChart({ bagDiscs }) {
 
   if (!bagDiscs?.length) return null;
 
+  if (!chartableDiscs.length) {
+    return (
+      <div
+        className="flight-chart-card flight-chart-themed w-full max-w-[500px] mx-auto rounded-2xl p-4 box-border border border-solid overflow-hidden"
+        style={{
+          width: '100%',
+          overflowX: 'hidden',
+          backgroundColor: 'var(--chart-card-bg)',
+          borderColor: 'var(--chart-card-border)',
+        }}
+      >
+        <h2
+          className="text-[18px] font-bold mb-3 flight-chart-themed"
+          style={{ color: 'var(--chart-title-text)' }}
+        >
+          Bag Overview
+        </h2>
+        <p
+          className="text-center text-sm py-10 px-3 flight-chart-themed"
+          style={{ color: 'var(--chart-body-text)' }}
+        >
+          Enter flight numbers to see the flight path
+        </p>
+      </div>
+    );
+  }
+
   const discColor = selectedFlight?.color ?? '#888888';
 
   return (
     <div
-      className="flight-chart-card flight-chart-themed w-full max-w-[500px] mx-auto rounded-2xl p-4 box-border border border-solid"
+      className="flight-chart-card flight-chart-themed w-full max-w-[500px] mx-auto rounded-2xl p-4 box-border border border-solid overflow-hidden"
       style={{
+        width: '100%',
+        overflowX: 'hidden',
         backgroundColor: 'var(--chart-card-bg)',
         borderColor: 'var(--chart-card-border)',
       }}
@@ -421,21 +480,21 @@ export default function FlightChart({ bagDiscs }) {
       </AnimatePresence>
 
       <fieldset className="border-0 p-0 m-0 mb-2">
-        <legend className="sr-only">Throwing hand</legend>
+        <legend className="sr-only">Throw type</legend>
         <div
           className="flex w-full rounded-[18px] overflow-hidden p-0.5 gap-0.5 min-h-[36px] flight-chart-themed"
           style={{ backgroundColor: 'var(--chart-toggle-bg)' }}
           role="radiogroup"
-          aria-label="Throwing hand"
+          aria-label="Throw type: RHBH and LHFH together, or LHBH and RHFH together"
         >
           <button
             type="button"
             role="radio"
-            aria-checked={throwMode === 'RHBH'}
-            onClick={() => setThrowMode('RHBH')}
+            aria-checked={handPair === HAND_FLIGHT_PAIR.RHBH_LHFH}
+            onClick={() => setHandPair(HAND_FLIGHT_PAIR.RHBH_LHFH)}
             className="no-hover-scale flex-1 min-h-[36px] rounded-2xl text-[13px] font-bold transition-colors duration-200 ease-out flight-chart-themed"
             style={
-              throwMode === 'RHBH'
+              handPair === HAND_FLIGHT_PAIR.RHBH_LHFH
                 ? {
                     backgroundColor: 'var(--chart-toggle-active-bg)',
                     color: 'var(--chart-toggle-active-text)',
@@ -443,16 +502,16 @@ export default function FlightChart({ bagDiscs }) {
                 : { backgroundColor: 'transparent', color: 'var(--chart-toggle-inactive-text)' }
             }
           >
-            RHBH
+            RHBH / LHFH
           </button>
           <button
             type="button"
             role="radio"
-            aria-checked={throwMode === 'LHBH'}
-            onClick={() => setThrowMode('LHBH')}
+            aria-checked={handPair === HAND_FLIGHT_PAIR.LHBH_RHFH}
+            onClick={() => setHandPair(HAND_FLIGHT_PAIR.LHBH_RHFH)}
             className="no-hover-scale flex-1 min-h-[36px] rounded-2xl text-[13px] font-bold transition-colors duration-200 ease-out flight-chart-themed"
             style={
-              throwMode === 'LHBH'
+              handPair === HAND_FLIGHT_PAIR.LHBH_RHFH
                 ? {
                     backgroundColor: 'var(--chart-toggle-active-bg)',
                     color: 'var(--chart-toggle-active-text)',
@@ -460,7 +519,7 @@ export default function FlightChart({ bagDiscs }) {
                 : { backgroundColor: 'transparent', color: 'var(--chart-toggle-inactive-text)' }
             }
           >
-            LHBH
+            LHBH / RHFH
           </button>
         </div>
       </fieldset>
@@ -503,10 +562,10 @@ export default function FlightChart({ bagDiscs }) {
 
       <div className="w-full max-[319px]:min-h-[350px] min-h-[400px]">
         <svg
+          width="100%"
           viewBox={`0 0 ${CHART_W} ${chartH}`}
-          className="w-full h-auto block max-[359px]:max-h-[350px] min-h-[350px] md:min-h-[400px]"
           preserveAspectRatio="xMidYMid meet"
-          style={{ aspectRatio: `${CHART_W} / ${chartH}` }}
+          style={{ maxWidth: '100%', height: 'auto' }}
           role="img"
           aria-label={svgAria}
           onClick={onBgClick}
@@ -565,7 +624,7 @@ export default function FlightChart({ bagDiscs }) {
 
           {/* Layer 2: non-selected paths (overview: all paths here) */}
           {displayFlights.map((flight) => {
-            if (selectedDiscId && flight.disc.id === selectedDiscId) return null;
+            if (hasSelectedDiscId(selectedDiscId) && discIdsEqual(flight.disc.id, selectedDiscId)) return null;
             const std = flight.paths.standard;
             const d = pathD(std);
             const overview = selectedDiscId == null;
@@ -662,7 +721,7 @@ export default function FlightChart({ bagDiscs }) {
             )}
 
           {/* Selected disc main line only while paths are animating (skill/hand change) */}
-          {selectedDiscId &&
+          {hasSelectedDiscId(selectedDiscId) &&
             selectedDisplayFlight &&
             selectedFlight &&
             isAnimating && (
@@ -799,15 +858,15 @@ export default function FlightChart({ bagDiscs }) {
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {displayFlights.map((flight) => {
-          const sel = selectedDiscId === flight.disc.id;
+          const sel = discIdsEqual(selectedDiscId, flight.disc.id);
           const overspeed = flight.effective.isOverspeed;
-          const bounce = bounceChipId === flight.disc.id;
+          const bounce = discIdsEqual(bounceChipId, flight.disc.id);
           return (
             <Motion.button
               key={flight.disc.id}
               type="button"
               ref={(el) => {
-                chipRefs.current[flight.disc.id] = el;
+                chipRefs.current[String(flight.disc.id)] = el;
               }}
               aria-pressed={sel}
               aria-label={`${flight.disc.name}, speed ${flight.disc.speed}`}

@@ -25,6 +25,16 @@ function removeUndefined(obj) {
   }
 }
 
+/** Parse a flight number from Firestore (number or numeric string); preserve 0; never use || so "0" is not replaced. */
+function normalizeFlightField(v, fallback) {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (v != null && v !== '') {
+    const n = parseFloat(String(v).replace(/,/g, '.'));
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
 /** Normalize disc from Firestore with fallback defaults to prevent crashes on missing fields. */
 function normalizeDisc(data, docId) {
   const d = data && typeof data === 'object' ? data : {};
@@ -34,10 +44,10 @@ function normalizeDisc(data, docId) {
     mold: d.mold ?? '',
     plastic_type: d.plastic_type ?? '',
     custom_name: d.custom_name ?? '',
-    speed: typeof d.speed === 'number' ? d.speed : (d.speed != null ? parseFloat(d.speed) : 7) || 7,
-    glide: typeof d.glide === 'number' ? d.glide : (d.glide != null ? parseFloat(d.glide) : 5) || 5,
-    turn: typeof d.turn === 'number' ? d.turn : (d.turn != null ? parseFloat(d.turn) : -1) ?? -1,
-    fade: typeof d.fade === 'number' ? d.fade : (d.fade != null ? parseFloat(d.fade) : 1) ?? 1,
+    speed: normalizeFlightField(d.speed, 7),
+    glide: normalizeFlightField(d.glide, 5),
+    turn: normalizeFlightField(d.turn, -1),
+    fade: normalizeFlightField(d.fade, 1),
     weight_grams: typeof d.weight_grams === 'number' ? d.weight_grams : (d.weight_grams != null ? parseInt(d.weight_grams, 10) : 175) ?? 175,
     disc_type: d.disc_type ?? 'midrange',
     wear_level: typeof d.wear_level === 'number' ? d.wear_level : (d.wear_level != null ? parseInt(d.wear_level, 10) : 10) ?? 10,
@@ -52,6 +62,16 @@ function normalizeDisc(data, docId) {
     aceDate: d.aceDate ?? '',
     aceLocation: d.aceLocation ?? '',
     aceHole: d.aceHole ?? '',
+    lostNote: typeof d.lostNote === 'string' ? d.lostNote : '',
+    gaveAwayNote: typeof d.gaveAwayNote === 'string' ? d.gaveAwayNote : '',
+    bagIds: (() => {
+      if (Array.isArray(d.bagIds) && d.bagIds.length) {
+        return d.bagIds.filter((x) => typeof x === 'string' && x);
+      }
+      if (typeof d.bagId === 'string' && d.bagId) return [d.bagId];
+      return [];
+    })(),
+    bagId: null,
   };
 }
 

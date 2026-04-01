@@ -12,6 +12,7 @@ import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFi
 import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
+import { hasValidFlightNumbersForChart, parseFlightNum } from './flightChartMath.js';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
@@ -20,7 +21,7 @@ import {
   Camera, Filter, Ruler, Library, Info,
   AlertTriangle, BarChart3, Crosshair, DollarSign,
   Zap, Shield, Users, Sparkles, Star, Download, Settings, LogOut, User, Mail, Lock, Award,
-  Sun, Moon, Monitor
+  Sun, Moon, Monitor, CheckSquare, Square,
 } from 'lucide-react';
 
 // ── Constants ────────────────────────────────────────
@@ -31,7 +32,57 @@ const DT = {
   fairway_driver:  { label:'Fairway',  bg:'bg-gap-medium/15',   text:'text-gap-medium',   border:'border-gap-medium/30', color:'#C08A2E' },
   distance_driver: { label:'Distance', bg:'bg-gap-low/15',    text:'text-gap-low',    border:'border-gap-low/30',  color:'#4C7A67' },
 };
-const SM = { in_bag:{label:'In Bag',dot:'bg-primary'}, backup:{label:'Backup',dot:'bg-secondary'}, wall_hanger:{label:'Wall',dot:'bg-gap-medium'}, lost:{label:'Lost',dot:'bg-text-muted'} };
+
+/** Default flight numbers when disc type is chosen (add/edit form). */
+const DISC_TYPE_FLIGHT_PRESETS = {
+  distance_driver: { speed: 12, glide: 5, turn: -1, fade: 3 },
+  fairway_driver: { speed: 7, glide: 5, turn: -1, fade: 2 },
+  midrange: { speed: 5, glide: 4, turn: -1, fade: 1 },
+  putter: { speed: 3, glide: 3, turn: 0, fade: 1 },
+};
+
+/** Map mold speed to disc_type for auto-fill from MOLD_LOOKUP. */
+function inferDiscTypeFromSpeed(speed) {
+  const s = typeof speed === 'number' && Number.isFinite(speed) ? speed : parseFlightNum(speed);
+  if (!Number.isFinite(s) || s < 1) return 'putter';
+  if (s <= 3) return 'putter';
+  if (s <= 6) return 'midrange';
+  if (s <= 11) return 'fairway_driver';
+  return 'distance_driver';
+}
+const SM = {
+  in_bag: { label: 'In Bag', dot: 'bg-primary' },
+  backup: { label: 'Backup', dot: 'bg-secondary' },
+  wall_hanger: { label: 'Wall', dot: 'bg-gap-medium' },
+  lost: { label: 'Lost', dot: 'bg-orange-500' },
+  gave_away_sold: { label: 'Gave Away / Sold', dot: 'bg-text-muted' },
+};
+
+/** @param {{ bagIds?: string[]; bagId?: string | null } | null | undefined} d */
+function getDiscBagIds(d) {
+  if (!d) return [];
+  if (Array.isArray(d.bagIds) && d.bagIds.length) {
+    return [...new Set(d.bagIds.filter((id) => typeof id === 'string' && id))];
+  }
+  if (typeof d.bagId === 'string' && d.bagId) return [d.bagId];
+  return [];
+}
+
+/** When disc only had legacy bag membership via disc_ids, infer bagIds for the form. */
+function inferBagIdsFromMembership(editDisc, bags) {
+  const ids = getDiscBagIds(editDisc);
+  if (ids.length) return ids;
+  if (!editDisc?.id || !bags?.length) return [];
+  return bags.filter((b) => b.disc_ids.includes(editDisc.id)).map((b) => b.id);
+}
+
+/** Discs shown in a bag detail view: in_bag + bag id in disc.bagIds (or legacy bagId / disc_ids). */
+function discBelongsToBagView(d, bag) {
+  if (!bag || !d || d.status !== 'in_bag') return false;
+  const ids = getDiscBagIds(d);
+  if (ids.length) return ids.includes(bag.id);
+  return bag.disc_ids.includes(d.id);
+}
 const FN_META = [
   { key:'speed',label:'SPD',bg:'bg-secondary/10',text:'text-secondary' },
   { key:'glide',label:'GLD',bg:'bg-primary/10',text:'text-primary' },
@@ -262,7 +313,14 @@ function fmtD(d) {
   }
 }
 function luma(hex) { const c=(hex||'#888').replace('#',''); return (parseInt(c.substr(0,2),16)*299+parseInt(c.substr(2,2),16)*587+parseInt(c.substr(4,2),16)*114)/1000; }
-function classifyStability(d) { const net=(d.turn||0)+(d.fade||0); if(d.turn<=-2||net<=0) return 'understable'; if(d.fade>=3||net>=3) return 'overstable'; return 'stable'; }
+function classifyStability(d) {
+  const t = parseFlightNum(d.turn);
+  const f = parseFlightNum(d.fade);
+  const net = t + f;
+  if (t <= -2 || net <= 0) return 'understable';
+  if (f >= 3 || net >= 3) return 'overstable';
+  return 'stable';
+}
 
 function getAceRarity(distance) {
   if(distance>=350) return { label:'LEGENDARY', badge:'ACE', border:'linear-gradient(135deg,#1F3D2B,#6B8F71,#C08A2E,#1F3D2B)', glow:'rgba(31,61,43,0.3)', text:'text-primary', bg:'bg-primary/10' };
@@ -333,7 +391,7 @@ const USER_PROFILE_PIC_KEY = 'discgolf_user_profile_pic';
 const PROFILE_PIC_MAX_SIZE = 200;
 const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
-const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:''};
+const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:'',lostNote:'',gaveAwayNote:'',bagIds:[],bagId:null};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
 const VIEW_MODE_KEY = 'discgolf_view_mode';
 const THEME_KEY = 'discgolf_theme';
@@ -549,15 +607,32 @@ function Toast({message,onDone}) {
 
 function Stepper({value,onChange,min,max,step=1,label}) {
   const [editing, setEditing] = useState(false);
-  const [inputVal, setInputVal] = useState(String(value));
-  useEffect(() => { setInputVal(String(value)); }, [value]);
+  const [inputVal, setInputVal] = useState('');
+  const hasValue = typeof value === 'number' && Number.isFinite(value);
+  const safeVal = hasValue ? value : null;
+  useEffect(() => {
+    setInputVal(hasValue ? String(value) : '');
+  }, [value, hasValue]);
   const clamp = (v) => Math.max(min, Math.min(max, +(Number(v).toFixed(1))));
-  const inc = () => { setEditing(false); onChange(clamp(+(value + step).toFixed(1))); };
-  const dec = () => { setEditing(false); onChange(clamp(+(value - step).toFixed(1))); };
+  const inc = () => {
+    setEditing(false);
+    const base = safeVal !== null ? safeVal : min;
+    onChange(clamp(+(base + step).toFixed(1)));
+  };
+  const dec = () => {
+    setEditing(false);
+    const base = safeVal !== null ? safeVal : min;
+    onChange(clamp(+(base - step).toFixed(1)));
+  };
   const commit = (v) => {
     setEditing(false);
-    const n = parseFloat(String(v).trim());
-    if (v !== '' && v !== '-' && !isNaN(n)) onChange(clamp(n));
+    const raw = String(v).trim();
+    if (raw === '' || raw === '-' || raw === '.') {
+      onChange(null);
+      return;
+    }
+    const n = parseFloat(raw);
+    if (!isNaN(n)) onChange(clamp(n));
   };
   const handleKeyDown = (e) => {
     if (e.key === 'ArrowUp') { e.preventDefault(); inc(); }
@@ -572,9 +647,9 @@ function Stepper({value,onChange,min,max,step=1,label}) {
       if (!isNaN(n)) onChange(clamp(n));
     }
   };
-  const handleFocus = () => { setEditing(true); setInputVal(String(value)); };
+  const handleFocus = () => { setEditing(true); setInputVal(hasValue ? String(value) : ''); };
   const handleBlur = () => commit(inputVal);
-  const displayVal = editing ? inputVal : value;
+  const displayVal = editing ? inputVal : (hasValue ? value : '');
   return (
     <div>
       <label className="block text-xs text-text-muted mb-1 font-medium">{label}</label>
@@ -652,6 +727,88 @@ function DiscVisual({disc,size='md'}) {
         </div>
       )}
     </div>
+  );
+}
+
+function LostDiscDialog({ onRemoveFromBags, onKeepInBags, onDismiss }) {
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 80 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onDismiss} role="presentation"/>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg">
+        <div className="p-6">
+          <h3 className="text-base font-bold text-text">Disc Lost</h3>
+          <p className="text-sm text-text-muted mt-1.5 leading-relaxed">Would you like to remove this disc from your existing bags?</p>
+        </div>
+        <div className="px-6 pb-6 flex flex-col gap-2">
+          <button type="button" onClick={onRemoveFromBags} className="w-full py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:opacity-95 transition-opacity">Yes, remove from bags</button>
+          <button type="button" onClick={onKeepInBags} className="w-full py-3 rounded-xl bg-surface text-text font-semibold text-sm border border-border hover:bg-surface/80 transition-colors">No, keep in bags</button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function GaveAwayNoteModal({ open, draft, onDraft, onCancel, onSave }) {
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 85 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} role="presentation" />
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg p-6"
+      >
+        <h3 className="text-base font-bold text-text">Gave Away / Sold</h3>
+        <p className="text-xs text-text-muted mt-1 mb-3">Details (optional)</p>
+        <textarea
+          value={draft}
+          onChange={(e) => onDraft(e.target.value)}
+          rows={4}
+          placeholder="Who did you give it to or sell it to? When? How much?"
+          className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary resize-y min-h-[5rem]"
+        />
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold border border-border">
+            Cancel
+          </button>
+          <button type="button" onClick={onSave} className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold">
+            Save
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function LostNoteQuickModal({ open, draft, onDraft, onCancel, onSave }) {
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 85 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} role="presentation" />
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg p-6"
+      >
+        <h3 className="text-base font-bold text-text">Lost disc note</h3>
+        <p className="text-xs text-text-muted mt-1 mb-3">Add details now or edit the disc later.</p>
+        <textarea
+          value={draft}
+          onChange={(e) => onDraft(e.target.value)}
+          rows={4}
+          placeholder="Where and when did you lose it?"
+          className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary resize-y min-h-[5rem]"
+        />
+        <div className="flex gap-2 mt-4">
+          <button type="button" onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-surface text-text-muted text-sm font-semibold border border-border">
+            Skip
+          </button>
+          <button type="button" onClick={onSave} className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold">
+            Save
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1166,13 +1323,21 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
   useEffect(() => { setMode(defaultMode); }, [defaultMode]);
   const sc = large?1.55:1;
   const w = Math.round(82*sc), h = Math.round(96*sc), cx = w/2;
+  const tNum = parseFlightNum(turn);
+  const fNum = parseFlightNum(fade);
+  /** Neutral flight (0/0): vertical path has zero-width bbox; objectBoundingBox gradients don't paint — use solid strokes below. */
+  const straight = Math.abs(tNum) < 1e-9 && Math.abs(fNum) < 1e-9;
 
   const makePath = (mirror) => {
     const m = mirror ? -1 : 1;
-    const tp = turn*-5.5*m*sc, fp = fade*-5*m*sc;
+    const tp = tNum * -5.5 * m * sc, fp = fNum * -5 * m * sc;
     const cl = (v,mn,mx) => Math.max(mn,Math.min(mx,v));
     const sy = h-Math.round(10*sc), ty = h*0.38, ey = Math.round(10*sc);
     const tx = cl(cx+tp,8,w-8), ex = cl(cx+tp*0.5+fp,8,w-8);
+    // Turn 0 + fade 0 → straight vertical; degenerate cubics + gradient-on-zero-width stroke both fail to paint.
+    if (straight) {
+      return { d: `M ${cx} ${sy} L ${cx} ${ey}`, ex, ey, sx: cx, sy };
+    }
     return {
       d:`M ${cx} ${sy} C ${cx} ${(sy+ty)/2}, ${tx} ${ty+15*sc}, ${tx} ${ty} C ${tx} ${ty-12*sc}, ${ex} ${ey+15*sc}, ${ex} ${ey}`,
       ex, ey, sx:cx, sy
@@ -1188,8 +1353,33 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
         <line x1={cx} y1={6} x2={cx} y2={h-6} stroke="white" strokeOpacity={0.06} strokeDasharray="2,4"/>
         <text x={cx} y={h-1} textAnchor="middle" fill="white" fillOpacity={0.1} fontSize={fs} fontWeight="bold">TEE</text>
-        {showBH && <motion.path key={`bh-${mode}`} d={bh.d} fill="none" stroke={`url(#bh_${id})`} strokeWidth={2.5} strokeLinecap="round" initial={{pathLength:0}} animate={{pathLength:1}} transition={{duration:0.9,ease:'easeOut'}}/>}
-        {showFH && <motion.path key={`fh-${mode}`} d={fh.d} fill="none" stroke={`url(#fh_${id})`} strokeWidth={2} strokeLinecap="round" strokeDasharray={mode==='both'?'5,3':undefined} initial={{pathLength:0}} animate={{pathLength:1}} transition={{duration:0.9,ease:'easeOut'}}/>}
+        {showBH && (
+          <motion.path
+            key={`bh-${mode}`}
+            d={bh.d}
+            fill="none"
+            stroke={straight ? '#10b981' : `url(#bh_${id})`}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+          />
+        )}
+        {showFH && (
+          <motion.path
+            key={`fh-${mode}`}
+            d={fh.d}
+            fill="none"
+            stroke={straight ? '#a78bfa' : `url(#fh_${id})`}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeDasharray={mode === 'both' ? '5,3' : undefined}
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+          />
+        )}
         {showBH && <circle cx={bh.sx} cy={bh.sy} r={2.5} fill="#10b981"/>}
         {showBH && <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}><circle cx={bh.ex} cy={bh.ey} r={2} fill="#10b981"/>{mode==='both'&&<text x={bh.ex} y={bh.ey-5} textAnchor="middle" fill="#10b981" fontSize={lfs} fontWeight="bold">BH</text>}</motion.g>}
         {showFH && <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}><circle cx={fh.ex} cy={fh.ey} r={2} fill="#a78bfa"/>{mode==='both'&&<text x={fh.ex} y={fh.ey-5} textAnchor="middle" fill="#a78bfa" fontSize={lfs} fontWeight="bold">FH</text>}</motion.g>}
@@ -1214,26 +1404,57 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
 // ═══════════════════════════════════════════════════════
 // DISC FORM MODAL (Add / Edit)
 // ═══════════════════════════════════════════════════════
-function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType}) {
-  const [f,setF] = useState({...EMPTY_DISC});
+function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDiscType, defaultBagId, bags, onRemoveDiscFromAllBags, onCreateBag }) {
+  const [f, setF] = useState({ ...EMPTY_DISC });
   const fileRef = useRef(null);
   const moldDropdownRef = useRef(null);
+  const userTouchedFlightRef = useRef(false);
+  const lastMoldAutoKeyRef = useRef('');
   const [moldDropdownOpen, setMoldDropdownOpen] = useState(false);
+  const [lostDialogOpen, setLostDialogOpen] = useState(false);
+  const [newBagOpen, setNewBagOpen] = useState(false);
+  const [newBagName, setNewBagName] = useState('');
   const isEdit = !!editDisc;
 
   useEffect(() => {
     if (open) {
+      lastMoldAutoKeyRef.current = '';
+      setLostDialogOpen(false);
+      setNewBagOpen(false);
+      setNewBagName('');
       if (editDisc) {
-        setF({...editDisc, story:editDisc.story||'', estimated_value:editDisc.estimated_value||18});
+        userTouchedFlightRef.current = true;
+        const bagIds = inferBagIdsFromMembership(editDisc, bags);
+        setF({
+          ...editDisc,
+          story: editDisc.story || '',
+          estimated_value: editDisc.estimated_value || 18,
+          lostNote: editDisc.lostNote ?? '',
+          gaveAwayNote: editDisc.gaveAwayNote ?? '',
+          bagIds,
+          bagId: null,
+        });
       } else {
-        const initial = {...EMPTY_DISC, date_acquired:td()};
-        if (defaultDiscType) initial.disc_type = defaultDiscType;
+        userTouchedFlightRef.current = false;
+        const initial = { ...EMPTY_DISC, date_acquired: td(), speed: null, glide: null, turn: null, fade: null };
+        if (defaultDiscType && DISC_TYPE_FLIGHT_PRESETS[defaultDiscType]) {
+          initial.disc_type = defaultDiscType;
+          Object.assign(initial, DISC_TYPE_FLIGHT_PRESETS[defaultDiscType]);
+        }
+        if (defaultBagId && bags?.some((b) => b.id === defaultBagId)) {
+          initial.status = 'in_bag';
+          initial.bagIds = [defaultBagId];
+        }
         setF(initial);
       }
     }
-  }, [open, editDisc, defaultDiscType]);
+  }, [open, editDisc, defaultDiscType, defaultBagId, bags]);
 
   const s = (k,v) => setF(p=>({...p,[k]:v}));
+  const setFlightNum = (k, v) => {
+    userTouchedFlightRef.current = true;
+    setF((p) => ({ ...p, [k]: v }));
+  };
 
   const moldSuggestions = useMemo(() => {
     if (!f.manufacturer) return [];
@@ -1243,19 +1464,100 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType
 
   const applyMoldLookup = useCallback((manufacturer, mold) => {
     const match = MOLD_LOOKUP.find(row => row.manufacturer === manufacturer && row.mold.toLowerCase() === (mold || '').trim().toLowerCase());
-    if (match) return { speed: match.speed, glide: match.glide, turn: match.turn, fade: match.fade };
-    return null;
+    if (!match) return null;
+    return {
+      speed: match.speed,
+      glide: match.glide,
+      turn: match.turn,
+      fade: match.fade,
+      disc_type: inferDiscTypeFromSpeed(match.speed),
+    };
   }, []);
+
+  useEffect(() => {
+    if (!open || !f.manufacturer || !String(f.mold || '').trim() || userTouchedFlightRef.current) return;
+    const key = `${f.manufacturer}|${(f.mold || '').trim().toLowerCase()}`;
+    const match = MOLD_LOOKUP.find(
+      (row) => row.manufacturer === f.manufacturer && row.mold.toLowerCase() === (f.mold || '').trim().toLowerCase()
+    );
+    if (!match) {
+      lastMoldAutoKeyRef.current = '';
+      return;
+    }
+    if (lastMoldAutoKeyRef.current === key) return;
+    lastMoldAutoKeyRef.current = key;
+    setF((p) => ({
+      ...p,
+      speed: match.speed,
+      glide: match.glide,
+      turn: match.turn,
+      fade: match.fade,
+      disc_type: inferDiscTypeFromSpeed(match.speed),
+    }));
+  }, [open, f.manufacturer, f.mold]);
+
+  const handleDiscTypeChange = (discTypeKey) => {
+    const preset = DISC_TYPE_FLIGHT_PRESETS[discTypeKey];
+    userTouchedFlightRef.current = false;
+    setF((p) => ({ ...p, disc_type: discTypeKey, ...(preset || {}) }));
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => { if (moldDropdownRef.current && !moldDropdownRef.current.contains(e.target)) setMoldDropdownOpen(false); };
     if (moldDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [moldDropdownOpen]);
-  const ok = f.manufacturer && f.mold && f.plastic_type;
+  const flightFormOk = hasValidFlightNumbersForChart(f);
+  const ok = f.manufacturer && f.mold && f.plastic_type && flightFormOk;
+  const handleStatusClick = (k) => {
+    if (k === f.status) return;
+    if (k === 'lost') {
+      setLostDialogOpen(true);
+      return;
+    }
+    if (k === 'in_bag') {
+      setF((p) => ({ ...p, status: 'in_bag' }));
+      return;
+    }
+    setF((p) => ({ ...p, status: k, bagIds: [], bagId: null }));
+  };
+  const toggleFormBagId = (bid) => {
+    setF((p) => {
+      const cur = Array.isArray(p.bagIds) ? [...p.bagIds] : [];
+      const has = cur.includes(bid);
+      const next = has ? cur.filter((id) => id !== bid) : [...cur, bid];
+      return { ...p, bagIds: next };
+    });
+  };
+  const createNewBagInline = () => {
+    const name = newBagName.trim();
+    if (!name || !onCreateBag) return;
+    const id = onCreateBag(name);
+    if (id) {
+      setF((p) => ({
+        ...p,
+        status: 'in_bag',
+        bagIds: [...new Set([...(Array.isArray(p.bagIds) ? p.bagIds : []), id])],
+      }));
+    }
+    setNewBagName('');
+    setNewBagOpen(false);
+  };
   const save = () => {
     const discId = isEdit ? f.id : Date.now().toString();
-    const discPayload = {...f, ...(isEdit?{}:{id:discId})};
+    const bagIdsClean = f.status === 'in_bag' ? (Array.isArray(f.bagIds) ? f.bagIds.filter(Boolean) : []) : [];
+    const discPayload = {
+      ...f,
+      ...(isEdit ? {} : { id: discId }),
+      bagIds: bagIdsClean,
+      bagId: null,
+      lostNote: f.status === 'lost' ? (f.lostNote ?? '') : '',
+      gaveAwayNote: f.status === 'gave_away_sold' ? (f.gaveAwayNote ?? '') : '',
+      speed: parseFlightNum(f.speed),
+      glide: parseFlightNum(f.glide),
+      turn: parseFlightNum(f.turn),
+      fade: parseFlightNum(f.fade),
+    };
     onSave(discPayload);
   };
 
@@ -1309,17 +1611,17 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType
             <section>
               <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Identity</h3>
               <div className="space-y-2">
-                <select value={f.manufacturer} onChange={e=>{ s('manufacturer',e.target.value); setMoldDropdownOpen(false); }} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
+                <select value={f.manufacturer} onChange={e=>{ lastMoldAutoKeyRef.current=''; s('manufacturer',e.target.value); setMoldDropdownOpen(false); }} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
                   <option value="">Select manufacturer…</option>{MFRS.map(m=><option key={m}>{m}</option>)}
                 </select>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative" ref={moldDropdownRef}>
-                    <input value={f.mold} onChange={e=>{ s('mold',e.target.value); setMoldDropdownOpen(true); }} onFocus={()=>setMoldDropdownOpen(true)} placeholder="Mold *" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                    <input value={f.mold} onChange={e=>{ lastMoldAutoKeyRef.current=''; s('mold',e.target.value); setMoldDropdownOpen(true); }} onFocus={()=>setMoldDropdownOpen(true)} placeholder="Mold *" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
                     {moldDropdownOpen && f.manufacturer && (
                       <ul className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-card border border-border rounded-lg shadow-card py-1">
                         {moldSuggestions.length ? moldSuggestions.map(row => (
                           <li key={row.manufacturer+row.mold}>
-                            <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-surface focus:bg-surface focus:outline-none" onClick={()=>{ s('mold',row.mold); const flight = applyMoldLookup(f.manufacturer, row.mold); if(flight) setF(p=>({...p,mold:row.mold,...flight})); setMoldDropdownOpen(false); }}>
+                            <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-surface focus:bg-surface focus:outline-none" onClick={()=>{ const flight = applyMoldLookup(f.manufacturer, row.mold); userTouchedFlightRef.current = false; lastMoldAutoKeyRef.current = `${f.manufacturer}|${row.mold.trim().toLowerCase()}`; s('mold',row.mold); if (flight) setF(p=>({...p,mold:row.mold,...flight})); setMoldDropdownOpen(false); }}>
                               {row.mold} <span className="text-text-muted text-xs">({row.speed}/{row.glide}/{row.turn}/{row.fade})</span>
                             </button>
                           </li>
@@ -1343,20 +1645,137 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType
             {/* Type & Status */}
             <section>
               <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Type & Status</h3>
-              <div className="grid grid-cols-4 gap-1.5 mb-2">
-                {Object.entries(DT).map(([k,c]) => (
-                  <button key={k} type="button" onClick={() => s('disc_type',k)}
-                    className={`py-2 rounded-lg text-xs font-bold border transition-all ${f.disc_type===k?`${c.bg} ${c.text} ${c.border}`:'bg-surface text-text-muted border-border'}`}>{c.label}</button>
-                ))}
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {Object.entries(SM).map(([k,v]) => (
-                  <button key={k} type="button" onClick={() => s('status',k)}
-                    className={`py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 ${f.status===k?'bg-surface text-text border-border':'bg-surface text-text-muted border-border'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${v.dot}`}/>{v.label}
+              <label className="block text-xs text-text-muted mb-1.5 font-medium">Disc type</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {[
+                  ['distance_driver', 'Distance Driver'],
+                  ['fairway_driver', 'Fairway Driver'],
+                  ['midrange', 'Midrange'],
+                  ['putter', 'Putter'],
+                ].map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => handleDiscTypeChange(k)}
+                    className={`py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 shrink-0 px-2 ${f.disc_type === k ? 'bg-surface text-text border-border' : 'bg-surface text-text-muted border-border'}`}
+                  >
+                    {label}
                   </button>
                 ))}
               </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+                {Object.entries(SM).map(([k, v]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => handleStatusClick(k)}
+                    className={`py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center gap-1 ${f.status === k ? 'bg-surface text-text border-border' : 'bg-surface text-text-muted border-border'}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${v.dot}`} />
+                    <span className="text-center leading-tight">{v.label}</span>
+                  </button>
+                ))}
+              </div>
+              {f.status === 'in_bag' && (
+                <div className="mt-2">
+                  <label className="block text-xs text-text-muted mb-1.5 font-medium">Bags</label>
+                  <div className="flex flex-col gap-1.5">
+                    {(bags ?? []).map((b) => {
+                      const checked = Array.isArray(f.bagIds) && f.bagIds.includes(b.id);
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => toggleFormBagId(b.id)}
+                          className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center gap-2 w-full text-left ${checked ? 'bg-surface text-text border-border' : 'bg-surface text-text-muted border-border'}`}
+                        >
+                          {checked ? (
+                            <CheckSquare size={16} className="shrink-0 text-primary" />
+                          ) : (
+                            <Square size={16} className="shrink-0 text-text-muted" />
+                          )}
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: b.bagColor || '#6b7280' }} />
+                          <span className="truncate">{b.name}</span>
+                        </button>
+                      );
+                    })}
+                    {onCreateBag && (
+                      <>
+                        {!newBagOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setNewBagOpen(true)}
+                            className="py-1.5 px-2 rounded-lg text-xs font-semibold border border-dashed border-border bg-surface text-text-muted hover:text-text hover:border-primary/40 flex items-center gap-1.5 w-full"
+                          >
+                            <Plus size={14} className="shrink-0" />
+                            New Bag
+                          </button>
+                        ) : (
+                          <div className="rounded-lg border border-border bg-surface p-2 space-y-2">
+                            <input
+                              value={newBagName}
+                              onChange={(e) => setNewBagName(e.target.value)}
+                              placeholder="New bag name…"
+                              className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"
+                              onKeyDown={(e) => e.key === 'Enter' && createNewBagInline()}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNewBagOpen(false);
+                                  setNewBagName('');
+                                }}
+                                className="flex-1 py-1.5 rounded-lg text-xs font-semibold bg-card border border-border text-text-muted"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={createNewBagInline}
+                                disabled={!newBagName.trim()}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold ${newBagName.trim() ? 'bg-primary text-on-primary' : 'bg-surface text-text-muted cursor-not-allowed'}`}
+                              >
+                                Create
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              {f.status === 'lost' && (
+                <div className="mt-3">
+                  <label className="block text-xs text-text-muted mb-1.5 font-medium" htmlFor="disc-lost-note">
+                    Lost Disc Note
+                  </label>
+                  <textarea
+                    id="disc-lost-note"
+                    value={f.lostNote ?? ''}
+                    onChange={(e) => s('lostNote', e.target.value)}
+                    rows={3}
+                    placeholder="Where and when did you lose it? (e.g., Hole 7 water hazard, March 15)"
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary resize-y min-h-[4.5rem]"
+                  />
+                </div>
+              )}
+              {f.status === 'gave_away_sold' && (
+                <div className="mt-3">
+                  <label className="block text-xs text-text-muted mb-1.5 font-medium" htmlFor="disc-gave-away-note">
+                    Details
+                  </label>
+                  <textarea
+                    id="disc-gave-away-note"
+                    value={f.gaveAwayNote ?? ''}
+                    onChange={(e) => s('gaveAwayNote', e.target.value)}
+                    rows={3}
+                    placeholder="Who did you give it to or sell it to? When? How much?"
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary resize-y min-h-[4.5rem]"
+                  />
+                </div>
+              )}
               <label className="flex items-center gap-2.5 mt-3 px-3 py-2.5 rounded-lg border border-border bg-surface cursor-pointer hover:border-primary/30 transition-colors">
                 <input type="checkbox" checked={!!f.hasAce} onChange={e=>{ const checked=e.target.checked; s('hasAce',checked); if(checked) { s('aceDate',f.aceDate||td()); } else { s('aceDate',''); s('aceLocation',''); s('aceHole',''); } }} className="rounded border-border text-gap-medium focus:ring-gap-medium"/>
                 <Trophy size={16} className="text-gap-medium shrink-0"/>
@@ -1376,14 +1795,19 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType
               <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Flight Numbers</h3>
               <p className="text-xs text-text-muted mb-2 sm:text-[10px]">Tap to type or use +/− buttons</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <Stepper label="Speed" value={f.speed} onChange={v=>s('speed',v)} min={1} max={15} step={0.5}/>
-                <Stepper label="Glide" value={f.glide} onChange={v=>s('glide',v)} min={1} max={7} step={0.5}/>
-                <Stepper label="Turn" value={f.turn} onChange={v=>s('turn',v)} min={-5} max={1} step={0.5}/>
-                <Stepper label="Fade" value={f.fade} onChange={v=>s('fade',v)} min={0} max={5} step={0.5}/>
+                <Stepper label="Speed" value={f.speed} onChange={(v)=>setFlightNum('speed',v)} min={1} max={15} step={0.5}/>
+                <Stepper label="Glide" value={f.glide} onChange={(v)=>setFlightNum('glide',v)} min={0} max={7} step={0.5}/>
+                <Stepper label="Turn" value={f.turn} onChange={(v)=>setFlightNum('turn',v)} min={-5} max={1} step={0.5}/>
+                <Stepper label="Fade" value={f.fade} onChange={(v)=>setFlightNum('fade',v)} min={0} max={5} step={0.5}/>
               </div>
-              <div className="mt-3 flex justify-center bg-surface/50 rounded-xl p-3">
-                <FlightPath turn={f.turn} fade={f.fade} id="preview" large defaultMode={f.flight_preference || 'both'} hideToggle/>
-              </div>
+              {hasValidFlightNumbersForChart(f) && (
+                <div className="mt-3 flex justify-center bg-surface/50 rounded-xl p-3">
+                  <FlightPath turn={f.turn} fade={f.fade} id="preview" large defaultMode={f.flight_preference || 'both'} hideToggle/>
+                </div>
+              )}
+              {!hasValidFlightNumbersForChart(f) && (
+                <p className="mt-3 text-center text-xs text-text-muted py-4 px-2 bg-surface/50 rounded-xl">Enter flight numbers to see the flight path</p>
+              )}
               <div className="mt-3">
                 <label className="block text-xs text-text-muted mb-1.5 font-medium">Default Flight View</label>
                 <div className="flex gap-1.5">
@@ -1418,6 +1842,23 @@ function DiscFormModal({open,onClose,onSave,editDisc,uploadImage,defaultDiscType
             </button>
           </div>
         </motion.div>
+        <AnimatePresence>
+          {lostDialogOpen && (
+            <LostDiscDialog
+              onDismiss={() => setLostDialogOpen(false)}
+              onRemoveFromBags={() => {
+                const id = f.id || editDisc?.id;
+                setF((p) => ({ ...p, status: 'lost', bagIds: [], bagId: null }));
+                if (id) onRemoveDiscFromAllBags?.(id);
+                queueMicrotask(() => setLostDialogOpen(false));
+              }}
+              onKeepInBags={() => {
+                setF((p) => ({ ...p, status: 'lost' }));
+                queueMicrotask(() => setLostDialogOpen(false));
+              }}
+            />
+          )}
+        </AnimatePresence>
       </motion.div>
     )}</AnimatePresence>
   );
@@ -2103,7 +2544,7 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
     bagDiscs.forEach(d => { c[classifyStability(d)]++; }); return c;
   }, [bagDiscs]);
 
-  const bagDiscIds = useMemo(() => bag ? bag.disc_ids : [], [bag]);
+  const bagDiscIds = useMemo(() => bagDiscs.map(d => d.id), [bagDiscs]);
 
   const gaps = useMemo(() => computeBagGaps(bagDiscs), [bagDiscs]);
   const groupedGaps = useMemo(() => groupGapsByCategory(gaps), [gaps]);
@@ -2421,14 +2862,14 @@ function CreateBagModal({ open, onClose, onCreate }) {
 function MyBagsGridPage({ bags, discs, onSelectBag, onCreateBag }) {
   const [createOpen, setCreateOpen] = useState(false);
   const typeCountsForBag = (bag) => {
-    const bd = discs.filter(d => bag.disc_ids.includes(d.id));
+    const bd = discs.filter(d => discBelongsToBagView(d, bag));
     const c = {}; Object.keys(DT).forEach(t => { c[t] = bd.filter(d => d.disc_type === t).length; }); return c;
   };
   return (
     <div className="pb-24">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {bags.map(bag => {
-          const bd = discs.filter(d => bag.disc_ids.includes(d.id));
+          const bd = discs.filter(d => discBelongsToBagView(d, bag));
           const tc = typeCountsForBag(bag);
           const bc = bag.bagColor || '#6b7280';
           const drivers = (tc.fairway_driver || 0) + (tc.distance_driver || 0);
@@ -3304,10 +3745,10 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
   useEffect(() => { if (open) setSelectedGapKey(null); }, [open]);
   useEffect(() => { setSuggestionExpanded(false); setOverlapCardExpanded(false); }, [selectedGapKey]);
 
-  const bagDiscs = useMemo(() => (bag && discs) ? discs.filter(d => bag.disc_ids.includes(d.id)) : [], [discs, bag]);
+  const bagDiscs = useMemo(() => (bag && discs) ? discs.filter(d => discBelongsToBagView(d, bag)) : [], [discs, bag]);
   const gaps = useMemo(() => computeBagGaps(bagDiscs), [bagDiscs]);
-  const bagDiscIds = bag ? bag.disc_ids : [];
-  const available = (discs && bag) ? discs.filter(d => !bag.disc_ids.includes(d.id)) : [];
+  const bagDiscIds = useMemo(() => (bag && discs) ? discs.filter(d => discBelongsToBagView(d, bag)).map(d => d.id) : [], [discs, bag]);
+  const available = (discs && bag) ? discs.filter(d => !bagDiscIds.includes(d.id)) : [];
 
   const selectedGap = selectedGapKey ? gaps.find(g => g.key === selectedGapKey) : null;
   const baseList = selectedGap
@@ -3619,7 +4060,12 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>{cfg.label}</span>
                 <span className="text-xs font-bold px-2 py-0.5 rounded-full border" style={{backgroundColor:stabM.color+'15',color:stabM.color,borderColor:stabM.color+'33'}}>{stabM.icon} {stabM.label}</span>
-                {st && <span className="flex items-center gap-1.5 text-xs text-text-muted"><span className={`w-2 h-2 rounded-full ${st.dot}`}/>{st.label}</span>}
+                {st && disc.status !== 'lost' && disc.status !== 'gave_away_sold' && (
+                  <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                    <span className={`w-2 h-2 rounded-full ${st.dot}`} />
+                    {st.label}
+                  </span>
+                )}
               </div>
               {disc.hasAce && (
                 <div className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full border border-gap-medium/40 bg-gap-medium/10 text-[11px] text-gap-medium">
@@ -3641,6 +4087,24 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {(disc.status === 'lost' || disc.status === 'gave_away_sold') && (
+            <div className="space-y-1.5">
+              {disc.status === 'lost' && (
+                <div className="inline-flex px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide bg-orange-600 text-white shadow-sm">LOST</div>
+              )}
+              {disc.status === 'gave_away_sold' && (
+                <div className="inline-flex px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide bg-text-muted/40 text-text border border-border">
+                  GAVE AWAY / SOLD
+                </div>
+              )}
+              {disc.status === 'lost' && String(disc.lostNote || '').trim() && (
+                <p className="text-sm text-text-muted italic">{disc.lostNote}</p>
+              )}
+              {disc.status === 'gave_away_sold' && String(disc.gaveAwayNote || '').trim() && (
+                <p className="text-sm text-text-muted italic">{disc.gaveAwayNote}</p>
+              )}
+            </div>
+          )}
           {/* Flight Path */}
           <section className="bg-card/80 rounded-xl p-5 border border-border/50">
             <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Target size={12}/>Flight Path</h3>
@@ -3709,14 +4173,101 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
 // ═══════════════════════════════════════════════════════
 // DISC CARDS (List + Gallery views)
 // ═══════════════════════════════════════════════════════
-function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDetail,onRemoveFromBag,activeBagId,bagMenuOpen,setBagMenu,idx}) {
-  const cfg = DT[disc.disc_type]; const st = SM[disc.status]; const inBags = bags.filter(b=>b.disc_ids.includes(disc.id)); const hasNick = !!disc.custom_name;
-  const isGallery = viewMode==='gallery';
+function DiscCard({
+  disc,
+  bags,
+  viewMode,
+  onBackup,
+  onToggleBag,
+  onEdit,
+  onDelete,
+  onDetail,
+  onRemoveFromBag,
+  activeBagId,
+  bagMenuOpen,
+  setBagMenu,
+  statusMenuOpen,
+  setStatusMenu,
+  onStatusChange,
+  onCreateBag,
+  idx,
+}) {
+  const [newBagOpen, setNewBagOpen] = useState(false);
+  const [newBagName, setNewBagName] = useState('');
+  const cfg = DT[disc.disc_type];
+  const st = SM[disc.status];
+  const inBags = bags.filter((b) => b.disc_ids.includes(disc.id));
+  const hasNick = !!disc.custom_name;
+  const isGallery = viewMode === 'gallery';
+  const lostNotePreview = String(disc.lostNote || '').trim();
+  const gaveAwayPreview = String(disc.gaveAwayNote || '').trim();
+  const showLostNoteHint = disc.status === 'lost' && lostNotePreview.length > 0;
+  const showGaveAwayHint = disc.status === 'gave_away_sold' && gaveAwayPreview.length > 0;
+
+  const bagMenuExtra = onCreateBag && (
+    <>
+      {!newBagOpen ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setNewBagOpen(true);
+            setNewBagName('');
+          }}
+          className="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border-t border-border/60 hover:bg-surface/60"
+        >
+          <Plus size={12} className="shrink-0" />
+          New Bag
+        </button>
+      ) : (
+        <div className="px-2 py-2 border-t border-border/60 space-y-1.5 bg-surface/30">
+          <input
+            value={newBagName}
+            onChange={(e) => setNewBagName(e.target.value)}
+            placeholder="Bag name…"
+            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-text placeholder-text-muted focus:outline-none focus:border-primary"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          />
+          <div className="flex gap-1">
+            <button
+              type="button"
+              className="flex-1 py-1 rounded-lg text-[10px] font-semibold bg-card border border-border text-text-muted"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNewBagOpen(false);
+                setNewBagName('');
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!newBagName.trim()}
+              className={`flex-1 py-1 rounded-lg text-[10px] font-semibold ${newBagName.trim() ? 'bg-primary text-on-primary' : 'bg-surface text-text-muted cursor-not-allowed'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const name = newBagName.trim();
+                if (!name) return;
+                const id = onCreateBag(name);
+                if (id) onToggleBag(id, disc.id);
+                setNewBagOpen(false);
+                setNewBagName('');
+                setBagMenu(null);
+              }}
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025,layout:{duration:0.25,ease:'easeOut'}}}
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
-      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen?'z-30 relative':'relative'} pb-14`}>
+      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen || statusMenuOpen ? 'z-30 relative' : 'relative'} pb-14`}>
       <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
         {/* Type badge + status (list only) */}
         {!isGallery && (
@@ -3729,8 +4280,39 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            {st && <span className="flex items-center gap-1 text-xs text-text-muted"><span className={`w-1.5 h-1.5 rounded-full ${st.dot}`}/>{st.label}</span>}
+          <div className="relative flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setStatusMenu(statusMenuOpen ? null : disc.id);
+              }}
+              className={`flex items-center gap-1 text-xs rounded-lg px-2 py-0.5 border transition-colors max-w-[11rem] ${statusMenuOpen ? 'bg-surface text-text border-border' : 'bg-surface/60 text-text-muted border-border/70'}`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st?.dot || 'bg-text-muted'}`} />
+              <span className="truncate">{st?.label || 'Status'}</span>
+            </button>
+            {statusMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-[38]" onClick={(e) => { e.stopPropagation(); setStatusMenu(null); }} />
+                <div className="absolute right-0 top-full mt-1 z-[39] w-52 max-h-64 overflow-y-auto bg-card border border-border rounded-xl shadow-card py-1">
+                  {Object.entries(SM).map(([k, v]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-surface/70 flex items-center gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStatusChange(disc, k);
+                      }}
+                    >
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${v.dot}`} />
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
         )}
@@ -3740,6 +4322,46 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
             <DiscVisual disc={disc} size="lg"/>
             <div className="text-center mt-3 w-full">
               {hasNick ? (<><h3 className="text-base font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted truncate">{disc.manufacturer} · {disc.mold}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-base font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3></>)}
+              {showLostNoteHint && (
+                <p className="text-[10px] text-text-muted italic truncate mt-1.5 max-w-full px-0.5" title={lostNotePreview}>📝 {lostNotePreview.length > 44 ? `${lostNotePreview.slice(0, 44)}…` : lostNotePreview}</p>
+              )}
+              {showGaveAwayHint && (
+                <p className="text-[10px] text-text-muted italic truncate mt-1.5 max-w-full px-0.5" title={gaveAwayPreview}>📝 {gaveAwayPreview.length > 44 ? `${gaveAwayPreview.slice(0, 44)}…` : gaveAwayPreview}</p>
+              )}
+            </div>
+            <div className="relative w-full flex justify-center mt-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStatusMenu(statusMenuOpen ? null : disc.id);
+                }}
+                className={`flex items-center gap-1 text-[10px] rounded-lg px-2 py-0.5 border ${statusMenuOpen ? 'bg-surface text-text border-border' : 'bg-surface/60 text-text-muted border-border/70'}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st?.dot || 'bg-text-muted'}`} />
+                {st?.label || 'Status'}
+              </button>
+              {statusMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-[38]" onClick={(e) => { e.stopPropagation(); setStatusMenu(null); }} />
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 z-[39] w-52 max-h-64 overflow-y-auto bg-card border border-border rounded-xl shadow-card py-1">
+                    {Object.entries(SM).map(([k, v]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-surface/70 flex items-center gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStatusChange(disc, k);
+                        }}
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${v.dot}`} />
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex items-center justify-center gap-2 mt-2 text-xs">{FN_META.map(fn => <span key={fn.key} className={`font-bold ${fn.text}`}>{disc[fn.key]}</span>)}</div>
             {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-2 justify-center">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={7}/>{b.name}</span>))}</div>}
@@ -3749,6 +4371,12 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
             <DiscVisual disc={disc} size="md"/>
             <div className="flex-1 min-w-0">
               {hasNick ? (<><h3 className="text-lg font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-lg font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3><span className="text-xs text-text-muted">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
+              {showLostNoteHint && (
+                <p className="text-[10px] text-text-muted italic truncate mt-1 max-w-full" title={lostNotePreview}>📝 {lostNotePreview.length > 56 ? `${lostNotePreview.slice(0, 56)}…` : lostNotePreview}</p>
+              )}
+              {showGaveAwayHint && (
+                <p className="text-[10px] text-text-muted italic truncate mt-1 max-w-full" title={gaveAwayPreview}>📝 {gaveAwayPreview.length > 56 ? `${gaveAwayPreview.slice(0, 56)}…` : gaveAwayPreview}</p>
+              )}
               {disc.estimated_value && <span className="text-xs text-primary/60 font-semibold block">${disc.estimated_value}</span>}
               {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={8}/>{b.name}</span>))}</div>}
             </div>
@@ -3810,6 +4438,7 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
                             </button>
                           );
                         })}
+                        {bagMenuExtra}
                       </div>
                     </>
                   )}
@@ -3837,6 +4466,7 @@ function DiscCard({disc,bags,viewMode,onBackup,onToggleBag,onEdit,onDelete,onDet
                         </button>
                       );
                     })}
+                    {bagMenuExtra}
                   </div>
                 </>
               )}
@@ -4289,6 +4919,10 @@ function DiscLibrary() {
   const [editingDisc,setEditingDisc] = useState(null);
   const [addDiscContext,setAddDiscContext] = useState(null);
   const [bagMenuDisc,setBagMenuDisc] = useState(null);
+  const [statusMenuDiscId, setStatusMenuDiscId] = useState(null);
+  const [lostFlowDisc, setLostFlowDisc] = useState(null);
+  const [lostNoteQuick, setLostNoteQuick] = useState(null);
+  const [gaveAwayModal, setGaveAwayModal] = useState(null);
   const [editingBag,setEditingBag] = useState(null);
   const [backupDisc,setBackupDisc] = useState(null);
   const [detailDisc,setDetailDisc] = useState(null);
@@ -4393,13 +5027,21 @@ function DiscLibrary() {
   // Derived data
   const brandOptions = useMemo(() => { const u=[...new Set(discs.map(d=>d.manufacturer))].sort(); return [{value:'All',label:'All Brands'},...u.map(b=>({value:b,label:b}))]; }, [discs]);
   const activeBag = useMemo(() => bags.find(b=>b.id===activeBagId)||null, [bags,activeBagId]);
-  const bagDiscsForDashboard = useMemo(() => activeBag ? discs.filter(d=>activeBag.disc_ids.includes(d.id)) : [], [activeBag,discs]);
+
+  /** Open bag detail at top of page (FlightChart chip scrollIntoView is gated to user chip taps only). */
+  useEffect(() => {
+    if (!showApp) return;
+    if (mainView !== 'bags' || !activeBagId) return;
+    window.scrollTo(0, 0);
+  }, [showApp, mainView, activeBagId]);
+
+  const bagDiscsForDashboard = useMemo(() => activeBag ? discs.filter(d => discBelongsToBagView(d, activeBag)) : [], [activeBag, discs]);
   const bagDiscsSortedForGrid = useMemo(() => [...bagDiscsForDashboard].sort((a,b)=>b.speed-a.speed), [bagDiscsForDashboard]);
   const bagTotalValue = useMemo(() => bagDiscsForDashboard.reduce((s,d)=>s+(d.estimated_value||0),0), [bagDiscsForDashboard]);
 
   const filteredDiscs = useMemo(() => {
     let result = [...discs];
-    if (activeBagId && activeBag) result = result.filter(d => activeBag.disc_ids.includes(d.id));
+    if (activeBagId && activeBag) result = result.filter(d => discBelongsToBagView(d, activeBag));
     if (search.trim()) { const q=search.toLowerCase(); result=result.filter(d => d.manufacturer.toLowerCase().includes(q)||d.mold.toLowerCase().includes(q)||d.plastic_type.toLowerCase().includes(q)||(d.custom_name&&d.custom_name.toLowerCase().includes(q))); }
     if (typeFilter!=='all') result = result.filter(d => d.disc_type===typeFilter);
     if (selectedBrand!=='All') result = result.filter(d => d.manufacturer===selectedBrand);
@@ -4410,7 +5052,7 @@ function DiscLibrary() {
   }, [discs, activeBag, activeBagId, search, typeFilter, selectedBrand, selectedSpeed, aceFilter, selectedSort]);
 
   const counts = useMemo(() => {
-    const base = activeBagId && activeBag ? discs.filter(d=>activeBag.disc_ids.includes(d.id)) : discs;
+    const base = activeBagId && activeBag ? discs.filter(d => discBelongsToBagView(d, activeBag)) : discs;
     const c = {all:base.length}; Object.keys(DT).forEach(t => c[t]=base.filter(d=>d.disc_type===t).length); c.aces=base.filter(d=>!!d.hasAce).length; return c;
   }, [discs, activeBag, activeBagId]);
 
@@ -4419,17 +5061,139 @@ function DiscLibrary() {
   // ── Handlers ──
   const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setAceFilter(false); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
 
-  const toggleBag = (bagId,discId) => setBags(p => p.map(b => b.id!==bagId ? b : {...b, disc_ids:b.disc_ids.includes(discId) ? b.disc_ids.filter(i=>i!==discId) : [...b.disc_ids,discId]}));
+  const toggleBag = useCallback((bagId, discId) => {
+    const wasIn = bags.find((b) => b.id === bagId)?.disc_ids.includes(discId);
+    setBags((prev) =>
+      prev.map((b) => {
+        if (b.id !== bagId) return b;
+        if (wasIn) return { ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) };
+        return { ...b, disc_ids: [...b.disc_ids, discId] };
+      })
+    );
+    setDiscs((prev) =>
+      prev.map((d) => {
+        if (d.id !== discId) return d;
+        const prevIds = getDiscBagIds(d);
+        if (wasIn) {
+          const next = prevIds.filter((id) => id !== bagId);
+          return {
+            ...d,
+            bagIds: next,
+            bagId: null,
+            status: next.length === 0 && d.status === 'in_bag' ? 'backup' : d.status,
+          };
+        }
+        const next = [...new Set([...prevIds, bagId])];
+        return { ...d, bagIds: next, bagId: null, status: 'in_bag' };
+      })
+    );
+  }, [bags]);
 
-  const addDiscToBag = useCallback((bagId,discId) => {
-    setBags(prev => prev.map(b => { if(b.id!==bagId)return b; if(b.disc_ids.includes(discId))return b; return{...b,disc_ids:[...b.disc_ids,discId]}; }));
-    const d=discs.find(x=>x.id===discId); const bg=bags.find(x=>x.id===bagId); setToast(`✅ ${d?.mold||'Disc'} added to ${bg?.name||'bag'}`);
-  }, [discs,bags]);
+  const addDiscToBag = useCallback((bagId, discId) => {
+    setBags((prev) =>
+      prev.map((b) => {
+        if (b.id !== bagId) return b;
+        if (b.disc_ids.includes(discId)) return b;
+        return { ...b, disc_ids: [...b.disc_ids, discId] };
+      })
+    );
+    setDiscs((prev) =>
+      prev.map((d) => {
+        if (d.id !== discId) return d;
+        const prevIds = getDiscBagIds(d);
+        if (prevIds.includes(bagId)) return { ...d, status: 'in_bag', bagIds: prevIds, bagId: null };
+        return { ...d, status: 'in_bag', bagIds: [...prevIds, bagId], bagId: null };
+      })
+    );
+    const d = discs.find((x) => x.id === discId);
+    const bg = bags.find((x) => x.id === bagId);
+    setToast(`✅ ${d?.mold || 'Disc'} added to ${bg?.name || 'bag'}`);
+  }, [discs, bags]);
 
-  const removeDiscFromBag = useCallback((bagId,discId) => {
-    setBags(prev => prev.map(b => { if(b.id!==bagId)return b; return{...b,disc_ids:b.disc_ids.filter(id=>id!==discId)}; }));
-    const d=discs.find(x=>x.id===discId); setToast(`🗑️ ${d?.mold||'Disc'} removed from bag`);
+  const removeDiscFromBag = useCallback((bagId, discId) => {
+    setBags((prev) =>
+      prev.map((b) => (b.id !== bagId ? b : { ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) }))
+    );
+    setDiscs((prev) =>
+      prev.map((d) => {
+        if (d.id !== discId) return d;
+        const prevIds = getDiscBagIds(d);
+        const next = prevIds.filter((id) => id !== bagId);
+        return {
+          ...d,
+          bagIds: next,
+          bagId: null,
+          status: next.length === 0 && d.status === 'in_bag' ? 'backup' : d.status,
+        };
+      })
+    );
+    const d = discs.find((x) => x.id === discId);
+    setToast(`🗑️ ${d?.mold || 'Disc'} removed from bag`);
   }, [discs]);
+
+  const removeDiscFromAllBags = useCallback((discId) => {
+    setBags((prev) => prev.map((b) => ({ ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) })));
+  }, []);
+
+  const syncDiscBagMembership = useCallback((disc) => {
+    setBags((prev) => {
+      const without = prev.map((b) => ({ ...b, disc_ids: b.disc_ids.filter((id) => id !== disc.id) }));
+      if (disc.status === 'in_bag') {
+        const ids = getDiscBagIds(disc);
+        if (ids.length) {
+          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+        }
+        return without;
+      }
+      if (disc.status === 'lost') {
+        const ids = getDiscBagIds(disc);
+        if (ids.length) {
+          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+        }
+        if (disc.bagId) {
+          return without.map((b) => (b.id === disc.bagId ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+        }
+        return without;
+      }
+      return without;
+    });
+  }, []);
+
+  const patchDisc = useCallback(
+    (id, updates) => {
+      setDiscs((prev) => {
+        const merged = prev.map((d) => (d.id === id ? { ...d, ...updates } : d));
+        const disc = merged.find((d) => d.id === id);
+        if (disc) queueMicrotask(() => syncDiscBagMembership(disc));
+        return merged;
+      });
+    },
+    [syncDiscBagMembership]
+  );
+
+  const handleDiscStatusChange = useCallback(
+    (disc, newStatus) => {
+      if (newStatus === 'lost') {
+        setLostFlowDisc(disc);
+        setStatusMenuDiscId(null);
+        return;
+      }
+      if (newStatus === 'gave_away_sold') {
+        setGaveAwayModal({ id: disc.id, draft: String(disc.gaveAwayNote || '') });
+        setStatusMenuDiscId(null);
+        return;
+      }
+      if (newStatus === 'in_bag') {
+        patchDisc(disc.id, { status: 'in_bag' });
+        setBagMenuDisc(disc.id);
+        setStatusMenuDiscId(null);
+        return;
+      }
+      patchDisc(disc.id, { status: newStatus, bagIds: [], bagId: null });
+      setStatusMenuDiscId(null);
+    },
+    [patchDisc]
+  );
 
   const addTournament = useCallback((t) => { setTournaments(p=>[...p,{...t,id:t.id||`t${Date.now()}`}]); setToast('🏅 Tournament added!'); }, []);
   const updateTournament = useCallback((id, t) => { setTournaments(p=>p.map(x=>x.id===id?{...t,id}:x)); setToast('✏️ Tournament updated!'); }, []);
@@ -4446,10 +5210,15 @@ function DiscLibrary() {
   const performAddDisc = useCallback((data) => {
     ReactGA.event({ category: 'Disc', action: 'Add Disc' });
     console.log('[performAddDisc] adding disc', { id: data.id, hasPhoto: !!data.photo, photoBytes: typeof data.photo === 'string' ? data.photo.length : 0 });
-    setDiscs(p=>[...p,{...data,date_acquired:data.date_acquired||td()}]);
+    const added = { ...data, date_acquired: data.date_acquired || td() };
+    setDiscs((p) => [...p, added]);
+    syncDiscBagMembership(added);
     if (addDiscContext) {
-      const bag = bags.find(b => b.id === addDiscContext.bagId);
-      addDiscToBag(addDiscContext.bagId, data.id);
+      const bag = bags.find((b) => b.id === addDiscContext.bagId);
+      const ids = getDiscBagIds(added);
+      if (added.status === 'in_bag' && ids.length === 0 && addDiscContext.bagId) {
+        addDiscToBag(addDiscContext.bagId, data.id);
+      }
       setToast(bag ? `✅ ${data.mold} added and added to ${bag.name}!` : `✅ ${data.mold} added!`);
       setAddDiscContext(null);
       setAddToBagPickerOpen(true);
@@ -4457,7 +5226,7 @@ function DiscLibrary() {
       setToast(`✅ ${data.mold} added!`);
     }
     setEditingDisc(null); setFormOpen(false);
-  }, [addDiscContext, bags, addDiscToBag]);
+  }, [addDiscContext, bags, addDiscToBag, syncDiscBagMembership]);
 
   const handleSaveDisc = useCallback((data) => {
     console.log('[handleSaveDisc] saving disc', {
@@ -4470,6 +5239,7 @@ function DiscLibrary() {
     if (editingDisc) {
       console.log('[handleSaveDisc] Updating existing disc in state...');
       setDiscs(p=>p.map(d=>d.id===data.id?data:d));
+      syncDiscBagMembership(data);
       setToast(`✅ ${data.mold} updated!`);
       setEditingDisc(null); setFormOpen(false);
       return;
@@ -4483,7 +5253,7 @@ function DiscLibrary() {
     }
     console.log('[handleSaveDisc] Adding new disc to state...');
     performAddDisc(data);
-  }, [editingDisc, discs, performAddDisc]);
+  }, [editingDisc, discs, performAddDisc, syncDiscBagMembership]);
 
   const confirmAddDuplicateDisc = useCallback(() => {
     if (!duplicateDiscConfirm) return;
@@ -4507,8 +5277,10 @@ function DiscLibrary() {
   const openAdd = useCallback(() => {
     setEditingDisc(null); setFormOpen(true);
   }, []);
-  const createBag = useCallback(({name,bagColor}) => {
-    setBags(p => [...p, {id:`b${Date.now()}`,name,bagColor,disc_ids:[]}]);
+  const createBag = useCallback(({ name, bagColor }) => {
+    const id = `b${Date.now()}`;
+    setBags((p) => [...p, { id, name, bagColor: bagColor || BAG_COLORS[p.length % BAG_COLORS.length], disc_ids: [] }]);
+    return id;
   }, []);
   const deleteBag = useCallback(id => { setBags(p=>p.filter(b=>b.id!==id)); if(activeBagId===id)setActiveBagId(null); }, [activeBagId]);
   const requestDeleteBag = useCallback(id => {
@@ -4527,7 +5299,7 @@ function DiscLibrary() {
     setBackupDisc({id:'sug_'+Date.now(),manufacturer:suggestion.manufacturer,mold:suggestion.mold,plastic_type:suggestion.plastic,color:suggestion.color||'#6b7280',speed:suggestion.speed,glide:suggestion.glide,turn:suggestion.turn,fade:suggestion.fade,wear_level:10,weight_grams:175,custom_name:'',photo:null});
   }, []);
 
-  const headerDiscCount = activeBag ? activeBag.disc_ids.length : discs.length;
+  const headerDiscCount = activeBag ? discs.filter(d => discBelongsToBagView(d, activeBag)).length : discs.length;
   const gridCls = viewMode==='gallery' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
 
   if (!showApp) {
@@ -4722,7 +5494,11 @@ function DiscLibrary() {
                           <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery"
                             onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
                             onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
-                            bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                            bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc}
+                            statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
+                            onStatusChange={handleDiscStatusChange}
+                            onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
+                            idx={i}/>
                         ))}
                       </AnimatePresence>
                     </motion.div>
@@ -4750,7 +5526,11 @@ function DiscLibrary() {
                     <DiscCard key={d.id} disc={d} bags={bags} viewMode={viewMode}
                       onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
                       onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={null}
-                      bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc} idx={i}/>
+                      bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc}
+                      statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
+                      onStatusChange={handleDiscStatusChange}
+                      onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
+                      idx={i}/>
                   ))}
                 </AnimatePresence>
               </motion.div>
@@ -4765,7 +5545,7 @@ function DiscLibrary() {
         )}
       </div>
 
-      {bagMenuDisc && <div className="fixed inset-0 z-20" onClick={() => setBagMenuDisc(null)}/>}
+      {(bagMenuDisc || statusMenuDiscId) && <div className="fixed inset-0 z-20" onClick={() => { setBagMenuDisc(null); setStatusMenuDiscId(null); }}/>}
 
       {/* ── FOOTER ── */}
       <div className="mt-8 pt-6">
@@ -4783,7 +5563,57 @@ function DiscLibrary() {
 
       {/* ── MODALS ── */}
       <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag}/>}</AnimatePresence>
-      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType}/>
+      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType} defaultBagId={addDiscContext?.bagId} bags={bags} onRemoveDiscFromAllBags={removeDiscFromAllBags} onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}/>
+      <AnimatePresence>
+        {lostFlowDisc && (
+          <LostDiscDialog
+            onDismiss={() => setLostFlowDisc(null)}
+            onRemoveFromBags={() => {
+              removeDiscFromAllBags(lostFlowDisc.id);
+              patchDisc(lostFlowDisc.id, { status: 'lost', bagIds: [], bagId: null });
+              setLostNoteQuick({ id: lostFlowDisc.id, draft: String(lostFlowDisc.lostNote || '') });
+              setLostFlowDisc(null);
+            }}
+            onKeepInBags={() => {
+              patchDisc(lostFlowDisc.id, { status: 'lost' });
+              setLostNoteQuick({ id: lostFlowDisc.id, draft: String(lostFlowDisc.lostNote || '') });
+              setLostFlowDisc(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {lostNoteQuick && (
+          <LostNoteQuickModal
+            open
+            draft={lostNoteQuick.draft}
+            onDraft={(t) => setLostNoteQuick((q) => (q ? { ...q, draft: t } : q))}
+            onCancel={() => setLostNoteQuick(null)}
+            onSave={() => {
+              setLostNoteQuick((q) => {
+                if (q) patchDisc(q.id, { lostNote: q.draft });
+                return null;
+              });
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {gaveAwayModal && (
+          <GaveAwayNoteModal
+            open
+            draft={gaveAwayModal.draft}
+            onDraft={(t) => setGaveAwayModal((m) => (m ? { ...m, draft: t } : m))}
+            onCancel={() => setGaveAwayModal(null)}
+            onSave={() => {
+              setGaveAwayModal((m) => {
+                if (m) patchDisc(m.id, { status: 'gave_away_sold', gaveAwayNote: m.draft, bagIds: [], bagId: null });
+                return null;
+              });
+            }}
+          />
+        )}
+      </AnimatePresence>
       <BackupModal open={!!backupDisc} disc={backupDisc} onClose={() => setBackupDisc(null)}/>
       <AnimatePresence>{addToBagPickerOpen && activeBag && <AddToBagPicker open onClose={() => setAddToBagPickerOpen(false)} discs={discs} bag={activeBag} onAdd={(bagId, discId) => { addDiscToBag(bagId, discId); }} onAddDisc={() => { setAddToBagPickerOpen(false); openAdd(); }} onOpenAddDisc={({ defaultDiscType } = {}) => { setAddDiscContext({ bagId: activeBag.id, defaultDiscType }); setAddToBagPickerOpen(false); setFormOpen(true); }} onBuySearch={handleBuySearch}/>}</AnimatePresence>
       <AnimatePresence>{editingBag && <EditBagModal open bag={editingBag} onClose={() => setEditingBag(null)} onSave={(id, data) => { updateBag(id, data); setEditingBag(null); }} onDelete={id => { requestDeleteBag(id); setEditingBag(null); }}/>}</AnimatePresence>

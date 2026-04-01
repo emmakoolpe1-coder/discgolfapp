@@ -25,6 +25,44 @@ export function parseFlightNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * True if a flight field is set (0 is valid; only null/undefined/empty string / non-finite number are not).
+ * @param {unknown} v
+ */
+export function flightNumberFieldPresent(v) {
+  if (v === null || v === undefined) return false;
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string') return v.trim() !== '';
+  return false;
+}
+
+/**
+ * True when all four flight numbers are present and within chart / form ranges.
+ * (speed 1–15, glide 0–7, turn -5–1, fade 0–5). Zero is valid for turn/fade/glide; disc_type is not required.
+ * @param {{ speed?: unknown; glide?: unknown; turn?: unknown; fade?: unknown }} d
+ */
+export function hasValidFlightNumbersForChart(d) {
+  if (!d) return false;
+  if (!flightNumberFieldPresent(d.speed) || !flightNumberFieldPresent(d.glide) || !flightNumberFieldPresent(d.turn) || !flightNumberFieldPresent(d.fade)) {
+    return false;
+  }
+  const s = parseFlightNum(d.speed);
+  const g = parseFlightNum(d.glide);
+  const t = parseFlightNum(d.turn);
+  const f = parseFlightNum(d.fade);
+  if (!Number.isFinite(s) || !Number.isFinite(g) || !Number.isFinite(t) || !Number.isFinite(f)) return false;
+  return (
+    s >= 1 &&
+    s <= 15 &&
+    g >= 0 &&
+    g <= 7 &&
+    t >= -5 &&
+    t <= 1 &&
+    f >= 0 &&
+    f <= 5
+  );
+}
+
 /** @param {unknown} c */
 export function parseDiscColor(c) {
   if (typeof c !== 'string' || !c.trim()) return null;
@@ -499,12 +537,34 @@ export function feetToSVG(
 
 /**
  * Catmull-Rom style smooth cubic through points (SVG pixel space).
+ * When turn=0 and fade=0, all foot-space x are 0 → collinear vertical in SVG (constant sx).
+ * Pure-vertical (or pure-horizontal) polylines break degenerate cubics in some engines; use line segments.
  * @param {{ sx: number; sy: number }[]} pts
  */
 function smoothBezierThroughPoints(pts) {
   if (pts.length < 2) return '';
   if (pts.length === 2) {
     return `M ${pts[0].sx} ${pts[0].sy} L ${pts[1].sx} ${pts[1].sy}`;
+  }
+  let minSx = Infinity;
+  let maxSx = -Infinity;
+  let minSy = Infinity;
+  let maxSy = -Infinity;
+  for (const p of pts) {
+    if (p.sx < minSx) minSx = p.sx;
+    if (p.sx > maxSx) maxSx = p.sx;
+    if (p.sy < minSy) minSy = p.sy;
+    if (p.sy > maxSy) maxSy = p.sy;
+  }
+  const sxSpread = maxSx - minSx;
+  const sySpread = maxSy - minSy;
+  const COLLINEAR_EPS = 0.05;
+  if (sxSpread < COLLINEAR_EPS || sySpread < COLLINEAR_EPS) {
+    let d = `M ${pts[0].sx.toFixed(2)} ${pts[0].sy.toFixed(2)}`;
+    for (let i = 1; i < pts.length; i++) {
+      d += ` L ${pts[i].sx.toFixed(2)} ${pts[i].sy.toFixed(2)}`;
+    }
+    return d;
   }
   let d = `M ${pts[0].sx} ${pts[0].sy}`;
   for (let i = 0; i < pts.length - 1; i++) {
