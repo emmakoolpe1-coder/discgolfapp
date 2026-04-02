@@ -1,4 +1,6 @@
 import { useMemo, useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, CheckSquare, Square } from 'lucide-react';
 import { motion as Motion, AnimatePresence, animate } from 'framer-motion';
 import {
   parseFlightNum,
@@ -39,15 +41,6 @@ function hasSelectedDiscId(id) {
 function flightsMatch(a, b) {
   if (!a || !b || a.length !== b.length) return false;
   return a.every((f, i) => discIdsEqual(f.disc.id, b[i].disc.id));
-}
-
-/** @param {string} hex */
-function hexToRgba(hex, alpha) {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 const SKILL_OPTIONS = [
@@ -111,13 +104,14 @@ export default function FlightChart({ bagDiscs }) {
   );
   const [handPair, setHandPair] = useState(/** @type {keyof typeof HAND_FLIGHT_PAIR} */ (HAND_FLIGHT_PAIR.RHBH_LHFH));
   const [skillLevel, setSkillLevel] = useState('intermediate');
-  const [selectedDiscId, setSelectedDiscId] = useState(/** @type {string | null} */ (null));
-  const chipScrollRef = useRef(null);
-  const chipRefs = useRef(/** @type {Record<string, HTMLButtonElement | null>} */ ({}));
+  /** One disc emphasized on the chart; null = all paths shown with equal weight. */
+  const [highlightedDiscId, setHighlightedDiscId] = useState(/** @type {string | null} */ (null));
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const discPickerTriggerRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
+  const [discPickerMenuRect, setDiscPickerMenuRect] = useState(
+    /** @type {{ top: number; left: number; width: number } | null} */ (null)
+  );
   const userInteractedRef = useRef(false);
-  /** Set only from selectDisc when choosing a disc; never from auto-select — avoids scrollIntoView on load */
-  const pendingChipScrollRef = useRef(false);
-  const [bounceChipId, setBounceChipId] = useState(/** @type {string | null} */ (null));
   const [hintPhase, setHintPhase] = useState(() => {
     try {
       if (typeof localStorage !== 'undefined' && localStorage.getItem(HINT_KEY) === 'true') return 'gone';
@@ -153,6 +147,15 @@ export default function FlightChart({ bagDiscs }) {
     }
     return m;
   }, [discsForColorAssignment]);
+
+  const manufacturerByDiscId = useMemo(() => {
+    const m = new Map();
+    for (const d of chartableDiscs) {
+      const raw = d.manufacturer != null ? String(d.manufacturer).trim() : '';
+      m.set(String(d.id), raw || '\u2014');
+    }
+    return m;
+  }, [chartableDiscs]);
 
   const definitions = useMemo(() => {
     if (!chartableDiscs.length) return [];
@@ -233,47 +236,18 @@ export default function FlightChart({ bagDiscs }) {
     return () => controls.stop();
   }, [flights, maxDistance, maxLateral]);
 
-  const secondDiscIdForBounce = useMemo(
-    () => (flights.length >= 2 ? flights[1].disc.id : null),
-    [flights]
-  );
-
-  /** Clear selection if no chartable discs or selected disc removed */
+  /** Clear highlight if that disc is no longer in the bag. */
   useEffect(() => {
     if (!chartableDiscs.length) {
-      queueMicrotask(() => setSelectedDiscId(null));
+      queueMicrotask(() => setHighlightedDiscId(null));
       return;
     }
     queueMicrotask(() => {
-      setSelectedDiscId((prev) =>
+      setHighlightedDiscId((prev) =>
         hasSelectedDiscId(prev) && !chartableDiscs.some((d) => discIdsEqual(d.id, prev)) ? null : prev
       );
     });
   }, [chartableDiscs]);
-
-  /** Auto-select fastest chartable disc on load / when selection invalid */
-  useEffect(() => {
-    if (!chartableDiscs.length) return;
-    const sorted = [...chartableDiscs].sort((a, b) => parseFlightNum(b.speed) - parseFlightNum(a.speed));
-    const firstId = sorted[0].id;
-    queueMicrotask(() => {
-      setSelectedDiscId((prev) => {
-        if (hasSelectedDiscId(prev) && chartableDiscs.some((d) => discIdsEqual(d.id, prev))) return prev;
-        return firstId;
-      });
-    });
-  }, [chartableDiscs]);
-
-  /** Second chip bounce @ 2s, once, if no interaction */
-  useEffect(() => {
-    if (!secondDiscIdForBounce) return;
-    const t = window.setTimeout(() => {
-      if (userInteractedRef.current) return;
-      setBounceChipId(secondDiscIdForBounce);
-      window.setTimeout(() => setBounceChipId(null), 400);
-    }, 2000);
-    return () => window.clearTimeout(t);
-  }, [secondDiscIdForBounce]);
 
   const yTicks = useMemo(() => buildYGridTicks150(displayMaxDistance), [displayMaxDistance]);
 
@@ -287,12 +261,14 @@ export default function FlightChart({ bagDiscs }) {
         displayMaxDistance,
         PATH_PAD
       ),
-    [displayMaxLateral, displayMaxDistance, chartH]
+    [chartH, displayMaxLateral, displayMaxDistance]
   );
 
+  const primaryId = highlightedDiscId;
+
   const selectedFlight = useMemo(
-    () => flights.find((f) => discIdsEqual(f.disc.id, selectedDiscId)) ?? null,
-    [flights, selectedDiscId]
+    () => flights.find((f) => discIdsEqual(f.disc.id, primaryId)) ?? null,
+    [flights, primaryId]
   );
 
   const envelopePaths = useMemo(() => {
@@ -316,11 +292,11 @@ export default function FlightChart({ bagDiscs }) {
 
   const isAnimating = animDisplay != null;
   /** Envelope / variants / dot only when paths match (not mid-lerp) */
-  const showDetailLayers = hasSelectedDiscId(selectedDiscId) && !isAnimating;
+  const showDetailLayers = hasSelectedDiscId(primaryId) && !isAnimating;
 
   const selectedDisplayFlight = useMemo(
-    () => displayFlights.find((f) => discIdsEqual(f.disc.id, selectedDiscId)) ?? null,
-    [displayFlights, selectedDiscId]
+    () => displayFlights.find((f) => discIdsEqual(f.disc.id, primaryId)) ?? null,
+    [displayFlights, primaryId]
   );
 
   const finishHintForever = useCallback(() => {
@@ -332,42 +308,48 @@ export default function FlightChart({ bagDiscs }) {
     setHintPhase('gone');
   }, []);
 
-  const selectDisc = useCallback(
+  const closeDiscPicker = useCallback(() => {
+    setDropdownOpen(false);
+  }, []);
+
+  const toggleHighlight = useCallback(
     (id) => {
       userInteractedRef.current = true;
-      setSelectedDiscId((prev) => {
+      closeDiscPicker();
+      setHighlightedDiscId((prev) => {
         if (discIdsEqual(prev, id)) {
           queueMicrotask(finishHintForever);
           return null;
         }
-        pendingChipScrollRef.current = true;
         queueMicrotask(() => {
           setHintPhase((h) => (h === 'initial' ? 'second' : h));
         });
         if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
-        return id;
+        return String(id);
       });
     },
-    [finishHintForever]
+    [finishHintForever, closeDiscPicker]
   );
 
-  useEffect(() => {
-    if (!hasSelectedDiscId(selectedDiscId)) return;
-    if (!pendingChipScrollRef.current) return;
-    pendingChipScrollRef.current = false;
-    const el = chipRefs.current[String(selectedDiscId)];
-    if (el && chipScrollRef.current) {
-      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-    }
-  }, [selectedDiscId]);
+  useLayoutEffect(() => {
+    if (!dropdownOpen || !discPickerTriggerRef.current) return;
+    const el = discPickerTriggerRef.current;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setDiscPickerMenuRect({ top: r.bottom + 8, left: r.left, width: r.width });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [dropdownOpen]);
 
-  const onBgClick = useCallback(() => {
-    userInteractedRef.current = true;
-    setSelectedDiscId((prev) => {
-      if (prev != null) queueMicrotask(finishHintForever);
-      return null;
-    });
-  }, [finishHintForever]);
+  const onChartBgClick = useCallback(() => {
+    closeDiscPicker();
+  }, [closeDiscPicker]);
 
   const skillLabel = SKILL_PROFILES[skillLevel]?.label ?? skillLevel;
   const handLabel = useMemo(
@@ -380,6 +362,25 @@ export default function FlightChart({ bagDiscs }) {
     const n = displayFlights.length;
     return `Bag flight chart showing ${n} disc${n !== 1 ? 's' : ''} at ${skillLabel} level, ${handLabel} throw`;
   }, [displayFlights.length, skillLabel, handLabel]);
+
+  const discPickerSummary = useMemo(() => {
+    const total = displayFlights.length;
+    if (total === 0) return 'Highlight a disc';
+    if (!hasSelectedDiscId(highlightedDiscId)) {
+      return `All ${total} disc${total !== 1 ? 's' : ''} shown`;
+    }
+    const f = displayFlights.find((x) => discIdsEqual(x.disc.id, highlightedDiscId));
+    return f ? `Highlighting: ${f.disc.name}` : 'Highlight a disc';
+  }, [highlightedDiscId, displayFlights]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setDropdownOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [dropdownOpen]);
 
   if (!bagDiscs?.length) return null;
 
@@ -568,7 +569,7 @@ export default function FlightChart({ bagDiscs }) {
           style={{ maxWidth: '100%', height: 'auto' }}
           role="img"
           aria-label={svgAria}
-          onClick={onBgClick}
+          onClick={onChartBgClick}
         >
           <defs />
           <rect width={CHART_W} height={chartH} fill="transparent" pointerEvents="none" />
@@ -622,12 +623,12 @@ export default function FlightChart({ bagDiscs }) {
             );
           })}
 
-          {/* Layer 2: non-selected paths (overview: all paths here) */}
+          {/* Layer 2: all discs at equal weight, or dimmed non-highlighted when one disc is emphasized */}
           {displayFlights.map((flight) => {
-            if (hasSelectedDiscId(selectedDiscId) && discIdsEqual(flight.disc.id, selectedDiscId)) return null;
+            if (hasSelectedDiscId(highlightedDiscId) && discIdsEqual(flight.disc.id, highlightedDiscId)) return null;
             const std = flight.paths.standard;
             const d = pathD(std);
-            const overview = selectedDiscId == null;
+            const overview = highlightedDiscId == null;
             const strokeW = overview ? 2.5 : 1.5;
 
             return (
@@ -721,7 +722,7 @@ export default function FlightChart({ bagDiscs }) {
             )}
 
           {/* Selected disc main line only while paths are animating (skill/hand change) */}
-          {hasSelectedDiscId(selectedDiscId) &&
+          {hasSelectedDiscId(primaryId) &&
             selectedDisplayFlight &&
             selectedFlight &&
             isAnimating && (
@@ -755,12 +756,36 @@ export default function FlightChart({ bagDiscs }) {
                 style={{ cursor: 'pointer' }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  selectDisc(flight.disc.id);
+                  toggleHighlight(flight.disc.id);
                 }}
               />
             );
           })}
         </svg>
+      </div>
+
+      <div className="relative mt-3">
+        <button
+          ref={discPickerTriggerRef}
+          type="button"
+          onClick={() => setDropdownOpen((o) => !o)}
+          aria-expanded={dropdownOpen}
+          aria-haspopup="listbox"
+          className="no-hover-scale flex w-full min-h-[44px] items-center justify-between gap-2 rounded-2xl border border-solid px-3 py-2.5 text-left text-[13px] font-medium transition-colors flight-chart-themed"
+          style={{
+            backgroundColor: 'var(--chart-chip-bg)',
+            borderColor: 'var(--chart-chip-border)',
+            color: 'var(--chart-title-text)',
+            boxShadow: 'var(--chart-chip-shadow)',
+          }}
+        >
+          <span className="min-w-0 truncate">{discPickerSummary}</span>
+          <ChevronDown
+            className={`shrink-0 w-[18px] h-[18px] transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+            style={{ color: 'var(--chart-muted-text)' }}
+            aria-hidden
+          />
+        </button>
       </div>
 
       <AnimatePresence>
@@ -846,82 +871,114 @@ export default function FlightChart({ bagDiscs }) {
           style={{ color: 'var(--chart-hint-text)' }}
         >
           {hintPhase === 'initial'
-            ? 'Tap a disc to see its detailed flight'
-            : 'Tap again to deselect'}
+            ? 'Use the disc picker below the chart to highlight one flight'
+            : 'Uncheck the box or tap the path again to show all discs equally'}
         </Motion.p>
       )}
       {hintPhase === 'gone' && <div className="my-2 h-[18px]" aria-hidden />}
 
-      <div
-        ref={chipScrollRef}
-        className="flex flex-nowrap overflow-x-auto overflow-y-hidden py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden justify-start"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {displayFlights.map((flight) => {
-          const sel = discIdsEqual(selectedDiscId, flight.disc.id);
-          const overspeed = flight.effective.isOverspeed;
-          const bounce = discIdsEqual(bounceChipId, flight.disc.id);
-          return (
-            <Motion.button
-              key={flight.disc.id}
-              type="button"
-              ref={(el) => {
-                chipRefs.current[String(flight.disc.id)] = el;
+      {typeof document !== 'undefined' &&
+        dropdownOpen &&
+        discPickerMenuRect &&
+        createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[1000]"
+              style={{ backgroundColor: 'transparent' }}
+              onClick={closeDiscPicker}
+              aria-hidden
+            />
+            <div
+              className="fixed z-[1001] flex max-h-[60vh] flex-col overflow-hidden rounded-2xl border border-solid box-border flight-chart-themed md:max-h-[min(80vh,560px)]"
+              style={{
+                top: discPickerMenuRect.top,
+                left: Math.max(12, discPickerMenuRect.left),
+                width: Math.min(
+                  discPickerMenuRect.width,
+                  typeof window !== 'undefined' ? window.innerWidth - 24 : discPickerMenuRect.width
+                ),
+                maxWidth: 'min(100vw - 1.5rem, 500px)',
+                backgroundColor: 'var(--chart-card-bg)',
+                borderColor: 'var(--chart-card-border)',
+                boxShadow: 'var(--chart-chip-shadow)',
               }}
-              aria-pressed={sel}
-              aria-label={`${flight.disc.name}, speed ${flight.disc.speed}`}
-              title={overspeed ? discWarnings.get(flight.disc.id) ?? undefined : undefined}
-              onClick={() => selectDisc(flight.disc.id)}
-              animate={bounce ? { scale: [1, 1.08, 1] } : { scale: 1 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-              className={[
-                'no-hover-scale group shrink-0 flex items-center gap-1.5 min-h-[44px] pl-2.5 pr-3.5 py-1.5 rounded-[20px] cursor-pointer mr-2 border border-solid',
-                'transition-all duration-[120ms] ease-out max-[319px]:text-[11px]',
-                'active:scale-[0.97] active:duration-60 hover:scale-[1.03]',
-                sel ? 'font-bold' : 'hover:bg-[var(--chart-chip-hover-bg)] hover:border-[var(--chart-chip-hover-border)]',
-                !sel ? 'active:bg-[var(--chart-chip-press-bg)]' : '',
-              ].join(' ')}
-              style={
-                sel
-                  ? {
-                      backgroundColor: hexToRgba(flight.color, 0.2),
-                      borderColor: hexToRgba(flight.color, 0.6),
-                      borderWidth: '1.5px',
-                      color: 'var(--chart-title-text)',
-                      boxShadow: 'var(--chart-chip-shadow)',
-                    }
-                  : {
-                      backgroundColor: 'var(--chart-chip-bg)',
-                      borderColor: 'var(--chart-chip-border)',
-                      color: overspeed ? 'var(--chart-muted-text)' : 'var(--chart-chip-text)',
-                      boxShadow: 'var(--chart-chip-shadow)',
-                    }
-              }
+              role="listbox"
+              aria-multiselectable="false"
+              aria-label="Discs on flight chart"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Motion.span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: flight.color }}
-                whileHover={!sel ? { scale: [1, 1.4, 1] } : undefined}
-                transition={{ duration: 0.3 }}
-              />
-              <span className="whitespace-nowrap text-[13px] font-medium max-[319px]:text-[11px]">
-                {flight.disc.name}
-              </span>
-              <span
-                className="text-[12px] tabular-nums flex items-center gap-0.5"
-                style={{ color: overspeed ? 'var(--chart-muted-text)' : 'var(--chart-chip-speed)' }}
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
+                {displayFlights.map((flight) => {
+                  const isHighlighted =
+                    hasSelectedDiscId(highlightedDiscId) && discIdsEqual(highlightedDiscId, flight.disc.id);
+                  const overspeed = flight.effective.isOverspeed;
+                  const mfr = manufacturerByDiscId.get(String(flight.disc.id)) ?? '\u2014';
+                  return (
+                    <button
+                      key={flight.disc.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isHighlighted}
+                      title={overspeed ? discWarnings.get(flight.disc.id) ?? undefined : undefined}
+                      onClick={() => toggleHighlight(flight.disc.id)}
+                      className="no-hover-scale mb-1 flex w-full min-h-[48px] items-center gap-2 rounded-xl px-2 py-2 text-left last:mb-0 active:scale-[0.99] transition-transform"
+                      style={{
+                        borderLeftWidth: 3,
+                        borderLeftStyle: 'solid',
+                        borderLeftColor: flight.color,
+                        backgroundColor: isHighlighted ? 'var(--chart-chip-hover-bg)' : 'var(--chart-chip-bg)',
+                      }}
+                    >
+                      <span className="shrink-0 flex items-center justify-center" style={{ color: flight.color }}>
+                        {isHighlighted ? (
+                          <CheckSquare className="h-5 w-5" strokeWidth={2} aria-hidden />
+                        ) : (
+                          <Square className="h-5 w-5" strokeWidth={2} aria-hidden />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-bold" style={{ color: 'var(--chart-title-text)' }}>
+                          {flight.disc.name}
+                        </span>
+                        <span className="block truncate text-[11px]" style={{ color: 'var(--chart-muted-text)' }}>
+                          {mfr}
+                        </span>
+                      </span>
+                      <span
+                        className="shrink-0 text-[11px] tabular-nums text-right whitespace-nowrap leading-snug"
+                        style={{ color: overspeed ? 'var(--chart-muted-text)' : 'var(--chart-chip-speed)' }}
+                      >
+                        {flight.disc.speed} / {flight.disc.glide} / {flight.disc.turn} / {flight.disc.fade}
+                        {overspeed && (
+                          <span className="ml-0.5 text-[10px]" style={{ color: 'var(--chart-warning)' }} aria-hidden>
+                            ⚠
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                className="shrink-0 border-t border-solid px-3 py-2"
+                style={{ borderColor: 'var(--chart-card-border)' }}
               >
-                {flight.disc.speed}
-                {overspeed && (
-                  <span className="text-[10px]" style={{ color: 'var(--chart-warning)' }} aria-hidden>
-                    ⚠
-                  </span>
-                )}
-              </span>
-            </Motion.button>
-          );
-        })}
-      </div>
+                <button
+                  type="button"
+                  onClick={closeDiscPicker}
+                  className="no-hover-scale w-full min-h-[44px] rounded-2xl text-[14px] font-bold transition-colors"
+                  style={{
+                    backgroundColor: 'var(--chart-toggle-active-bg)',
+                    color: 'var(--chart-toggle-active-text)',
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }

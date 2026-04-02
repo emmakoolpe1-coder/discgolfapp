@@ -106,84 +106,152 @@ const PB_CATEGORIES = ['Lowest Round','Most Birdies','Longest Putt','Best Score'
 
 // Mold flight number lookup: { manufacturer, mold, speed, glide, turn, fade } — used for auto-fill in add/edit disc form
 const MOLD_LOOKUP = [
-  // Innova (20)
-  { manufacturer:'Innova', mold:'Aviar', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Innova', mold:'Aviar3', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Innova', mold:'AviarX3', speed:2, glide:2, turn:0, fade:3 },
-  { manufacturer:'Innova', mold:'Mako3', speed:5, glide:5, turn:0, fade:0 }, { manufacturer:'Innova', mold:'Roc', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Roc3', speed:5, glide:4, turn:0, fade:3 },
-  { manufacturer:'Innova', mold:'Leopard', speed:6, glide:5, turn:-2, fade:1 }, { manufacturer:'Innova', mold:'Leopard3', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Innova', mold:'Teebird', speed:7, glide:5, turn:0, fade:2 },
-  { manufacturer:'Innova', mold:'Teebird3', speed:8, glide:4, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Thunderbird', speed:9, glide:5, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Firebird', speed:9, glide:3, turn:0, fade:4 },
-  { manufacturer:'Innova', mold:'Sidewinder', speed:9, glide:5, turn:-3, fade:1 }, { manufacturer:'Innova', mold:'Valkyrie', speed:9, glide:4, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Roadrunner', speed:9, glide:5, turn:-4, fade:1 },
-  { manufacturer:'Innova', mold:'Beast', speed:10, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Orc', speed:10, glide:4, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Wraith', speed:11, glide:5, turn:-1, fade:3 },
-  { manufacturer:'Innova', mold:'Tern', speed:11, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Destroyer', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Shryke', speed:13, glide:6, turn:-2, fade:2 },
-  // Discraft (20)
-  { manufacturer:'Discraft', mold:'Luna', speed:3, glide:3, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Fierce', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Discraft', mold:'Zone', speed:4, glide:3, turn:0, fade:3 },
-  { manufacturer:'Discraft', mold:'Buzzz', speed:5, glide:4, turn:-1, fade:1 }, { manufacturer:'Discraft', mold:'Buzzz SS', speed:5, glide:4, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Comet', speed:5, glide:5, turn:-2, fade:1 },
-  { manufacturer:'Discraft', mold:'Stalker', speed:7, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Mantis', speed:8, glide:5, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Undertaker', speed:9, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Discraft', mold:'Raptor', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Avenger SS', speed:10, glide:5, turn:-3, fade:1 }, { manufacturer:'Discraft', mold:'Vulture', speed:10, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Discraft', mold:'Thrasher', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Zeus', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Force', speed:12, glide:5, turn:0, fade:3 },
-  { manufacturer:'Discraft', mold:'Crank', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Nuke', speed:13, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Hades', speed:12, glide:6, turn:-3, fade:2 },
-  { manufacturer:'Discraft', mold:'Scorch', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Passion', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Cicada', speed:8, glide:6, turn:-2, fade:1 },
-  // Dynamic Discs (18)
-  { manufacturer:'Dynamic Discs', mold:'Judge', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Deputy', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Dynamic Discs', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
-  { manufacturer:'Dynamic Discs', mold:'Truth', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Verdict', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Emac Truth', speed:5, glide:5, turn:0, fade:2 },
-  { manufacturer:'Dynamic Discs', mold:'Escape', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Getaway', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Felon', speed:9, glide:4, turn:0, fade:4 },
-  { manufacturer:'Dynamic Discs', mold:'Raider', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Enforcer', speed:12, glide:5, turn:0, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Sheriff', speed:12, glide:6, turn:-1, fade:2 },
-  { manufacturer:'Dynamic Discs', mold:'Lucid-X Felon', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Evader', speed:8, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Maverick', speed:7, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Dynamic Discs', mold:'Slammer', speed:3, glide:2, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Warden', speed:2, glide:4, turn:0, fade:1 },
-  // MVP (18)
-  { manufacturer:'MVP', mold:'Ion', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'MVP', mold:'Anode', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'MVP', mold:'Entropy', speed:4, glide:2, turn:0, fade:3 },
-  { manufacturer:'MVP', mold:'Hex', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Reactor', speed:5, glide:5, turn:-0.5, fade:1.5 }, { manufacturer:'MVP', mold:'Matrix', speed:5, glide:4, turn:0, fade:2 },
-  { manufacturer:'MVP', mold:'Servo', speed:6, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Resistor', speed:6, glide:4, turn:0, fade:3 },
-  { manufacturer:'MVP', mold:'Volt', speed:8, glide:5, turn:-0.5, fade:2 }, { manufacturer:'MVP', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 }, { manufacturer:'MVP', mold:'Wave', speed:11, glide:5, turn:-2, fade:2 },
-  { manufacturer:'MVP', mold:'Photon', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Catalyst', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'MVP', mold:'Defy', speed:11, glide:5, turn:0, fade:3 },
-  { manufacturer:'MVP', mold:'Tesla', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Motion', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'MVP', mold:'Relay', speed:6, glide:5, turn:-2, fade:1 },
-  // Latitude 64 (18)
-  { manufacturer:'Latitude 64', mold:'Pure', speed:3, glide:3, turn:0, fade:0 }, { manufacturer:'Latitude 64', mold:'Keystone', speed:3, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
-  { manufacturer:'Latitude 64', mold:'Fuse', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Compass', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Latitude 64', mold:'River', speed:7, glide:7, turn:-1, fade:1 },
-  { manufacturer:'Latitude 64', mold:'Saint', speed:9, glide:7, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Saint Pro', speed:9, glide:6, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Explorer', speed:7, glide:5, turn:0, fade:2 },
-  { manufacturer:'Latitude 64', mold:'Pioneer', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Latitude 64', mold:'Grace', speed:11, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Rive', speed:12, glide:6, turn:0, fade:3 },
-  { manufacturer:'Latitude 64', mold:'Ballista', speed:14, glide:5, turn:-1, fade:3 }, { manufacturer:'Latitude 64', mold:'Sapphire', speed:10, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Diamond', speed:8, glide:6, turn:-3, fade:1 },
-  { manufacturer:'Latitude 64', mold:'Trust', speed:9, glide:5, turn:0, fade:2 }, { manufacturer:'Latitude 64', mold:'Anchor', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Recoil', speed:9, glide:5, turn:0, fade:3 },
-  // Kastaplast (18)
-  { manufacturer:'Kastaplast', mold:'Reko', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Kastaplast', mold:'Berg', speed:1, glide:1, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Järn', speed:4, glide:2, turn:0, fade:3 },
-  { manufacturer:'Kastaplast', mold:'Göte', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Kaxe', speed:6, glide:4, turn:0, fade:3 }, { manufacturer:'Kastaplast', mold:'Kaxe Z', speed:6, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Lots', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Stål', speed:9, glide:4, turn:0, fade:3 },
-  { manufacturer:'Kastaplast', mold:'Svea', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Grym X', speed:11, glide:5, turn:0, fade:3 },
-  { manufacturer:'Kastaplast', mold:'Grym', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Kastaplast', mold:'Guld', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 },
-  { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Stig', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Vass', speed:13, glide:5, turn:-1, fade:3 },
-  // Westside (18)
-  { manufacturer:'Westside', mold:'Shield', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Westside', mold:'Harp', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Westside', mold:'Maiden', speed:3, glide:4, turn:0, fade:0 },
-  { manufacturer:'Westside', mold:'Warship', speed:5, glide:6, turn:0, fade:0 }, { manufacturer:'Westside', mold:'Gatekeeper', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Sling', speed:5, glide:5, turn:-2, fade:0 },
-  { manufacturer:'Westside', mold:'Seer', speed:7, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Stag', speed:8, glide:6, turn:-1, fade:2 }, { manufacturer:'Westside', mold:'Northman', speed:10, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Westside', mold:'Ahti', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Westside', mold:'Boatman', speed:11, glide:5, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Giant', speed:12, glide:5, turn:-1, fade:3 },
-  { manufacturer:'Westside', mold:'King', speed:14, glide:5, turn:-1.5, fade:2 }, { manufacturer:'Westside', mold:'Fortress', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Westside', mold:'Underworld', speed:7, glide:6, turn:-3, fade:1 },
-  { manufacturer:'Westside', mold:'Hatchet', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Destiny', speed:14, glide:6, turn:-2, fade:2 }, { manufacturer:'Westside', mold:'Adder', speed:13, glide:5, turn:-2, fade:2 },
-  // Prodigy (18)
-  { manufacturer:'Prodigy', mold:'PA-3', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Prodigy', mold:'PA-1', speed:2, glide:3, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'A2', speed:4, glide:2, turn:0, fade:3 },
-  { manufacturer:'Prodigy', mold:'M4', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Prodigy', mold:'M2', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'MX-3', speed:5, glide:5, turn:-1, fade:1 },
-  { manufacturer:'Prodigy', mold:'F5', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Prodigy', mold:'F2', speed:7, glide:5, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'H3 V2', speed:10, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Prodigy', mold:'H1 V2', speed:10, glide:4, turn:0, fade:4 }, { manufacturer:'Prodigy', mold:'D2', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Prodigy', mold:'D1', speed:12, glide:5, turn:0, fade:3 },
-  { manufacturer:'Prodigy', mold:'D3', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Prodigy', mold:'X3', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'Prodigy', mold:'FX-2', speed:9, glide:4, turn:0, fade:3 },
-  { manufacturer:'Prodigy', mold:'PA-2', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'M3', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'D4', speed:13, glide:6, turn:-3, fade:2 },
-  // Axiom (8), Streamline (6), Lone Star (6), Mint (6), RPM (6), TSA (6), DGA (6), Gateway (6), Clash (6)
-  { manufacturer:'Axiom', mold:'Envy', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Axiom', mold:'Proxy', speed:3, glide:3, turn:-1, fade:0 }, { manufacturer:'Axiom', mold:'Pyro', speed:5, glide:4, turn:0, fade:3 },
-  { manufacturer:'Axiom', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'Axiom', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 }, { manufacturer:'Axiom', mold:'Wrath', speed:9, glide:4, turn:0, fade:3 },
-  { manufacturer:'Axiom', mold:'Fireball', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Axiom', mold:'Defy', speed:11, glide:5, turn:0, fade:3 },
-  { manufacturer:'Streamline', mold:'Pilot', speed:2, glide:5, turn:0, fade:0 }, { manufacturer:'Streamline', mold:'Stabilizer', speed:3, glide:3, turn:0, fade:3 }, { manufacturer:'Streamline', mold:'Runway', speed:5, glide:4, turn:0, fade:3 },
-  { manufacturer:'Streamline', mold:'Flare', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Streamline', mold:'Trace', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'Streamline', mold:'Lift', speed:9, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Lone Star', mold:'Armadillo', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Lone Star', mold:'Mad Cat', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Lone Star', mold:'Mongoose', speed:9, glide:5, turn:-2, fade:2 },
-  { manufacturer:'Lone Star', mold:'Curve', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Lone Star', mold:'Walker', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Lone Star', mold:'Copperhead', speed:9, glide:4, turn:0, fade:3 },
-  { manufacturer:'Mint', mold:'Lobster', speed:5, glide:5, turn:-3, fade:0 }, { manufacturer:'Mint', mold:'Mustang', speed:5, glide:5, turn:0, fade:2 }, { manufacturer:'Mint', mold:'Freetail', speed:9, glide:5, turn:-2, fade:2 },
-  { manufacturer:'Mint', mold:'Alpha', speed:10, glide:5, turn:0, fade:3 }, { manufacturer:'Mint', mold:'Longhorn', speed:12, glide:5, turn:-1, fade:2 }, { manufacturer:'Mint', mold:'Goat', speed:13, glide:5, turn:0, fade:3 },
+  // Innova (57)
+  { manufacturer:'Innova', mold:'Ape', speed:13, glide:5, turn:0, fade:4 }, { manufacturer:'Innova', mold:'Aviar', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Innova', mold:'Aviar3', speed:2, glide:3, turn:0, fade:2 },
+  { manufacturer:'Innova', mold:'AviarX3', speed:2, glide:2, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Beast', speed:10, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Birdie', speed:1, glide:2, turn:0, fade:0 },
+  { manufacturer:'Innova', mold:'Boss', speed:13, glide:5, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Caiman', speed:5, glide:2, turn:0, fade:4 }, { manufacturer:'Innova', mold:'Colt', speed:3, glide:4, turn:-1, fade:1 },
+  { manufacturer:'Innova', mold:'Colossus', speed:14, glide:5, turn:-2, fade:3 }, { manufacturer:'Innova', mold:'Corvette', speed:14, glide:6, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Dart', speed:3, glide:4, turn:0, fade:0 },
+  { manufacturer:'Innova', mold:'Destroyer', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Dragon', speed:8, glide:5, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Eagle', speed:7, glide:4, turn:-1, fade:3 },
+  { manufacturer:'Innova', mold:'Firebird', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Innova', mold:'Foxbat', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Innova', mold:'Gator', speed:5, glide:2, turn:0, fade:3 },
+  { manufacturer:'Innova', mold:'Gator3', speed:5, glide:2, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Hawkeye', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'Innova', mold:'Invader', speed:2, glide:3, turn:0, fade:1 },
+  { manufacturer:'Innova', mold:'Katana', speed:13, glide:5, turn:-3, fade:3 }, { manufacturer:'Innova', mold:'Leopard', speed:6, glide:5, turn:-2, fade:1 }, { manufacturer:'Innova', mold:'Leopard3', speed:7, glide:5, turn:-2, fade:1 },
+  { manufacturer:'Innova', mold:'Lion', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Mako3', speed:5, glide:5, turn:0, fade:0 }, { manufacturer:'Innova', mold:'Mamba', speed:11, glide:6, turn:-5, fade:1 },
+  { manufacturer:'Innova', mold:'Mirage', speed:5, glide:5, turn:-3, fade:0 }, { manufacturer:'Innova', mold:'Monster', speed:10, glide:3, turn:0, fade:5 }, { manufacturer:'Innova', mold:'Mystere', speed:11, glide:6, turn:-2, fade:2 },
+  { manufacturer:'Innova', mold:'Nova', speed:2, glide:3, turn:0, fade:0 }, { manufacturer:'Innova', mold:'Orc', speed:10, glide:4, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'Panther', speed:5, glide:4, turn:-2, fade:1 },
+  { manufacturer:'Innova', mold:'Pig', speed:3, glide:1, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Polecat', speed:1, glide:3, turn:0, fade:0 }, { manufacturer:'Innova', mold:'Rat', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'Innova', mold:'Rhyno', speed:2, glide:1, turn:0, fade:3 }, { manufacturer:'Innova', mold:'Roadrunner', speed:9, glide:5, turn:-4, fade:1 }, { manufacturer:'Innova', mold:'Roc', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Innova', mold:'Roc3', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Innova', mold:'RocX3', speed:5, glide:3, turn:0, fade:4 }, { manufacturer:'Innova', mold:'Savant', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Innova', mold:'Shark', speed:4, glide:4, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Shryke', speed:13, glide:6, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'Sidewinder', speed:9, glide:5, turn:-3, fade:1 },
+  { manufacturer:'Innova', mold:'Stud', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Innova', mold:'TL', speed:7, glide:5, turn:0, fade:1 }, { manufacturer:'Innova', mold:'TL3', speed:8, glide:4, turn:0, fade:1 },
+  { manufacturer:'Innova', mold:'Teebird', speed:7, glide:5, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Teebird3', speed:8, glide:4, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Tern', speed:11, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Innova', mold:'Thunderbird', speed:9, glide:5, turn:0, fade:2 }, { manufacturer:'Innova', mold:'Valkyrie', speed:9, glide:4, turn:-2, fade:2 }, { manufacturer:'Innova', mold:'VRoc', speed:4, glide:4, turn:0, fade:1 },
+  { manufacturer:'Innova', mold:'Wombat3', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Innova', mold:'Wraith', speed:11, glide:5, turn:-1, fade:3 }, { manufacturer:'Innova', mold:'XCaliber', speed:12, glide:4, turn:0, fade:4 },
+  // Discmania (17)
+  { manufacturer:'Discmania', mold:'CD2', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Discmania', mold:'DD3', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Discmania', mold:'Enigma', speed:12, glide:6, turn:-1, fade:2 },
+  { manufacturer:'Discmania', mold:'Essence', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Discmania', mold:'FD', speed:7, glide:6, turn:-1, fade:1 }, { manufacturer:'Discmania', mold:'Instinct', speed:7, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Discmania', mold:'Link', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Discmania', mold:'Logic', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Discmania', mold:'MD3', speed:5, glide:5, turn:0, fade:2 },
+  { manufacturer:'Discmania', mold:'Method', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Discmania', mold:'Mutant', speed:5, glide:2, turn:0, fade:4 }, { manufacturer:'Discmania', mold:'Origin', speed:5, glide:5, turn:-1, fade:0 },
+  { manufacturer:'Discmania', mold:'P2', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Discmania', mold:'PD', speed:10, glide:4, turn:0, fade:3 }, { manufacturer:'Discmania', mold:'Rainmaker', speed:2, glide:3, turn:0, fade:2 },
+  { manufacturer:'Discmania', mold:'Sensei', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Discmania', mold:'Tactic', speed:4, glide:2, turn:0, fade:3 },
+  // Discraft (42)
+  { manufacturer:'Discraft', mold:'Anax', speed:10, glide:6, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Archer', speed:5, glide:4, turn:-4, fade:1 }, { manufacturer:'Discraft', mold:'Ares', speed:12, glide:6, turn:-1, fade:2 },
+  { manufacturer:'Discraft', mold:'Athena', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Avenger SS', speed:10, glide:5, turn:-3, fade:1 }, { manufacturer:'Discraft', mold:'Banger GT', speed:2, glide:3, turn:0, fade:1 },
+  { manufacturer:'Discraft', mold:'Buzzz', speed:5, glide:4, turn:-1, fade:1 }, { manufacturer:'Discraft', mold:'Buzzz OS', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Buzzz SS', speed:5, glide:4, turn:-2, fade:1 },
+  { manufacturer:'Discraft', mold:'Challenger', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Discraft', mold:'Cicada', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Cigarra', speed:7, glide:6, turn:-1, fade:2 },
+  { manufacturer:'Discraft', mold:'Comet', speed:5, glide:5, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Crank', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Crank SS', speed:13, glide:5, turn:-3, fade:3 },
+  { manufacturer:'Discraft', mold:'Fierce', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Discraft', mold:'Force', speed:12, glide:5, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Hades', speed:12, glide:6, turn:-3, fade:2 },
+  { manufacturer:'Discraft', mold:'Hallux', speed:10, glide:5, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Heat', speed:9, glide:6, turn:-3, fade:1 }, { manufacturer:'Discraft', mold:'Kratos', speed:3, glide:3, turn:0, fade:3 },
+  { manufacturer:'Discraft', mold:'Luna', speed:3, glide:3, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Machete', speed:11, glide:4, turn:0, fade:4 }, { manufacturer:'Discraft', mold:'Maltese', speed:5, glide:4, turn:0, fade:3 },
+  { manufacturer:'Discraft', mold:'Mantis', speed:8, glide:5, turn:-2, fade:1 }, { manufacturer:'Discraft', mold:'Meteor', speed:5, glide:5, turn:-3, fade:1 }, { manufacturer:'Discraft', mold:'Nuke', speed:13, glide:5, turn:-1, fade:3 },
+  { manufacturer:'Discraft', mold:'Nuke SS', speed:13, glide:5, turn:-3, fade:3 }, { manufacturer:'Discraft', mold:'Passion', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Punisher', speed:12, glide:5, turn:0, fade:3 },
+  { manufacturer:'Discraft', mold:'Raptor', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Discraft', mold:'Roach', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Discraft', mold:'Scorch', speed:11, glide:6, turn:-2, fade:2 },
+  { manufacturer:'Discraft', mold:'Stalker', speed:7, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Surge', speed:13, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Surge SS', speed:13, glide:5, turn:-2, fade:3 },
+  { manufacturer:'Discraft', mold:'Thrasher', speed:12, glide:5, turn:-2, fade:2 }, { manufacturer:'Discraft', mold:'Undertaker', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Discraft', mold:'Vulture', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Discraft', mold:'Wasp', speed:5, glide:3, turn:0, fade:2 }, { manufacturer:'Discraft', mold:'Zeus', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Discraft', mold:'Zone', speed:4, glide:3, turn:0, fade:3 },
+  // Dynamic Discs (32)
+  { manufacturer:'Dynamic Discs', mold:'Bounty', speed:4, glide:5, turn:-1.5, fade:0.5 }, { manufacturer:'Dynamic Discs', mold:'Breakout', speed:8, glide:5, turn:-1, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Captain', speed:13, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Contender', speed:9, glide:6, turn:-1, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Convict', speed:9, glide:4, turn:-0.5, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Criminal', speed:10, glide:3, turn:0.5, fade:4 },
+  { manufacturer:'Dynamic Discs', mold:'Deputy', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'Dynamic Discs', mold:'Emac Truth', speed:5, glide:5, turn:0, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Enforcer', speed:12, glide:5, turn:0, fade:4 },
+  { manufacturer:'Dynamic Discs', mold:'Escape', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Evader', speed:8, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Evidence', speed:5, glide:5, turn:-1, fade:0 },
+  { manufacturer:'Dynamic Discs', mold:'Felon', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Freedom', speed:14, glide:5, turn:-3, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Fugitive', speed:5, glide:5, turn:-0.5, fade:1.7 },
+  { manufacturer:'Dynamic Discs', mold:'Getaway', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Guard', speed:2, glide:3, turn:0, fade:1.5 }, { manufacturer:'Dynamic Discs', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Dynamic Discs', mold:'Judge', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Justice', speed:5, glide:2, turn:0.5, fade:4 }, { manufacturer:'Dynamic Discs', mold:'Lucid-X Felon', speed:9, glide:4, turn:0, fade:4 },
+  { manufacturer:'Dynamic Discs', mold:'Maverick', speed:7, glide:5, turn:-1, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Raider', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Sergeant', speed:11, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Sheriff', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Dynamic Discs', mold:'Slammer', speed:3, glide:2, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Suspect', speed:4, glide:3, turn:0, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Trespass', speed:12, glide:5, turn:-0.5, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Truth', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Dynamic Discs', mold:'Vandal', speed:9, glide:5, turn:-1.5, fade:2 },
+  { manufacturer:'Dynamic Discs', mold:'Verdict', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Dynamic Discs', mold:'Warden', speed:2, glide:4, turn:0, fade:1 },
+  // MVP (22)
+  { manufacturer:'MVP', mold:'Anode', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'MVP', mold:'Atom', speed:3, glide:3, turn:-0.5, fade:1 }, { manufacturer:'MVP', mold:'Catalyst', speed:12, glide:6, turn:-2, fade:2 },
+  { manufacturer:'MVP', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Deflector', speed:5, glide:3, turn:0, fade:4 }, { manufacturer:'MVP', mold:'Defy', speed:11, glide:5, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Entropy', speed:4, glide:2, turn:0, fade:3 }, { manufacturer:'MVP', mold:'Hex', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'MVP', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 },
+  { manufacturer:'MVP', mold:'Ion', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'MVP', mold:'Matrix', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'MVP', mold:'Motion', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Octane', speed:10, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Ohm', speed:2, glide:5, turn:0, fade:0 }, { manufacturer:'MVP', mold:'Photon', speed:11, glide:5, turn:-1, fade:2 },
+  { manufacturer:'MVP', mold:'Reactor', speed:5, glide:5, turn:-0.5, fade:1.5 }, { manufacturer:'MVP', mold:'Relay', speed:6, glide:5, turn:-2, fade:1 }, { manufacturer:'MVP', mold:'Resistor', speed:6, glide:4, turn:0, fade:3 },
+  { manufacturer:'MVP', mold:'Servo', speed:6, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Tesla', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'MVP', mold:'Volt', speed:8, glide:5, turn:-0.5, fade:2 },
+  { manufacturer:'MVP', mold:'Wave', speed:11, glide:5, turn:-2, fade:2 },
+  // Latitude 64 (20)
+  { manufacturer:'Latitude 64', mold:'Anchor', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Ballista', speed:14, glide:5, turn:-1, fade:3 }, { manufacturer:'Latitude 64', mold:'Ballista Pro', speed:14, glide:4, turn:0, fade:3 },
+  { manufacturer:'Latitude 64', mold:'Compass', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Latitude 64', mold:'Diamond', speed:8, glide:6, turn:-3, fade:1 }, { manufacturer:'Latitude 64', mold:'Explorer', speed:7, glide:5, turn:0, fade:2 },
+  { manufacturer:'Latitude 64', mold:'Fuse', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Grace', speed:11, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Latitude 64', mold:'Keystone', speed:3, glide:5, turn:-1, fade:0 }, { manufacturer:'Latitude 64', mold:'Mercy', speed:2, glide:4, turn:0, fade:1 }, { manufacturer:'Latitude 64', mold:'Pioneer', speed:9, glide:4, turn:0, fade:4 },
+  { manufacturer:'Latitude 64', mold:'Pure', speed:3, glide:3, turn:0, fade:0 }, { manufacturer:'Latitude 64', mold:'Recoil', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'River', speed:7, glide:7, turn:-1, fade:1 },
+  { manufacturer:'Latitude 64', mold:'Rive', speed:12, glide:6, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Saint', speed:9, glide:7, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Saint Pro', speed:9, glide:6, turn:0, fade:3 },
+  { manufacturer:'Latitude 64', mold:'Sapphire', speed:10, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Trust', speed:9, glide:5, turn:0, fade:2 },
+  // Kastaplast (20)
+  { manufacturer:'Kastaplast', mold:'Berg', speed:1, glide:1, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 },
+  { manufacturer:'Kastaplast', mold:'Göte', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Grym', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Kastaplast', mold:'Grym X', speed:11, glide:5, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Guld', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Impa', speed:11, glide:6, turn:-4, fade:1 }, { manufacturer:'Kastaplast', mold:'Järn', speed:4, glide:2, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Kaxe', speed:6, glide:4, turn:0, fade:3 }, { manufacturer:'Kastaplast', mold:'Kaxe Z', speed:6, glide:5, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Lots', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Reko', speed:3, glide:3, turn:0, fade:1 },
+  { manufacturer:'Kastaplast', mold:'Reko X', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Stig', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Stål', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Kastaplast', mold:'Svea', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Vass', speed:13, glide:5, turn:-1, fade:3 },
+  // Westside (22)
+  { manufacturer:'Westside', mold:'Adder', speed:13, glide:5, turn:-2, fade:2 }, { manufacturer:'Westside', mold:'Ahti', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Westside', mold:'Bear', speed:8, glide:6, turn:-2, fade:1 },
+  { manufacturer:'Westside', mold:'Boatman', speed:11, glide:5, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Destiny', speed:14, glide:6, turn:-2, fade:2 }, { manufacturer:'Westside', mold:'Fortress', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Westside', mold:'Gatekeeper', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Westside', mold:'Giant', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Westside', mold:'Harp', speed:4, glide:3, turn:0, fade:3 },
+  { manufacturer:'Westside', mold:'Hatchet', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'King', speed:14, glide:5, turn:-1.5, fade:2 }, { manufacturer:'Westside', mold:'Maiden', speed:3, glide:4, turn:0, fade:0 },
+  { manufacturer:'Westside', mold:'Northman', speed:10, glide:5, turn:-1, fade:2 }, { manufacturer:'Westside', mold:'Seer', speed:7, glide:6, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Shield', speed:3, glide:3, turn:0, fade:1 },
+  { manufacturer:'Westside', mold:'Sling', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Westside', mold:'Stag', speed:8, glide:6, turn:-1, fade:2 }, { manufacturer:'Westside', mold:'Sword', speed:12, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Westside', mold:'Tursas', speed:5, glide:5, turn:-2, fade:1 }, { manufacturer:'Westside', mold:'Underworld', speed:7, glide:6, turn:-3, fade:1 }, { manufacturer:'Westside', mold:'Warship', speed:5, glide:6, turn:0, fade:0 },
+  { manufacturer:'Westside', mold:'World', speed:14, glide:4, turn:1, fade:4 },
+  // Prodigy (34)
+  { manufacturer:'Prodigy', mold:'A1', speed:4, glide:3, turn:0, fade:4 }, { manufacturer:'Prodigy', mold:'A2', speed:4, glide:2, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'A3', speed:4, glide:4, turn:0, fade:3 },
+  { manufacturer:'Prodigy', mold:'A5', speed:4, glide:3, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'D1', speed:12, glide:5, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'D2', speed:12, glide:6, turn:-1, fade:2 },
+  { manufacturer:'Prodigy', mold:'D2 Pro', speed:12, glide:5, turn:-1, fade:3 }, { manufacturer:'Prodigy', mold:'D3', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Prodigy', mold:'D4', speed:13, glide:6, turn:-3, fade:2 },
+  { manufacturer:'Prodigy', mold:'F1', speed:7, glide:4, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'F2', speed:7, glide:5, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'F3', speed:7, glide:5, turn:0, fade:2 },
+  { manufacturer:'Prodigy', mold:'F5', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Prodigy', mold:'F7', speed:7, glide:6, turn:-3, fade:1 }, { manufacturer:'Prodigy', mold:'Feedback', speed:9, glide:5, turn:-1, fade:3 },
+  { manufacturer:'Prodigy', mold:'FX-2', speed:9, glide:4, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'FX-3', speed:9, glide:5, turn:-0.5, fade:2 }, { manufacturer:'Prodigy', mold:'FX-4', speed:9, glide:5, turn:-2, fade:1 },
+  { manufacturer:'Prodigy', mold:'Good Boy', speed:3, glide:5, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'H1 V2', speed:10, glide:4, turn:0, fade:4 }, { manufacturer:'Prodigy', mold:'H2 V2', speed:10, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Prodigy', mold:'H3 V2', speed:10, glide:5, turn:-1, fade:2 }, { manufacturer:'Prodigy', mold:'M1', speed:5, glide:3, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'M2', speed:5, glide:4, turn:0, fade:2 },
+  { manufacturer:'Prodigy', mold:'M3', speed:5, glide:4, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'M4', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Prodigy', mold:'MX-3', speed:5, glide:5, turn:-1, fade:1 },
+  { manufacturer:'Prodigy', mold:'PA-1', speed:2, glide:3, turn:0, fade:3 }, { manufacturer:'Prodigy', mold:'PA-2', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Prodigy', mold:'PA-3', speed:3, glide:3, turn:0, fade:1 },
+  { manufacturer:'Prodigy', mold:'PA-5', speed:3, glide:4, turn:-2, fade:0 }, { manufacturer:'Prodigy', mold:'X1', speed:12, glide:3, turn:0, fade:5 }, { manufacturer:'Prodigy', mold:'X3', speed:11, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Prodigy', mold:'X5', speed:13, glide:5, turn:-4, fade:1 },
+  // Axiom (14)
+  { manufacturer:'Axiom', mold:'Crave', speed:6, glide:5, turn:-1, fade:1 }, { manufacturer:'Axiom', mold:'Defy', speed:11, glide:5, turn:0, fade:3 }, { manufacturer:'Axiom', mold:'Envy', speed:3, glide:3, turn:0, fade:2 },
+  { manufacturer:'Axiom', mold:'Fireball', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Axiom', mold:'Hex', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Axiom', mold:'Insanity', speed:9, glide:5, turn:-2, fade:1.5 },
+  { manufacturer:'Axiom', mold:'Mayhem', speed:13, glide:5, turn:-1.5, fade:2 }, { manufacturer:'Axiom', mold:'Paradox', speed:5, glide:4, turn:-4, fade:0 }, { manufacturer:'Axiom', mold:'Proxy', speed:3, glide:3, turn:-1, fade:0 },
+  { manufacturer:'Axiom', mold:'Pyro', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Axiom', mold:'Tenacity', speed:13, glide:5, turn:-2, fade:2 }, { manufacturer:'Axiom', mold:'Vanish', speed:11, glide:5, turn:-2, fade:1.5 },
+  { manufacturer:'Axiom', mold:'Virus', speed:9, glide:5, turn:-3.5, fade:1 }, { manufacturer:'Axiom', mold:'Wrath', speed:9, glide:4, turn:0, fade:3 },
+  // Streamline (7)
+  { manufacturer:'Streamline', mold:'Drift', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Streamline', mold:'Flare', speed:9, glide:3, turn:0, fade:4 }, { manufacturer:'Streamline', mold:'Lift', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Streamline', mold:'Pilot', speed:2, glide:5, turn:0, fade:0 }, { manufacturer:'Streamline', mold:'Runway', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'Streamline', mold:'Stabilizer', speed:3, glide:3, turn:0, fade:3 },
+  { manufacturer:'Streamline', mold:'Trace', speed:11, glide:5, turn:-1, fade:2 },
+  // Lone Star (10), Mint (7), RPM (6), TSA (8), DGA (9), Gateway (8), Clash (9), Infinite Discs (13), Millennium (7), Flight Lab Discs (4)
+  { manufacturer:'Lone Star', mold:'Armadillo', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Lone Star', mold:'Benny', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Lone Star', mold:'Copperhead', speed:9, glide:4, turn:0, fade:3 },
+  { manufacturer:'Lone Star', mold:'Curve', speed:12, glide:6, turn:-2, fade:2 }, { manufacturer:'Lone Star', mold:'Frio', speed:7, glide:5, turn:-1, fade:1 }, { manufacturer:'Lone Star', mold:'Lone Wolf', speed:5, glide:5, turn:-3, fade:1 },
+  { manufacturer:'Lone Star', mold:'Mad Cat', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Lone Star', mold:'Middy', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'Lone Star', mold:'Mongoose', speed:9, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Lone Star', mold:'Walker', speed:5, glide:5, turn:0, fade:1 },
+  { manufacturer:'Mint', mold:'Alpha', speed:10, glide:5, turn:0, fade:3 }, { manufacturer:'Mint', mold:'Bullet', speed:2.5, glide:3.5, turn:-0.5, fade:1 }, { manufacturer:'Mint', mold:'Freetail', speed:9, glide:5, turn:-2, fade:2 },
+  { manufacturer:'Mint', mold:'Goat', speed:13, glide:5, turn:0, fade:3 }, { manufacturer:'Mint', mold:'Lobster', speed:5, glide:5, turn:-3, fade:0 }, { manufacturer:'Mint', mold:'Longhorn', speed:12, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Mint', mold:'Mustang', speed:5, glide:5, turn:0, fade:2 },
   { manufacturer:'RPM', mold:'Tui', speed:3, glide:4, turn:-1, fade:0 }, { manufacturer:'RPM', mold:'Ruru', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'RPM', mold:'Piwakawaka', speed:7, glide:6, turn:-3, fade:0 },
   { manufacturer:'RPM', mold:'Kotuku', speed:5, glide:5, turn:0, fade:2 }, { manufacturer:'RPM', mold:'Pekapeka', speed:9, glide:5, turn:-2, fade:2 }, { manufacturer:'RPM', mold:'Cosmic', speed:13, glide:5, turn:-1, fade:3 },
-  { manufacturer:'TSA', mold:'Pathfinder', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'TSA', mold:'Mantra', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'TSA', mold:'Votum', speed:9, glide:5, turn:0, fade:3 },
-  { manufacturer:'TSA', mold:'Animus', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'TSA', mold:'Omen', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'TSA', mold:'Praxis', speed:2, glide:4, turn:0, fade:0 },
-  { manufacturer:'DGA', mold:'Breaker', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'DGA', mold:'Pipeline', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'DGA', mold:'Rogue', speed:13, glide:5, turn:-1, fade:3 },
-  { manufacturer:'DGA', mold:'Squall', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'DGA', mold:'Tremor', speed:8, glide:5, turn:-3, fade:1 }, { manufacturer:'DGA', mold:'Hurricane', speed:12, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Gateway', mold:'Wizard', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'Gateway', mold:'Shaman', speed:2, glide:4, turn:-1, fade:0 }, { manufacturer:'Gateway', mold:'Devil Hawk', speed:4, glide:2, turn:0, fade:3 },
-  { manufacturer:'Gateway', mold:'Diamond', speed:5, glide:5, turn:-2, fade:0 }, { manufacturer:'Gateway', mold:'War Spear', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Gateway', mold:'Assassin', speed:10, glide:5, turn:-2, fade:2 },
-  { manufacturer:'Clash', mold:'Berry', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'Clash', mold:'Peach', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Clash', mold:'Mint', speed:5, glide:5, turn:-1, fade:1 },
-  { manufacturer:'Clash', mold:'Cookie', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Clash', mold:'Soda', speed:7, glide:5, turn:-2, fade:1 }, { manufacturer:'Clash', mold:'Disc', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'TSA', mold:'Animus', speed:11, glide:5, turn:-1, fade:2 }, { manufacturer:'TSA', mold:'Construct', speed:5, glide:4, turn:0, fade:3 }, { manufacturer:'TSA', mold:'Mantra', speed:9, glide:6, turn:-2, fade:1 },
+  { manufacturer:'TSA', mold:'Omen', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'TSA', mold:'Pathfinder', speed:5, glide:5, turn:0, fade:1 }, { manufacturer:'TSA', mold:'Praxis', speed:2, glide:4, turn:0, fade:0 },
+  { manufacturer:'TSA', mold:'Synapse', speed:13, glide:5, turn:-1, fade:3 }, { manufacturer:'TSA', mold:'Votum', speed:9, glide:5, turn:0, fade:3 },
+  { manufacturer:'DGA', mold:'Banzai', speed:9, glide:5, turn:-2, fade:2 }, { manufacturer:'DGA', mold:'Breaker', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'DGA', mold:'Hurricane', speed:12, glide:5, turn:-1, fade:2 },
+  { manufacturer:'DGA', mold:'Pipeline', speed:8, glide:5, turn:-1, fade:2 }, { manufacturer:'DGA', mold:'Proline Squall', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'DGA', mold:'Rogue', speed:13, glide:5, turn:-1, fade:3 },
+  { manufacturer:'DGA', mold:'Squall', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'DGA', mold:'Steady BL', speed:2, glide:3, turn:0, fade:2 }, { manufacturer:'DGA', mold:'Tremor', speed:8, glide:5, turn:-3, fade:1 },
+  { manufacturer:'Gateway', mold:'Assassin', speed:10, glide:5, turn:-2, fade:2 }, { manufacturer:'Gateway', mold:'Devil Hawk', speed:4, glide:2, turn:0, fade:3 }, { manufacturer:'Gateway', mold:'Diamond', speed:5, glide:5, turn:-2, fade:0 },
+  { manufacturer:'Gateway', mold:'Magic', speed:2, glide:3, turn:-1, fade:0 }, { manufacturer:'Gateway', mold:'Shaman', speed:2, glide:4, turn:-1, fade:0 }, { manufacturer:'Gateway', mold:'Voodoo', speed:2, glide:3, turn:0, fade:1 },
+  { manufacturer:'Gateway', mold:'War Spear', speed:9, glide:5, turn:0, fade:3 }, { manufacturer:'Gateway', mold:'Wizard', speed:2, glide:3, turn:0, fade:2 },
+  { manufacturer:'Clash', mold:'Berry', speed:2, glide:4, turn:0, fade:0 }, { manufacturer:'Clash', mold:'Cookie', speed:4, glide:3, turn:0, fade:3 }, { manufacturer:'Clash', mold:'Disc', speed:9, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Clash', mold:'Mango', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Clash', mold:'Mint', speed:5, glide:5, turn:-1, fade:1 }, { manufacturer:'Clash', mold:'Peach', speed:3, glide:3, turn:0, fade:2 },
+  { manufacturer:'Clash', mold:'Pepper', speed:4, glide:3, turn:0, fade:2 }, { manufacturer:'Clash', mold:'Salt', speed:2, glide:3, turn:0, fade:1 }, { manufacturer:'Clash', mold:'Soda', speed:7, glide:5, turn:-2, fade:1 },
+  // Infinite Discs (13)
+  { manufacturer:'Infinite Discs', mold:'Alpaca', speed:3, glide:3, turn:0, fade:1 }, { manufacturer:'Infinite Discs', mold:'Aztec', speed:10, glide:5, turn:-1, fade:2 }, { manufacturer:'Infinite Discs', mold:'Chariot', speed:5, glide:5, turn:0, fade:1 },
+  { manufacturer:'Infinite Discs', mold:'Dynasty', speed:9, glide:5, turn:-1, fade:2 }, { manufacturer:'Infinite Discs', mold:'Emperor', speed:12, glide:5, turn:-1, fade:2.5 }, { manufacturer:'Infinite Discs', mold:'Exodus', speed:7, glide:5, turn:-0.5, fade:2 },
+  { manufacturer:'Infinite Discs', mold:'Maya', speed:11, glide:5, turn:-3, fade:1 }, { manufacturer:'Infinite Discs', mold:'Pharaoh', speed:13, glide:6, turn:-1, fade:2 }, { manufacturer:'Infinite Discs', mold:'Ra', speed:5, glide:4, turn:0, fade:2.5 },
+  { manufacturer:'Infinite Discs', mold:'Roman', speed:10, glide:4, turn:0, fade:3 }, { manufacturer:'Infinite Discs', mold:'Scepter', speed:9, glide:4, turn:0, fade:4 }, { manufacturer:'Infinite Discs', mold:'Sphinx', speed:9, glide:6, turn:-3, fade:1 },
+  { manufacturer:'Infinite Discs', mold:'Tomb', speed:3, glide:4, turn:0, fade:1 },
+  // Millennium (7)
+  { manufacturer:'Millennium', mold:'Astra', speed:11, glide:5, turn:-2, fade:2 }, { manufacturer:'Millennium', mold:'Aurora MS', speed:5, glide:5, turn:-2, fade:1 }, { manufacturer:'Millennium', mold:'Draco', speed:12, glide:5, turn:-1, fade:3 },
+  { manufacturer:'Millennium', mold:'JLS', speed:7, glide:5, turn:-1, fade:1 }, { manufacturer:'Millennium', mold:'Omega', speed:2, glide:3, turn:-1, fade:1 }, { manufacturer:'Millennium', mold:'Orion LF', speed:9, glide:5, turn:0, fade:3 },
+  { manufacturer:'Millennium', mold:'Scorpius', speed:13, glide:5, turn:-1, fade:3 },
+  // Flight Lab Discs (4)
+  { manufacturer:'Flight Lab Discs', mold:'Dot', speed:3, glide:4, turn:0, fade:0 }, { manufacturer:'Flight Lab Discs', mold:'Knockout', speed:9, glide:3, turn:0, fade:3 }, { manufacturer:'Flight Lab Discs', mold:'Vapor', speed:11, glide:5, turn:-1, fade:2 },
+  { manufacturer:'Flight Lab Discs', mold:'Wayfinder', speed:5, glide:5, turn:0, fade:2 },
 ];
 
 const STAB_META = {
@@ -3678,26 +3746,186 @@ function TrophyCasePage({
 // ═══════════════════════════════════════════════════════
 // BACKUP / BUY MODAL
 // ═══════════════════════════════════════════════════════
+function buildDiscRetailerSearchParams(disc) {
+  // Manufacturer mapping for Infinite Discs URLs
+  const infiniteDiscsManufacturerMap = {
+    'clash': 'Clash Discs',
+    'clash discs': 'Clash Discs',
+    'westside': 'Westside Discs',
+    'westside discs': 'Westside Discs',
+    'dynamic': 'Dynamic Discs',
+    'dynamic discs': 'Dynamic Discs',
+    'infinite': 'Infinite Discs',
+    'infinite discs': 'Infinite Discs',
+    'prodigy': 'Prodigy Disc',
+    'prodigy disc': 'Prodigy Disc',
+    'lone star': 'Lone Star Disc',
+    'lone star disc': 'Lone Star Disc',
+    'lone star discs': 'Lone Star Discs',
+    'lonestar': 'Lone Star Disc',
+    'wild': 'Wild Discs',
+    'wild discs': 'Wild Discs',
+    'sacred': 'Sacred Discs',
+    'sacred discs': 'Sacred Discs',
+    'doomsday': 'Doomsday Discs',
+    'doomsday discs': 'Doomsday Discs',
+    'flight lab': 'Flight Lab Discs',
+    'flight lab discs': 'Flight Lab Discs',
+    'pie pan': 'Pie Pan Discs',
+    'pie pan discs': 'Pie Pan Discs',
+    'thought space': 'Thought Space Athletics',
+    'tsa': 'Thought Space Athletics',
+    'thought space athletics': 'Thought Space Athletics',
+    'streamline': 'Streamline',
+    'axiom': 'Axiom',
+    'mvp': 'MVP',
+    'innova': 'Innova',
+    'discraft': 'Discraft',
+    'discmania': 'Discmania',
+    'kastaplast': 'Kastaplast',
+    'latitude 64': 'Latitude 64',
+    'latitude': 'Latitude 64',
+    'gateway': 'Gateway',
+    'millennium': 'Millennium',
+    'dga': 'DGA',
+    'viking': 'Viking Discs',
+    'viking discs': 'Viking Discs',
+    'yikun': 'Yikun',
+    'above ground level': 'Above Ground Level',
+    'agl': 'Above Ground Level',
+    'mint': 'Mint Discs',
+    'mint discs': 'Mint Discs',
+    'rpm': 'RPM Discs',
+    'rpm discs': 'RPM Discs',
+    'prodiscus': 'Prodiscus',
+    'eurodisc': 'Eurodisc',
+    'guru': 'Guru',
+  };
+
+  const manufacturer = (disc?.manufacturer != null ? String(disc.manufacturer) : '').trim();
+  const plasticTrim = (disc?.plastic_type != null ? String(disc.plastic_type) : '').trim();
+  const moldTrim = (disc?.mold != null ? String(disc.mold) : '').trim();
+  const customTrim = (disc?.custom_name != null ? String(disc.custom_name) : '').trim();
+  const discNameForSearch = moldTrim || customTrim;
+  const corePrimary = [manufacturer, discNameForSearch].filter(Boolean).join(' ');
+
+  // Map manufacturer for Infinite Discs URL
+  const mappedManufacturer = infiniteDiscsManufacturerMap[manufacturer.toLowerCase()] || manufacturer;
+
+  const slugifyPath = (parts) =>
+    parts
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+  const slugPrimary = slugifyPath([mappedManufacturer, discNameForSearch]);
+  const infiniteDiscsUrl = slugPrimary ? `https://infinitediscs.com/${slugPrimary}` : 'https://infinitediscs.com';
+
+  const hasPlastic = Boolean(plasticTrim);
+  let searchQueryWithPlastic;
+  let amazonKWithPlastic;
+  let infiniteDiscsUrlWithPlastic;
+  if (hasPlastic) {
+    const coreWithPlastic = [manufacturer, plasticTrim, discNameForSearch].filter(Boolean).join(' ');
+    infiniteDiscsUrlWithPlastic = coreWithPlastic
+      ? `https://infinitediscs.com/search?searchText=${encodeURIComponent(coreWithPlastic)}`
+      : 'https://infinitediscs.com';
+    searchQueryWithPlastic = encodeURIComponent(coreWithPlastic || 'disc golf');
+    amazonKWithPlastic = encodeURIComponent(coreWithPlastic ? `${coreWithPlastic} disc golf` : 'disc golf');
+  }
+
+  console.log('[Buy retailers]', {
+    manufacturer,
+    plasticTrim: plasticTrim || '(empty)',
+    mappedManufacturer,
+    discNameForSearch: discNameForSearch || '(empty)',
+    infiniteDiscsUrl,
+  });
+
+  const searchQuery = encodeURIComponent(corePrimary || 'disc golf');
+  const amazonK = encodeURIComponent(corePrimary ? `${corePrimary} disc golf` : 'disc golf');
+  return {
+    searchQuery,
+    amazonK,
+    infiniteDiscsUrl,
+    hasPlastic,
+    searchQueryWithPlastic,
+    amazonKWithPlastic,
+    infiniteDiscsUrlWithPlastic,
+  };
+}
+
+/** Trilogy family brands sold via Dynamic Discs — case-insensitive match on manufacturer. */
+const TRILOGY_MANUFACTURERS_LOWER = new Set([
+  'dynamic discs',
+  'latitude 64',
+  'westside discs',
+  'westside',
+  'trilogy',
+]);
+function isTrilogyFamilyManufacturer(manufacturer) {
+  const m = (manufacturer ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!m) return false;
+  return TRILOGY_MANUFACTURERS_LOWER.has(m);
+}
+
 function BackupModal({open,disc,onClose}) {
   const [ready,setReady] = useState(false);
-  useEffect(() => { if(open){setReady(false); const t=setTimeout(()=>setReady(true),1500); return ()=>clearTimeout(t);} }, [open]);
+  const [includePlasticInSearch, setIncludePlasticInSearch] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setIncludePlasticInSearch(false);
+    setReady(false);
+    const t = setTimeout(() => setReady(true), 1500);
+    return () => clearTimeout(t);
+  }, [open]);
   if (!open||!disc) return null;
-  const sq = encodeURIComponent(`${disc.manufacturer} ${disc.mold} ${disc.plastic_type} disc golf`);
+  const { searchQuery, amazonK, infiniteDiscsUrl, hasPlastic, searchQueryWithPlastic, amazonKWithPlastic } = buildDiscRetailerSearchParams(disc);
   const retailers = [
-    {name:'Amazon',est:'$16 – $22',text:'text-gap-medium',url:`https://www.amazon.com/s?k=${sq}`},
-    {name:'Infinite Discs',est:'$14 – $20',text:'text-secondary',url:`https://infinitediscs.com/search?query=${sq}`},
-    {name:'OTB Discs',est:'$15 – $21',text:'text-primary',url:`https://otbdiscs.com/search?q=${sq}`},
+    { name: 'Amazon', url: `https://www.amazon.com/s?k=${amazonK}`, urlWithPlastic: hasPlastic ? `https://www.amazon.com/s?k=${amazonKWithPlastic}` : null, priceRange: '$16 – $22' },
+    { name: 'Infinite Discs', url: infiniteDiscsUrl, urlWithPlastic: null, priceRange: '$14 – $20' },
+    { name: 'Gotta Go Gotta Throw', url: `https://gottagogottathrow.com/search?q=${searchQuery}`, urlWithPlastic: hasPlastic ? `https://gottagogottathrow.com/search?q=${searchQueryWithPlastic}` : null, priceRange: '$11.99 - $27.99' },
   ];
+  if (isTrilogyFamilyManufacturer(disc.manufacturer)) {
+    retailers.push({ name: 'Dynamic Discs', url: `https://www.dynamicdiscs.com/search?q=${searchQuery}`, urlWithPlastic: hasPlastic ? `https://www.dynamicdiscs.com/search?q=${searchQueryWithPlastic}` : null, priceRange: '$12.99 - $28.99' });
+  }
+  const hrefForRetailer = (r) => (includePlasticInSearch && hasPlastic && r.urlWithPlastic ? r.urlWithPlastic : r.url);
+  const visibleRetailers = includePlasticInSearch && hasPlastic ? retailers.filter((r) => r.urlWithPlastic) : retailers;
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
       <motion.div initial={{scale:0.9,opacity:0}} animate={{scale:1,opacity:1}} className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden">
-        <div className="p-5 mb-4 flex items-center gap-3">
+        <div className="p-5 pb-3 flex items-center gap-3">
           <DiscVisual disc={disc} size="sm"/>
           <div className="flex-1 min-w-0"><h2 className="text-base font-bold text-text truncate">Buy: {disc.mold}</h2><p className="text-xs text-text-muted">{disc.manufacturer} · {disc.plastic_type}</p></div>
           <button onClick={onClose} className="p-1.5 rounded-full hover:bg-surface text-text-muted shrink-0"><X size={18}/></button>
         </div>
-        <div className="p-5">
+        {hasPlastic && (
+          <div className="px-5 pb-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-surface/40 px-3 py-2">
+              <span className="text-[11px] leading-snug text-text-muted">
+                Include plastic in search
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includePlasticInSearch}
+                onClick={() => setIncludePlasticInSearch((v) => !v)}
+                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${includePlasticInSearch ? 'bg-primary/90' : 'bg-border'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow-sm transition-transform ${includePlasticInSearch ? 'translate-x-4' : 'translate-x-0'}`}
+                  aria-hidden
+                />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="p-5 pt-0">
           <AnimatePresence mode="wait">
             {!ready ? (
               <motion.div key="ld" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex flex-col items-center py-8">
@@ -3706,12 +3934,20 @@ function BackupModal({open,disc,onClose}) {
               </motion.div>
             ) : (
               <motion.div key="res" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} className="space-y-2.5">
-                {retailers.map((r,i) => (
-                  <motion.a key={r.name} href={r.url} target="_blank" rel="noopener noreferrer" initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:i*0.1}}
-                    onClick={() => ReactGA.event({ category: 'Affiliate', action: 'Shop Click', label: r.name })}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-surface/50 hover:bg-surface transition-all block">
-                    <ShoppingCart size={16} className={r.text}/><div className="flex-1"><div className={`text-sm font-semibold ${r.text}`}>{r.name}</div></div>
-                    <div className="text-sm font-bold text-text">{r.est}</div><ExternalLink size={14} className="text-text-muted shrink-0"/>
+                {visibleRetailers.map((r,i) => (
+                  <motion.a key={r.name} href={hrefForRetailer(r)} target="_blank" rel="noopener noreferrer" initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{delay:i*0.1}}
+                    onClick={() => ReactGA.event({ category: 'Affiliate', action: includePlasticInSearch && r.urlWithPlastic ? 'Shop Click With Plastic' : 'Shop Click', label: r.name })}
+                    style={{
+                      backgroundColor: 'var(--color-primary)',
+                      color: 'var(--color-on-primary)',
+                      borderColor: 'var(--color-primary-muted)',
+                    }}
+                    className="w-full flex min-h-[48px] items-center justify-between gap-3 px-4 py-3 rounded-xl border shadow-md hover:opacity-95 transition-opacity block">
+                    <div className="flex flex-col items-start gap-0.5 min-w-0 flex-1 text-left">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--color-on-primary)' }}>{r.name}</span>
+                      <span className="text-xs font-normal leading-tight" style={{ color: 'var(--color-on-primary)', opacity: 0.8 }}>{r.priceRange}</span>
+                    </div>
+                    <ExternalLink size={14} className="shrink-0" style={{ color: 'var(--color-on-primary)' }} aria-hidden />
                   </motion.a>
                 ))}
               </motion.div>
@@ -4190,6 +4426,7 @@ function DiscCard({
   setStatusMenu,
   onStatusChange,
   onCreateBag,
+  bagDetailCompact = false,
   idx,
 }) {
   const [newBagOpen, setNewBagOpen] = useState(false);
@@ -4203,6 +4440,37 @@ function DiscCard({
   const gaveAwayPreview = String(disc.gaveAwayNote || '').trim();
   const showLostNoteHint = disc.status === 'lost' && lostNotePreview.length > 0;
   const showGaveAwayHint = disc.status === 'gave_away_sold' && gaveAwayPreview.length > 0;
+
+  /** Bag detail grid only: minimal at-a-glance card; tap opens detail. */
+  if (bagDetailCompact) {
+    const displayName = (disc.custom_name && String(disc.custom_name).trim()) || disc.mold;
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.28, delay: idx * 0.02, layout: { duration: 0.2, ease: 'easeOut' } }}
+        whileHover={{ y: -2, transition: { duration: 0.15 } }}
+        onClick={() => onDetail(disc)}
+        className="bg-card rounded-xl border border-border overflow-hidden hover:border-primary/35 transition-colors duration-200 cursor-pointer shadow-card p-2"
+      >
+        <div className="flex flex-col items-center text-center">
+          <DiscVisual disc={disc} size="md" />
+          <p className="text-[10px] text-text-muted leading-tight truncate w-full mt-1.5 px-0.5">{disc.manufacturer}</p>
+          <p className="text-xs font-bold text-text leading-snug truncate w-full mt-0.5 px-0.5">{displayName}</p>
+          <div className="grid grid-cols-4 gap-0.5 w-full mt-2">
+            {FN_META.map((fn) => (
+              <div key={fn.key} className={`rounded-md py-0.5 text-center ${fn.bg}`}>
+                <div className={`font-bold text-[11px] leading-none ${fn.text}`}>{disc[fn.key]}</div>
+                <div className="text-text-muted text-[8px] mt-0.5 font-bold tracking-widest">{fn.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   const bagMenuExtra = onCreateBag && (
     <>
@@ -4893,6 +5161,7 @@ function DiscLibrary() {
   const [typeFilter,setTypeFilter] = useState('all');
   const [selectedBrand,setSelectedBrand] = useState('All');
   const [selectedSpeed,setSelectedSpeed] = useState('All');
+  const [selectedPlastic,setSelectedPlastic] = useState('All');
   const [aceFilter,setAceFilter] = useState(false);
   const [selectedSort,setSelectedSort] = useState('Recent');
   const [viewMode,setViewMode] = useState(() => {
@@ -5026,9 +5295,20 @@ function DiscLibrary() {
 
   // Derived data
   const brandOptions = useMemo(() => { const u=[...new Set(discs.map(d=>d.manufacturer))].sort(); return [{value:'All',label:'All Brands'},...u.map(b=>({value:b,label:b}))]; }, [discs]);
+  const plasticOptions = useMemo(() => {
+    const seen = new Map();
+    for (const d of discs) {
+      const raw = (d.plastic_type != null ? String(d.plastic_type) : '').trim();
+      if (!raw) continue;
+      const low = raw.toLowerCase();
+      if (!seen.has(low)) seen.set(low, raw);
+    }
+    const sorted = [...seen.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return [{ value: 'All', label: 'All plastics' }, ...sorted.map((p) => ({ value: p, label: p }))];
+  }, [discs]);
   const activeBag = useMemo(() => bags.find(b=>b.id===activeBagId)||null, [bags,activeBagId]);
 
-  /** Open bag detail at top of page (FlightChart chip scrollIntoView is gated to user chip taps only). */
+  /** Open bag detail at top of page (bag flight chart uses disc picker, not chip strip). */
   useEffect(() => {
     if (!showApp) return;
     if (mainView !== 'bags' || !activeBagId) return;
@@ -5046,20 +5326,30 @@ function DiscLibrary() {
     if (typeFilter!=='all') result = result.filter(d => d.disc_type===typeFilter);
     if (selectedBrand!=='All') result = result.filter(d => d.manufacturer===selectedBrand);
     if (selectedSpeed!=='All') { const range=SPEED_RANGES.find(sr=>sr.value===selectedSpeed); if(range)result=result.filter(d=>d.speed>=range.min&&d.speed<=range.max); }
+    if (selectedPlastic !== 'All') {
+      const sel = selectedPlastic.trim().toLowerCase();
+      result = result.filter((d) => (d.plastic_type || '').trim().toLowerCase() === sel);
+    }
     if (aceFilter) result = result.filter(d => !!d.hasAce);
     switch(selectedSort) { case'Name':result.sort((a,b)=>a.mold.localeCompare(b.mold));break; case'Speed':result.sort((a,b)=>b.speed-a.speed);break; case'Wear':result.sort((a,b)=>a.wear_level-b.wear_level);break; default:result.sort((a,b)=>(b.date_acquired||'').localeCompare(a.date_acquired||'')); }
     return result;
-  }, [discs, activeBag, activeBagId, search, typeFilter, selectedBrand, selectedSpeed, aceFilter, selectedSort]);
+  }, [discs, activeBag, activeBagId, search, typeFilter, selectedBrand, selectedSpeed, selectedPlastic, aceFilter, selectedSort]);
 
   const counts = useMemo(() => {
     const base = activeBagId && activeBag ? discs.filter(d => discBelongsToBagView(d, activeBag)) : discs;
     const c = {all:base.length}; Object.keys(DT).forEach(t => c[t]=base.filter(d=>d.disc_type===t).length); c.aces=base.filter(d=>!!d.hasAce).length; return c;
   }, [discs, activeBag, activeBagId]);
 
-  const activeFilterCount = [selectedBrand!=='All', selectedSpeed!=='All', aceFilter].filter(Boolean).length;
+  const activeFilterCount = [selectedBrand!=='All', selectedSpeed!=='All', selectedPlastic!=='All', aceFilter].filter(Boolean).length;
+
+  useEffect(() => {
+    if (selectedPlastic === 'All') return;
+    const values = plasticOptions.map((o) => o.value);
+    if (!values.includes(selectedPlastic)) setSelectedPlastic('All');
+  }, [plasticOptions, selectedPlastic]);
 
   // ── Handlers ──
-  const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setAceFilter(false); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
+  const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setSelectedPlastic('All'); setAceFilter(false); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
 
   const toggleBag = useCallback((bagId, discId) => {
     const wasIn = bags.find((b) => b.id === bagId)?.disc_ids.includes(discId);
@@ -5443,9 +5733,12 @@ function DiscLibrary() {
               <Filter size={14} className="text-text-muted shrink-0"/>
               <FilterDropdown label="Brand" value={selectedBrand} options={brandOptions} onChange={setSelectedBrand}/>
               <FilterDropdown label="Speed" value={selectedSpeed} options={SPEED_RANGES.map(sr=>({value:sr.value,label:sr.label}))} onChange={setSelectedSpeed}/>
+              {plasticOptions.length > 1 && (
+                <FilterDropdown label="Plastic" value={selectedPlastic} options={plasticOptions} onChange={setSelectedPlastic}/>
+              )}
               <button onClick={() => setAceFilter(a=>!a)} className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${aceFilter?'bg-gap-medium/20 text-gap-medium border-gap-medium/30':'bg-card text-text-muted border-border'}`} title="Show only discs you've aced with"><Trophy size={12}/>Aces ({counts.aces??0})</button>
               {activeFilterCount>0 && (
-                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');setAceFilter(false);}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gap-high bg-gap-high/10 border border-gap-high/20"><X size={12}/>Clear ({activeFilterCount})</button>
+                <button onClick={() => {setSelectedBrand('All');setSelectedSpeed('All');setSelectedPlastic('All');setAceFilter(false);}} className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold text-gap-high bg-gap-high/10 border border-gap-high/20"><X size={12}/>Clear ({activeFilterCount})</button>
               )}
               <div className="flex-1"/>
               <FilterDropdown label="Sort" value={selectedSort} options={SORT_OPTIONS.map(s=>({value:s.value,label:s.label}))} onChange={setSelectedSort}/>
@@ -5487,11 +5780,11 @@ function DiscLibrary() {
                 onRequestDeleteBag={requestDeleteBag}
                 discListSlot={
                   <>
-                    <h3 className="text-sm font-bold text-text mt-6 mb-3">Discs in this bag</h3>
-                    <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <h3 className="text-sm font-bold text-text mt-6 mb-2">Discs in this bag</h3>
+                    <motion.div layout className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
                       <AnimatePresence mode="popLayout">
                         {bagDiscsSortedForGrid.map((d,i) => (
-                          <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery"
+                          <DiscCard key={d.id} disc={d} bags={bags} viewMode="gallery" bagDetailCompact
                             onBackup={setBackupDisc} onToggleBag={toggleBag} onEdit={openEdit} onDelete={requestDeleteDisc}
                             onDetail={setDetailDisc} onRemoveFromBag={removeDiscFromBag} activeBagId={activeBagId}
                             bagMenuOpen={bagMenuDisc===d.id} setBagMenu={setBagMenuDisc}
