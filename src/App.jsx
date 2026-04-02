@@ -8,7 +8,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
-import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore } from './firestoreSync.js';
+import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel } from './firestoreSync.js';
 import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
@@ -390,6 +390,94 @@ function classifyStability(d) {
   return 'stable';
 }
 
+function getSkillSpeedRange(skillLevelRaw) {
+  const s = normalizeSkillLevel(skillLevelRaw) ?? 'intermediate';
+  if (s === 'beginner') return { min: 1, max: 9 };
+  if (s === 'advanced') return { min: 1, max: 14 };
+  return { min: 1, max: 10 };
+}
+function isDiscInSkillRange(d, range) {
+  const sp = Number(d.speed);
+  if (!Number.isFinite(sp)) return false;
+  return sp >= range.min && sp <= range.max;
+}
+function discTypeFromSpeed(speed) {
+  const s = Number(speed);
+  if (s <= 3) return 'putter';
+  if (s <= 5) return 'midrange';
+  if (s <= 8) return 'fairway_driver';
+  return 'distance_driver';
+}
+function skillLevelDisplayLabel(sl) {
+  const s = normalizeSkillLevel(sl) ?? 'intermediate';
+  if (s === 'beginner') return 'Beginner';
+  if (s === 'advanced') return 'Advanced';
+  return 'Intermediate';
+}
+function findLibraryReplacementsForFlag(flagDisc, allDiscs, bagDiscIds, range) {
+  const stab = classifyStability(flagDisc);
+  const wantType = flagDisc.disc_type;
+  const targetSpeed = Math.min(Number(flagDisc.speed) || 0, range.max);
+  const pool = allDiscs.filter((d) => {
+    if (!d || bagDiscIds.includes(d.id) || d.id === flagDisc.id) return false;
+    if (!isDiscInSkillRange(d, range)) return false;
+    if (classifyStability(d) !== stab) return false;
+    return true;
+  });
+  const exact = pool.filter((d) => d.disc_type === wantType);
+  const list = exact.length ? exact : pool;
+  return [...list].sort((a, b) => Math.abs((Number(a.speed) || 0) - targetSpeed) - Math.abs((Number(b.speed) || 0) - targetSpeed)).slice(0, 4);
+}
+function findMoldReplacementSuggestions(flagDisc, range) {
+  const stab = classifyStability(flagDisc);
+  const wantType = flagDisc.disc_type;
+  const targetSpeed = Math.min(Number(flagDisc.speed) || 0, range.max);
+  let rows = MOLD_LOOKUP.filter((m) => {
+    if (!isDiscInSkillRange(m, range)) return false;
+    if (classifyStability(m) !== stab) return false;
+    return discTypeFromSpeed(m.speed) === wantType;
+  });
+  if (rows.length === 0) {
+    rows = MOLD_LOOKUP.filter((m) => isDiscInSkillRange(m, range) && classifyStability(m) === stab);
+  }
+  return [...rows]
+    .sort((a, b) => Math.abs((Number(a.speed) || 0) - targetSpeed) - Math.abs((Number(b.speed) || 0) - targetSpeed))
+    .slice(0, 4)
+    .map((m) => ({
+      manufacturer: m.manufacturer,
+      mold: m.mold,
+      plastic: 'Premium',
+      plastic_type: '',
+      color: '#6b7280',
+      speed: m.speed,
+      glide: m.glide,
+      turn: m.turn,
+      fade: m.fade,
+      price: '—',
+    }));
+}
+function explainDiscOutsideSkillRange(d, range, sl) {
+  const sp = Number(d.speed);
+  const label = skillLevelDisplayLabel(sl);
+  if (sp > range.max) return `Speed ${sp} — recommended max for ${label}s is ${range.max}.`;
+  if (sp < range.min) return `Speed ${sp} — recommended min for ${label}s is ${range.min}.`;
+  return 'Outside the recommended speed range for your skill level.';
+}
+
+function fmtSuggestionFlightNumSegment(n) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+  const x = Number(n);
+  return Number.isInteger(x) ? String(x) : String(x);
+}
+function fmtSuggestionFlightLine(s) {
+  if (!s) return '—';
+  return [s.speed, s.glide, s.turn, s.fade].map(fmtSuggestionFlightNumSegment).join('/');
+}
+/** Full flight numbers for any disc-like object (gap finder, library rows). */
+function fmtDiscFlightLine(d) {
+  if (!d) return '—';
+  return [d.speed, d.glide, d.turn, d.fade].map(fmtSuggestionFlightNumSegment).join('/');
+}
 function getAceRarity(distance) {
   if(distance>=350) return { label:'LEGENDARY', badge:'ACE', border:'linear-gradient(135deg,#1F3D2B,#6B8F71,#C08A2E,#1F3D2B)', glow:'rgba(31,61,43,0.3)', text:'text-primary', bg:'bg-primary/10' };
   if(distance>=300) return { label:'EPIC', badge:'ACE', border:'linear-gradient(135deg,#C08A2E,#e8c97a,#C08A2E,#C08A2E)', glow:'rgba(192,138,46,0.3)', text:'text-gap-medium', bg:'bg-gap-medium/10' };
@@ -459,6 +547,64 @@ const USER_PROFILE_PIC_KEY = 'discgolf_user_profile_pic';
 const PROFILE_PIC_MAX_SIZE = 200;
 const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
+
+const SKILL_LEVEL_OPTIONS = [
+  { value: 'beginner', label: 'Beginner', description: 'New to disc golf or still learning form. Typical arm speed under 45 mph.' },
+  { value: 'intermediate', label: 'Intermediate', description: 'Comfortable with the game and developing consistency. Typical arm speed 45-60 mph.' },
+  { value: 'advanced', label: 'Advanced', description: 'Experienced player with strong arm speed and shot shaping. Typical arm speed 60+ mph.' },
+];
+
+function SkillLevelPicker({ value, onChange }) {
+  return (
+    <div className="space-y-2" role="radiogroup" aria-label="Skill level">
+      {SKILL_LEVEL_OPTIONS.map((opt) => {
+        const selected = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(opt.value)}
+            className={`w-full text-left rounded-xl border px-3 py-2.5 transition-all ${
+              selected ? 'border-primary bg-primary/10 ring-1 ring-primary/25' : 'border-border bg-card hover:border-border hover:bg-surface/80'
+            }`}
+          >
+            <div className={`text-sm font-semibold ${selected ? 'text-primary' : 'text-text'}`}>{opt.label}</div>
+            <p className="text-[11px] text-text-muted mt-0.5 leading-snug">{opt.description}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SkillLevelRequiredModal({ open, onComplete }) {
+  const [value, setValue] = useState(null);
+  useEffect(() => { if (open) setValue(null); }, [open]);
+  if (!open) return null;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/95 backdrop-blur-sm">
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-sm bg-card rounded-2xl border border-border shadow-card-lg p-5"
+      >
+        <h2 className="text-base font-bold text-text mb-1">What&apos;s your skill level?</h2>
+        <p className="text-xs text-text-muted mb-4">Choose one so we can tailor your experience.</p>
+        <SkillLevelPicker value={value} onChange={setValue} />
+        <button
+          type="button"
+          disabled={!value}
+          onClick={() => value && onComplete(value)}
+          className="mt-4 w-full py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm disabled:opacity-45 disabled:cursor-not-allowed"
+        >
+          Continue
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
 const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:'',lostNote:'',gaveAwayNote:'',bagIds:[],bagId:null};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
 const VIEW_MODE_KEY = 'discgolf_view_mode';
@@ -1059,6 +1205,7 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
 
 function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload, onSave, setToast, onDeleteAccount }) {
   const [displayName, setDisplayName] = useState(userAuth?.displayName ?? '');
+  const [skillLevel, setSkillLevel] = useState(() => normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -1069,6 +1216,7 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
   useEffect(() => {
     if (open && userAuth) {
       setDisplayName(userAuth.displayName ?? '');
+      setSkillLevel(normalizeSkillLevel(userAuth.skillLevel) ?? 'intermediate');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -1088,8 +1236,11 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
       if (newPassword.length < MIN_PASSWORD_LENGTH) { setError(`New password must be at least ${MIN_PASSWORD_LENGTH} characters.`); return; }
       if (newPassword !== confirmPassword) { setError('New passwords do not match.'); return; }
     }
+    const sk = normalizeSkillLevel(skillLevel);
+    if (!sk) { setError('Please select a skill level.'); return; }
     const err = onSave({
       displayName: name,
+      skillLevel: sk,
       ...(isEmail && { currentPassword: currentPassword || undefined, newPassword: newPassword || undefined }),
     });
     if (err) { setError(err); return; }
@@ -1119,6 +1270,10 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
           <div>
             <label className="block text-xs text-text-muted font-medium mb-1">Display name</label>
             <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Your name" />
+          </div>
+          <div>
+            <label className="block text-xs text-text-muted font-medium mb-2">Skill level</label>
+            <SkillLevelPicker value={skillLevel} onChange={setSkillLevel} />
           </div>
           {userAuth.email && (
             <div>
@@ -2596,9 +2751,16 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
   );
 }
 
-function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySearch,discListSlot,onEditBag,onRequestDeleteBag}) {
+function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, onBuySearch, discListSlot, onEditBag, onRequestDeleteBag, userSkillLevel }) {
   const [expandedGap,setExpandedGap] = useState(null);
+  const [expandedSkillDiscId, setExpandedSkillDiscId] = useState(null);
+  const [skillOverBlockExpanded, setSkillOverBlockExpanded] = useState(false);
   const [gapFilter, setGapFilter] = useState(null);
+  const [filterBySkillLevel, setFilterBySkillLevel] = useState(true);
+
+  useEffect(() => {
+    if (!skillOverBlockExpanded) setExpandedSkillDiscId(null);
+  }, [skillOverBlockExpanded]);
   const totalValue = bagDiscs.reduce((s,d) => s+(d.estimated_value||0), 0);
   const weights = bagDiscs.filter(d=>d.weight_grams>0).map(d=>d.weight_grams);
   const avgWeight = weights.length>0 ? (weights.reduce((a,b)=>a+b,0)/weights.length) : 0;
@@ -2616,6 +2778,11 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
 
   const gaps = useMemo(() => computeBagGaps(bagDiscs), [bagDiscs]);
   const groupedGaps = useMemo(() => groupGapsByCategory(gaps), [gaps]);
+  const skillRange = useMemo(() => getSkillSpeedRange(userSkillLevel), [userSkillLevel]);
+  const flaggedOverSkill = useMemo(() => {
+    if (!filterBySkillLevel) return [];
+    return bagDiscs.filter((d) => !isDiscInSkillRange(d, skillRange));
+  }, [bagDiscs, filterBySkillLevel, skillRange]);
   const categoryCounts = useMemo(() => {
     const c = { all: gaps.length };
     groupedGaps.forEach(grp => { c[grp.id] = grp.gaps.length; });
@@ -2648,6 +2815,14 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       label: 'text-gap-medium',
     };
   }, [gaps]);
+
+  const hasSkillOverChip = filterBySkillLevel && flaggedOverSkill.length > 0;
+  const gapFinderPanelOpen = gapFilter !== null && gaps.length > 0;
+  const isRecAboveSkillSpeed = useCallback((d) => {
+    const sp = Number(d?.speed);
+    if (!Number.isFinite(sp)) return false;
+    return sp > skillRange.max;
+  }, [skillRange.max]);
 
   const getLibraryMatches = useCallback((gap) => getLibraryMatchesForGap(gap, allDiscs, bagDiscIds), [allDiscs, bagDiscIds]);
 
@@ -2688,8 +2863,8 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       {/* Summary stats — left: Gap Finder + gap details (unified when expanded); right: 2x2 stat cards */}
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:min-h-0">
         <div
-          className={`min-w-0 sm:flex-[1.4] self-stretch flex flex-col ${gapFilter !== null && gaps.length > 0 ? 'overflow-hidden shadow-card' : ''}`}
-          style={gapFilter !== null && gaps.length > 0 ? {
+          className={`min-w-0 sm:flex-[1.4] self-stretch flex flex-col ${gapFinderPanelOpen ? 'overflow-hidden shadow-card' : ''}`}
+          style={gapFinderPanelOpen ? {
             backgroundColor: gapFinderTheme.bg === 'transparent' ? 'rgba(255, 160, 50, 0.05)' : gapFinderTheme.bg,
             borderWidth: 1,
             borderStyle: 'solid',
@@ -2698,8 +2873,8 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           } : undefined}
         >
           <div
-            className={`p-4 flex flex-col min-w-0 min-h-0 ${gapFilter !== null && gaps.length > 0 ? 'rounded-t-xl rounded-b-none border-0 flex-none' : 'rounded-xl shadow-card flex-1'}`}
-            style={gapFilter === null || gaps.length === 0 ? {
+            className={`p-4 flex flex-col min-w-0 min-h-0 ${gapFinderPanelOpen ? 'rounded-t-xl rounded-b-none border-0 flex-none' : 'rounded-xl shadow-card flex-1'}`}
+            style={gapFilter === null || (gaps.length === 0 && !hasSkillOverChip) ? {
               backgroundColor: gapFinderTheme.bg === 'transparent' ? 'rgba(255, 160, 50, 0.05)' : gapFinderTheme.bg,
               borderWidth: 1,
               borderStyle: 'solid',
@@ -2707,6 +2882,130 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
             } : undefined}
           >
             <div className={`flex items-center gap-2 mb-1 ${gapFinderTheme.label}`}><AlertTriangle size={14} className="shrink-0"/><span className="text-xs font-bold uppercase tracking-wider opacity-90">Gap Finder</span></div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-[11px] text-text-muted">Filter by my skill level</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filterBySkillLevel}
+                onClick={() => setFilterBySkillLevel((v) => !v)}
+                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${filterBySkillLevel ? 'bg-primary/90' : 'bg-border'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow-sm transition-transform ${filterBySkillLevel ? 'translate-x-4' : 'translate-x-0'}`}
+                  aria-hidden
+                />
+              </button>
+            </div>
+            {hasSkillOverChip && (
+              <div className="mt-2 mb-3 rounded-lg border border-primary/20 bg-primary/5 dark:bg-primary/10 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setSkillOverBlockExpanded((v) => !v)}
+                  className="no-hover-scale w-full flex items-center gap-2 text-left py-1.5 min-h-[36px] cursor-pointer bg-transparent hover:bg-surface/60 transition-colors duration-150 rounded-md -mx-0.5 px-0.5"
+                  aria-expanded={skillOverBlockExpanded}
+                >
+                  <span className="text-[12px] leading-none shrink-0" aria-hidden>⚠️</span>
+                  <span className="text-[11px] font-bold text-text flex-1 min-w-0">Discs above your skill level ({flaggedOverSkill.length})</span>
+                  <ChevronDown size={14} className={`shrink-0 text-text-muted transition-transform duration-200 ${skillOverBlockExpanded ? 'rotate-180' : ''}`} aria-hidden />
+                </button>
+                {skillOverBlockExpanded && (
+                  <div className="mt-2 pt-2 border-t border-border/50 space-y-2.5">
+                    <div className="rounded-xl border border-border bg-amber-50 dark:bg-amber-950/25 px-3 py-3 text-text shadow-sm">
+                      <p className="text-xs leading-relaxed text-text">
+                        These discs are outside the typical speed range for {skillLevelDisplayLabel(userSkillLevel)} players. You can still throw them — many players bag one &quot;challenge&quot; disc — but slower discs in a similar role are often easier to control while you build form.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {flaggedOverSkill.map((fd) => {
+                        const isSkillExp = expandedSkillDiscId === fd.id;
+                        const libRep = findLibraryReplacementsForFlag(fd, allDiscs, bagDiscIds, skillRange);
+                        const moldRep = findMoldReplacementSuggestions(fd, skillRange);
+                        return (
+                          <div key={fd.id} className="rounded-lg border border-border bg-card border-l-4 border-l-[#C08A2E]/80">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedSkillDiscId(isSkillExp ? null : fd.id)}
+                              className="no-hover-scale w-full flex items-center gap-2 text-left py-2 px-3 min-h-[40px] cursor-pointer bg-transparent hover:bg-surface/80 transition-colors duration-150 rounded-lg"
+                            >
+                              <span className="text-[13px] leading-none shrink-0" aria-hidden>⚠️</span>
+                              <span className="text-xs font-bold text-text flex-1 min-w-0 truncate">
+                                {fd.custom_name || fd.mold} · Speed {fd.speed}
+                              </span>
+                              <ChevronDown size={14} className={`shrink-0 text-text-muted transition-transform duration-200 ${isSkillExp ? 'rotate-180' : ''}`} aria-hidden />
+                            </button>
+                            <AnimatePresence>
+                              {isSkillExp && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                  <div className="px-3 pb-3 pt-1 space-y-2.5 border-t border-border/50 bg-surface/30" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-2 bg-surface/60 rounded-lg px-2.5 py-2 border-2 border-red-500/50 dark:border-red-400/45 ring-1 ring-red-500/15 dark:ring-red-400/20">
+                                      <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md border border-red-500/30" style={{ backgroundColor: fd.color || '#6b7280' }}>
+                                        <span className="text-[10px] font-black" style={{ color: luma(fd.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{fd.speed}</span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-xs font-bold text-text truncate block">{fd.custom_name || fd.mold}</span>
+                                        <span className="text-[10px] text-text-muted">{[fd.manufacturer, fd.plastic_type || fd.plastic].filter(Boolean).join(' · ')}</span>
+                                        <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtDiscFlightLine(fd)}</div>
+                                        <p className="text-[11px] text-text mt-1 leading-snug">{explainDiscOutsideSkillRange(fd, skillRange, userSkillLevel)}</p>
+                                      </div>
+                                    </div>
+                                    {libRep.length > 0 && (
+                                      <div>
+                                        <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5"><Library size={11}/>From your library</h5>
+                                        <div className="space-y-1">
+                                          {libRep.map((d) => (
+                                            <div key={d.id} className="flex items-center gap-2 bg-surface/60 rounded-lg px-2.5 py-2">
+                                              <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: d.color || '#6b7280' }}>
+                                                <span className="text-[10px] font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <span className="text-xs font-bold text-text truncate block">{d.custom_name || d.mold}</span>
+                                                <span className="text-[10px] text-text-muted">{[d.manufacturer, d.plastic_type || d.plastic].filter(Boolean).join(' · ')}</span>
+                                                <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtDiscFlightLine(d)}</div>
+                                              </div>
+                                              <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddToBag(bag.id, d.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25"><Plus size={12}/>Add</motion.button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {moldRep.length > 0 && onBuySearch && (
+                                      <div>
+                                        <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-gap-medium uppercase tracking-wider mb-1.5"><ShoppingCart size={11}/>Discs to consider buying</h5>
+                                        <div className="space-y-1">
+                                          {moldRep.map((s, si) => {
+                                            const flightLine = fmtSuggestionFlightLine(s);
+                                            return (
+                                              <div key={`${s.mold}-${si}`} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-surface/40 rounded-lg px-2.5 py-2">
+                                                <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: s.color || '#6b7280' }}>
+                                                  <span className="text-[10px] font-black" style={{ color: luma(s.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{s.speed}</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0 basis-[min(100%,10rem)]">
+                                                  <div className="text-xs font-bold text-text truncate">{s.mold}</div>
+                                                  <div className="text-[10px] text-text-muted truncate">{s.manufacturer} · {s.plastic}</div>
+                                                  <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{flightLine}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0 ml-auto">
+                                                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onBuySearch(s)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20"><ShoppingCart size={10}/>Shop</motion.button>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className={`text-2xl font-black ${gapFinderTheme.label}`}>{gaps.length}<span className="text-sm font-semibold opacity-80 ml-0.5">gaps</span></div>
             {gaps.length > 0 && (
               <div className="flex flex-nowrap gap-1.5 mt-3 pt-2 border-t border-border/40 overflow-x-auto pb-0.5 -mx-0.5 min-h-[32px] items-center">
@@ -2723,7 +3022,7 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
           </div>
           {gaps.length > 0 && (
             <AnimatePresence>
-              {gapFilter !== null && (
+              {gapFinderPanelOpen && (
                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden rounded-b-xl flex-1 min-h-0" style={{ backgroundColor: gapFinderTheme.isRed ? 'rgba(178, 58, 58, 0.08)' : 'rgba(255, 160, 50, 0.07)' }}>
                   <div className="px-4 pb-4 pt-3 border-t border-gap-medium/30">
                     <div className="space-y-4">
@@ -2733,8 +3032,10 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                           <div className="space-y-1.5">
                             {grp.gaps.map(g => {
                               const isExp = expandedGap === g.key;
-                              const libraryMatches = getLibraryMatches(g);
-                              const buySuggestions = getBuySuggestions(g);
+                              const rawLib = getLibraryMatches(g);
+                              const libraryMatches = rawLib;
+                              const rawBuy = getBuySuggestions(g);
+                              const buySuggestions = rawBuy;
                               const tier = SEVERITY_TIERS[g.severity] || SEVERITY_TIERS.info;
                               const IconComponent = g.isRedundancy ? Info : AlertTriangle;
                               return (
@@ -2758,8 +3059,8 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                                                     </div>
                                                     <div className="min-w-0">
                                                       <p className="text-sm font-bold text-text truncate">{d.custom_name || d.mold}</p>
-                                                      <p className="text-[11px] text-text-muted truncate">{d.manufacturer} · {d.plastic_type ?? d.plastic ?? ''}</p>
-                                                      <p className="text-xs font-semibold text-text mt-0.5">{d.speed} / {d.glide ?? 0} / {d.turn ?? 0} / {d.fade ?? 0}</p>
+                                                      <p className="text-[11px] text-text-muted truncate">{[d.manufacturer, d.plastic_type ?? d.plastic ?? ''].filter(Boolean).join(' · ')}</p>
+                                                      <p className="text-xs font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtDiscFlightLine(d)}</p>
                                                     </div>
                                                   </div>
                                                 ))}
@@ -2774,15 +3075,24 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                                                   <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5"><Library size={11}/>From Your Collection ({libraryMatches.length})</h5>
                                                   <div className="space-y-1">
                                                     {libraryMatches.slice(0, 4).map(d => (
-                                                      <div key={d.id} className="flex items-center gap-2 bg-surface/60 rounded-lg px-2.5 py-2">
-                                                        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: d.color || '#6b7280' }}>
-                                                          <span className="text-[10px] font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                                      <div key={d.id} className="flex flex-col gap-2 bg-surface/60 rounded-lg px-2.5 py-2">
+                                                        <div className="flex items-start gap-2">
+                                                          <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: d.color || '#6b7280' }}>
+                                                            <span className="text-[10px] font-black" style={{ color: luma(d.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{d.speed}</span>
+                                                          </div>
+                                                          <div className="flex-1 min-w-0">
+                                                            <span className="text-xs font-bold text-text truncate block">{d.custom_name || d.mold}</span>
+                                                            <span className="text-[10px] text-text-muted">{[d.manufacturer, d.plastic_type || d.plastic].filter(Boolean).join(' · ')}</span>
+                                                            <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtDiscFlightLine(d)}</div>
+                                                          </div>
+                                                          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddToBag(bag.id, d.id)} className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25"><Plus size={12}/>Add</motion.button>
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
-                                                          <span className="text-xs font-bold text-text truncate block">{d.custom_name || d.mold}</span>
-                                                          <span className="text-[10px] text-text-muted">{d.manufacturer} · {d.speed}/{d.glide}/{d.turn}/{d.fade}</span>
-                                                        </div>
-                                                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onAddToBag(bag.id, d.id)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary/15 text-primary text-xs font-bold border border-primary/25"><Plus size={12}/>Add</motion.button>
+                                                        {filterBySkillLevel && isRecAboveSkillSpeed(d) && (
+                                                          <div className="w-full min-w-0 rounded-md border border-amber-600/35 bg-amber-100 px-2.5 py-2 text-[10px] font-medium leading-snug text-neutral-900 shadow-sm dark:border-amber-500/50 dark:bg-amber-200/95 dark:text-neutral-950">
+                                                            <span aria-hidden className="mr-1">⚠️</span>
+                                                            {explainDiscOutsideSkillRange(d, skillRange, userSkillLevel)}
+                                                          </div>
+                                                        )}
                                                       </div>
                                                     ))}
                                                   </div>
@@ -2798,16 +3108,24 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
                                                   <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-gap-medium uppercase tracking-wider mb-1.5"><ShoppingCart size={11}/>Popular Picks to Buy</h5>
                                                   <div className="space-y-1">
                                                     {buySuggestions.map((s, si) => (
-                                                      <div key={si} className="flex items-center gap-2 bg-surface/40 rounded-lg px-2.5 py-2">
-                                                        <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: s.color || '#6b7280' }}>
-                                                          <span className="text-[10px] font-black" style={{ color: luma(s.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{s.speed}</span>
+                                                      <div key={si} className="flex flex-col gap-2 bg-surface/40 rounded-lg px-2.5 py-2">
+                                                        <div className="flex items-start gap-2">
+                                                          <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center shadow-md" style={{ backgroundColor: s.color || '#6b7280' }}>
+                                                            <span className="text-[10px] font-black" style={{ color: luma(s.color || '#888') > 160 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.85)' }}>{s.speed}</span>
+                                                          </div>
+                                                          <div className="flex-1 min-w-0">
+                                                            <div className="text-xs font-bold text-text truncate">{s.mold}</div>
+                                                            <div className="text-[10px] text-text-muted">{s.manufacturer} · {s.plastic}</div>
+                                                            <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtSuggestionFlightLine(s)}</div>
+                                                          </div>
+                                                          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onBuySearch(s)} className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20"><ShoppingCart size={10}/>Shop</motion.button>
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
-                                                          <div className="text-xs font-bold text-text">{s.mold}</div>
-                                                          <div className="text-[10px] text-text-muted">{s.manufacturer} · {s.plastic}</div>
-                                                        </div>
-                                                        <span className="text-xs font-bold text-primary">{s.price}</span>
-                                                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => onBuySearch(s)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gap-medium/12 text-gap-medium text-xs font-semibold border border-gap-medium/20"><ShoppingCart size={10}/>Shop</motion.button>
+                                                        {filterBySkillLevel && isRecAboveSkillSpeed(s) && (
+                                                          <div className="w-full min-w-0 rounded-md border border-amber-600/35 bg-amber-100 px-2.5 py-2 text-[10px] font-medium leading-snug text-neutral-900 shadow-sm dark:border-amber-500/50 dark:bg-amber-200/95 dark:text-neutral-950">
+                                                            <span aria-hidden className="mr-1">⚠️</span>
+                                                            {explainDiscOutsideSkillRange(s, skillRange, userSkillLevel)}
+                                                          </div>
+                                                        )}
                                                       </div>
                                                     ))}
                                                   </div>
@@ -2898,7 +3216,9 @@ function BagDashboard({bagDiscs,bag,allDiscs,onAddToBag,onRemoveFromBag,onBuySea
       {discListSlot}
       {/* Flight Chart — mobile-first (see components/FlightChart.jsx) */}
       <div className="min-w-0 flex justify-center w-full px-2 sm:px-0">
-        {bagDiscs.length > 0 && <FlightChart bagDiscs={bagDiscs} />}
+        {bagDiscs.length > 0 && (
+          <FlightChart bagDiscs={bagDiscs} defaultSkillLevel={normalizeSkillLevel(userSkillLevel) ?? 'intermediate'} />
+        )}
       </div>
     </motion.div>
     </>
@@ -4783,20 +5103,31 @@ function GoogleLogo({ className = '' }) {
 // WELCOME / LANDING SCREEN
 // ═══════════════════════════════════════════════════════
 function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, theme, onThemeChange }) {
-  const [view, setView] = useState('main'); // 'main' | 'signup' | 'login'
+  const [view, setView] = useState('main'); // 'main' | 'signup' | 'signupSkill' | 'login'
   const [authError, setAuthError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupName, setSignupName] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirm, setSignupConfirm] = useState('');
+  const [pendingSignup, setPendingSignup] = useState(null);
+  const [signupSkillLevel, setSignupSkillLevel] = useState(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
   const goMain = () => { setView('main'); setAuthError(''); };
-  const goSignup = () => { setView('signup'); setAuthError(''); setSignupEmail(''); setSignupName(''); setSignupPassword(''); setSignupConfirm(''); };
+  const goSignup = () => {
+    setView('signup');
+    setAuthError('');
+    setSignupEmail('');
+    setSignupName('');
+    setSignupPassword('');
+    setSignupConfirm('');
+    setPendingSignup(null);
+    setSignupSkillLevel(null);
+  };
   const goLogin = () => { setView('login'); setAuthError(''); setLoginEmail(''); setLoginPassword(''); };
 
-  const handleSignUp = (e) => {
+  const handleContinueToSkill = (e) => {
     e.preventDefault();
     setAuthError('');
     const email = signupEmail.trim().toLowerCase();
@@ -4805,8 +5136,19 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
     if (!displayName) { setAuthError('Please enter a display name.'); return; }
     if (signupPassword.length < MIN_PASSWORD_LENGTH) { setAuthError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`); return; }
     if (signupPassword !== signupConfirm) { setAuthError('Passwords do not match.'); return; }
-    const result = onEmailSignUp({ email, displayName, password: signupPassword });
+    setPendingSignup({ email, displayName, password: signupPassword });
+    setSignupSkillLevel(null);
+    setView('signupSkill');
+  };
+
+  const handleCreateAccountWithSkill = () => {
+    setAuthError('');
+    const sk = normalizeSkillLevel(signupSkillLevel);
+    if (!sk) { setAuthError('Please select your skill level.'); return; }
+    if (!pendingSignup) { setAuthError('Something went wrong. Go back and try again.'); return; }
+    const result = onEmailSignUp({ ...pendingSignup, skillLevel: sk });
     if (result && result.error) { setAuthError(result.error); return; }
+    setPendingSignup(null);
     setView('main');
   };
 
@@ -4864,7 +5206,7 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
             <button type="button" onClick={goMain} className="flex items-center gap-1.5 text-text-muted hover:text-text text-sm mb-4">
               <ChevronRight size={16} className="rotate-180"/> Back
             </button>
-            <form onSubmit={handleSignUp} className="space-y-3">
+            <form onSubmit={handleContinueToSkill} className="space-y-3">
               <div>
                 <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
                 <input type="email" value={signupEmail} onChange={e=>setSignupEmail(e.target.value)} placeholder="you@example.com" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="email" />
@@ -4882,8 +5224,21 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
                 <input type="password" value={signupConfirm} onChange={e=>setSignupConfirm(e.target.value)} placeholder="Repeat password" className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary" autoComplete="new-password" />
               </div>
               {authError && <p className="text-sm text-gap-high">{authError}</p>}
-              <motion.button type="submit" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Sign up</motion.button>
+              <motion.button type="submit" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Continue</motion.button>
             </form>
+          </motion.div>
+        )}
+
+        {view === 'signupSkill' && (
+          <motion.div key="signupSkill" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-left">
+            <button type="button" onClick={() => { setView('signup'); setAuthError(''); }} className="flex items-center gap-1.5 text-text-muted hover:text-text text-sm mb-4">
+              <ChevronRight size={16} className="rotate-180"/> Back
+            </button>
+            <h2 className="text-sm font-bold text-text mb-1">Your skill level</h2>
+            <p className="text-xs text-text-muted mb-3">Pick the option that best describes you.</p>
+            <SkillLevelPicker value={signupSkillLevel} onChange={setSignupSkillLevel} />
+            {authError && <p className="text-sm text-gap-high mt-2">{authError}</p>}
+            <motion.button type="button" onClick={handleCreateAccountWithSkill} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full mt-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Create account</motion.button>
           </motion.div>
         )}
 
@@ -5010,17 +5365,22 @@ function DiscLibrary() {
   const firestoreSyncUserIdRef = useRef(null);
   const firestoreInitialLoadDoneRef = useRef(false);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
+  const [firestoreProfileReady, setFirestoreProfileReady] = useState(false);
 
   // After sign-in: ALWAYS load from Firestore first (new device/domain has different localStorage)
   // Then merge with any localStorage data (dedupe by id); Firestore wins for same id
   useEffect(() => {
     const email = userAuth?.email;
-    if (!email) return;
+    if (!email) {
+      setFirestoreProfileReady(false);
+      return;
+    }
     const userId = emailToUserId(email);
     if (firestoreSyncUserIdRef.current === userId) return;
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
     setSyncStatus('syncing');
+    setFirestoreProfileReady(false);
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
@@ -5047,9 +5407,13 @@ function DiscLibrary() {
         setTournaments(mergeById(remoteTournaments, localTournaments));
         setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
+        if (data?.skillLevel) {
+          setUserAuth((prev) => (prev ? { ...prev, skillLevel: data.skillLevel } : null));
+        }
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; });
+      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
+      .finally(() => setFirestoreProfileReady(true));
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -5063,10 +5427,10 @@ function DiscLibrary() {
     const tournamentsCopy = [...tournaments];
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
-    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true)
+    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel)
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); });
-  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   useEffect(() => {
     if (guestMode) try { localStorage.setItem(GUEST_MODE_KEY, 'true'); } catch(_) {}
@@ -5088,14 +5452,16 @@ function DiscLibrary() {
     if (showApp) ReactGA.send({ hitType: 'pageview', page: '/bag' });
   }, [showApp]);
 
-  const handleEmailSignUp = useCallback(({ email, displayName, password }) => {
+  const handleEmailSignUp = useCallback(({ email, displayName, password, skillLevel }) => {
     const accounts = loadEmailAccounts();
     if (accounts[email]) return { error: 'An account with this email already exists.' };
-    accounts[email] = { displayName, password };
+    const sk = normalizeSkillLevel(skillLevel);
+    if (!sk) return { error: 'Please select a skill level.' };
+    accounts[email] = { displayName, password, skillLevel: sk };
     saveEmailAccounts(accounts);
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
     setGuestMode(false);
-    setUserAuth({ type: 'email', email, displayName });
+    setUserAuth({ type: 'email', email, displayName, skillLevel: sk });
     return null;
   }, []);
 
@@ -5106,14 +5472,16 @@ function DiscLibrary() {
     if (account.password !== password) return { error: 'Wrong password.' };
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
     setGuestMode(false);
-    setUserAuth({ type: 'email', email, displayName: account.displayName });
+    setUserAuth({ type: 'email', email, displayName: account.displayName, skillLevel: normalizeSkillLevel(account.skillLevel) });
     return null;
   }, []);
 
-  const handleSaveProfile = useCallback(({ displayName, currentPassword, newPassword }) => {
+  const handleSaveProfile = useCallback(({ displayName, currentPassword, newPassword, skillLevel }) => {
     if (!userAuth) return 'Not signed in.';
     const name = (displayName || '').trim();
     if (!name) return 'Display name cannot be empty.';
+    const sk = normalizeSkillLevel(skillLevel);
+    if (!sk) return 'Please select a skill level.';
     if (userAuth.type === 'email') {
       const accounts = loadEmailAccounts();
       const account = accounts[userAuth.email];
@@ -5125,9 +5493,10 @@ function DiscLibrary() {
         account.password = newPassword;
       }
       account.displayName = name;
+      account.skillLevel = sk;
       saveEmailAccounts(accounts);
     }
-    setUserAuth(prev => prev ? { ...prev, displayName: name } : null);
+    setUserAuth(prev => prev ? { ...prev, displayName: name, skillLevel: sk } : null);
     return null;
   }, [userAuth]);
 
@@ -5230,7 +5599,7 @@ function DiscLibrary() {
       const longestCopy = [...longestThrows];
       const pbsCopy = [...personalBests];
       // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true)
+      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel)
         .then(() => console.log('[signOut] Firestore save on sign-out completed'))
         .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
@@ -5258,7 +5627,8 @@ function DiscLibrary() {
     setSyncStatus('idle');
     setSettingsOpen(false);
     setShowProfileModal(false);
-  }, [userAuth?.email, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+    setFirestoreProfileReady(false);
+  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   const handleDeleteAccount = useCallback(async () => {
     try {
@@ -5285,6 +5655,7 @@ function DiscLibrary() {
       setSettingsOpen(false);
       setShowProfileModal(false);
       setShowDeleteAccount(false);
+      setFirestoreProfileReady(false);
       setToast('Account deleted successfully.');
     } catch (e) {
       console.error('Delete account failed', e);
@@ -5773,6 +6144,7 @@ function DiscLibrary() {
                 bagDiscs={bagDiscsForDashboard}
                 bag={activeBag}
                 allDiscs={discs}
+                userSkillLevel={normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate'}
                 onAddToBag={addDiscToBag}
                 onRemoveFromBag={removeDiscFromBag}
                 onBuySearch={handleBuySearch}
@@ -5937,6 +6309,16 @@ function DiscLibrary() {
           onDeleteAccount={() => { setShowProfileModal(false); setTimeout(() => setShowDeleteAccount(true), 200); }}
         />
       )}</AnimatePresence>
+      {showApp && firestoreProfileReady && userAuth && !guestMode && !normalizeSkillLevel(userAuth.skillLevel) && (
+        <SkillLevelRequiredModal
+          open
+          onComplete={(sk) => {
+            const v = normalizeSkillLevel(sk);
+            if (!v) return;
+            setUserAuth((prev) => (prev ? { ...prev, skillLevel: v } : null));
+          }}
+        />
+      )}
       <Analytics />
     </motion.div>
   );

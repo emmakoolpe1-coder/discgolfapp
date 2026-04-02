@@ -107,7 +107,13 @@ export function emailToUserId(email) {
   return email.replace(/\./g, '_').replace(/@/g, '_');
 }
 
-export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false) {
+/** @returns {'beginner'|'intermediate'|'advanced'|undefined} */
+export function normalizeSkillLevel(v) {
+  if (v === 'beginner' || v === 'intermediate' || v === 'advanced') return v;
+  return undefined;
+}
+
+export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel) {
   if (!userId || !db) return;
   const firebaseUser = getAuth().currentUser;
   // This app uses custom email auth + Google Identity Services; Firebase Auth currentUser
@@ -197,6 +203,8 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const payload = removeUndefined({
       updatedAt: new Date().toISOString(),
     });
+    const sk = normalizeSkillLevel(skillLevel);
+    if (sk) payload.skillLevel = sk;
     const existingBags = existing.bags;
     const existingTournaments = existing.tournaments;
     const existingLongestThrows = existing.longestThrows;
@@ -284,6 +292,7 @@ export async function loadFromFirestore(userId) {
         tournaments: [],
         longestThrows: [],
         personalBests: [],
+        skillLevel: undefined,
       };
     } else {
       const d = userSnap.data() || {};
@@ -298,6 +307,7 @@ export async function loadFromFirestore(userId) {
         tournaments: tournamentsRaw.map(t => t && typeof t === 'object' ? { id: t.id ?? '', name: t.name ?? '', date: t.date ?? '', course: t.course ?? '', division: t.division ?? '', placement: t.placement ?? '', ...t } : { id: '', name: '', date: '', course: '', division: '', placement: '' }),
         longestThrows: longestThrowsRaw.map(lt => lt && typeof lt === 'object' ? { id: lt.id ?? '', discId: lt.discId ?? '', distance: lt.distance ?? 0, ...lt } : { id: '', discId: '', distance: 0 }),
         personalBests: personalBestsRaw.map(pb => pb && typeof pb === 'object' ? { id: pb.id ?? '', category: pb.category ?? '', value: pb.value ?? '', course: pb.course ?? '', date: pb.date ?? '', ...pb } : { id: '', category: '', value: '', course: '', date: '' }),
+        skillLevel: normalizeSkillLevel(d.skillLevel),
       };
     }
 

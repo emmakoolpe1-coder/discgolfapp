@@ -93,9 +93,9 @@ function useChartEffectiveTheme() {
 }
 
 /**
- * @param {{ bagDiscs: any[] }} props
+ * @param {{ bagDiscs: any[], defaultSkillLevel?: 'beginner' | 'intermediate' | 'advanced' }} props
  */
-export default function FlightChart({ bagDiscs }) {
+export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediate' }) {
   const chartH = useNarrowChartHeight();
   const effectiveChartMode = useChartEffectiveTheme();
   const chartableDiscs = useMemo(
@@ -103,7 +103,14 @@ export default function FlightChart({ bagDiscs }) {
     [bagDiscs]
   );
   const [handPair, setHandPair] = useState(/** @type {keyof typeof HAND_FLIGHT_PAIR} */ (HAND_FLIGHT_PAIR.RHBH_LHFH));
-  const [skillLevel, setSkillLevel] = useState('intermediate');
+  const resolvedDefault =
+    defaultSkillLevel === 'beginner' || defaultSkillLevel === 'intermediate' || defaultSkillLevel === 'advanced'
+      ? defaultSkillLevel
+      : 'intermediate';
+  const [skillLevel, setSkillLevel] = useState(resolvedDefault);
+  useEffect(() => {
+    setSkillLevel(resolvedDefault);
+  }, [resolvedDefault]);
   /** One disc emphasized on the chart; null = all paths shown with equal weight. */
   const [highlightedDiscId, setHighlightedDiscId] = useState(/** @type {string | null} */ (null));
   const [dropdownOpen, setDropdownOpen] = useState(false);
