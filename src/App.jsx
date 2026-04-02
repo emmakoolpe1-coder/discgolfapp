@@ -8,7 +8,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
-import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel } from './firestoreSync.js';
+import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel, normalizeThrowStyle } from './firestoreSync.js';
 import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
@@ -572,6 +572,43 @@ function SkillLevelPicker({ value, onChange }) {
           >
             <div className={`text-sm font-semibold ${selected ? 'text-primary' : 'text-text'}`}>{opt.label}</div>
             <p className="text-[11px] text-text-muted mt-0.5 leading-snug">{opt.description}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const THROW_STYLE_OPTIONS = [
+  { value: 'rhbh', label: 'Right Hand Backhand (RHBH)', description: 'Most common — backhand with your right hand.', suggested: true },
+  { value: 'rhfh', label: 'Right Hand Forehand (RHFH)', description: 'Forehand (sidearm) with your right hand.', suggested: false },
+  { value: 'lhbh', label: 'Left Hand Backhand (LHBH)', description: 'Backhand with your left hand.', suggested: false },
+  { value: 'lhfh', label: 'Left Hand Forehand (LHFH)', description: 'Forehand (sidearm) with your left hand.', suggested: false },
+];
+
+function ThrowStylePicker({ value, onChange }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Primary throwing style">
+      {THROW_STYLE_OPTIONS.map((opt) => {
+        const selected = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(opt.value)}
+            className={`text-left rounded-xl border px-3 py-3 transition-all min-h-[4.5rem] flex flex-col justify-center ${
+              selected ? 'border-primary bg-primary/10 ring-1 ring-primary/25 shadow-sm' : 'border-border bg-card hover:border-primary/30 hover:bg-surface/80'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-1">
+              <span className={`text-sm font-semibold leading-tight ${selected ? 'text-primary' : 'text-text'}`}>{opt.label}</span>
+              {opt.suggested && (
+                <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${selected ? 'bg-primary/20 text-primary' : 'bg-surface text-text-muted'}`}>Suggested</span>
+              )}
+            </div>
+            <p className="text-[10px] text-text-muted mt-1.5 leading-snug">{opt.description}</p>
           </button>
         );
       })}
@@ -1206,6 +1243,7 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
 function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload, onSave, setToast, onDeleteAccount }) {
   const [displayName, setDisplayName] = useState(userAuth?.displayName ?? '');
   const [skillLevel, setSkillLevel] = useState(() => normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate');
+  const [throwStyle, setThrowStyle] = useState(() => normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -1217,6 +1255,7 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
     if (open && userAuth) {
       setDisplayName(userAuth.displayName ?? '');
       setSkillLevel(normalizeSkillLevel(userAuth.skillLevel) ?? 'intermediate');
+      setThrowStyle(normalizeThrowStyle(userAuth.throwStyle) ?? 'rhbh');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
@@ -1238,9 +1277,11 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
     }
     const sk = normalizeSkillLevel(skillLevel);
     if (!sk) { setError('Please select a skill level.'); return; }
+    const ts = normalizeThrowStyle(throwStyle) ?? 'rhbh';
     const err = onSave({
       displayName: name,
       skillLevel: sk,
+      throwStyle: ts,
       ...(isEmail && { currentPassword: currentPassword || undefined, newPassword: newPassword || undefined }),
     });
     if (err) { setError(err); return; }
@@ -1249,73 +1290,82 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 75 }}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-3 sm:p-4 min-h-0" style={{ zIndex: 75 }}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose}/>
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative w-full max-w-sm bg-card rounded-2xl border border-border shadow-card-lg overflow-hidden"
+        className="relative w-full max-w-sm max-h-[min(92dvh,calc(100dvh-1.5rem))] sm:max-h-[min(92dvh,calc(100dvh-2rem))] bg-card rounded-2xl border border-border shadow-card-lg overflow-hidden flex flex-col min-h-0"
       >
-        <div className="flex items-center justify-between px-5 py-4 mb-4">
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-border/50">
           <h2 className="text-base font-bold text-text flex items-center gap-2">
             <User size={18} className="text-primary"/> Edit Profile
           </h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface text-text-muted"><X size={16}/></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="flex flex-col items-center gap-3 pb-2">
-            <ProfileAvatar src={profilePic} displayName={userAuth.displayName} size="lg" onUpload={onProfilePicUpload} />
-            <p className="text-xs text-text-muted">Click the avatar to change your photo</p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted font-medium mb-1">Display name</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Your name" />
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted font-medium mb-2">Skill level</label>
-            <SkillLevelPicker value={skillLevel} onChange={setSkillLevel} />
-          </div>
-          {userAuth.email && (
-            <div>
-              <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
-              <input type="email" value={userAuth.email} readOnly className="w-full bg-surface/80 border border-border rounded-xl px-3 py-2.5 text-sm text-text-muted cursor-not-allowed" />
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 pt-4 pb-10 space-y-4">
+            <div className="flex flex-col items-center gap-3 pb-2">
+              <ProfileAvatar src={profilePic} displayName={userAuth.displayName} size="lg" onUpload={onProfilePicUpload} />
+              <p className="text-xs text-text-muted">Click the avatar to change your photo</p>
             </div>
-          )}
-          {isEmail && (
-            <>
-              <div className="pt-3 mt-3">
-                <p className="text-xs text-text-muted font-medium mb-2">Change password (optional)</p>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">Current password</label>
-                    <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Current password" autoComplete="current-password" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">New password</label>
-                    <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="At least 6 characters" autoComplete="new-password" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-muted mb-1">Confirm new password</label>
-                    <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Repeat new password" autoComplete="new-password" />
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-1">Display name</label>
+              <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Your name" />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-2">Skill level</label>
+              <SkillLevelPicker value={skillLevel} onChange={setSkillLevel} />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted font-medium mb-2">Throwing style</label>
+              <p className="text-[10px] text-text-muted mb-2 leading-snug">Used for flight charts. You can change this anytime.</p>
+              <ThrowStylePicker value={throwStyle} onChange={setThrowStyle} />
+            </div>
+            {userAuth.email && (
+              <div>
+                <label className="block text-xs text-text-muted font-medium mb-1">Email</label>
+                <input type="email" value={userAuth.email} readOnly className="w-full bg-surface/80 border border-border rounded-xl px-3 py-2.5 text-sm text-text-muted cursor-not-allowed" />
+              </div>
+            )}
+            {isEmail && (
+              <>
+                <div className="pt-3 mt-3">
+                  <p className="text-xs text-text-muted font-medium mb-2">Change password (optional)</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Current password</label>
+                      <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Current password" autoComplete="current-password" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">New password</label>
+                      <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="At least 6 characters" autoComplete="new-password" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Confirm new password</label>
+                      <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary" placeholder="Repeat new password" autoComplete="new-password" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </>
-          )}
-          <div className="pt-3 mt-3">
-            <button
-              type="button"
-              onClick={onDeleteAccount}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-gap-high hover:bg-gap-high/10 border border-gap-high/40 transition-colors"
-            >
-              Delete Account
-            </button>
-            <p className="text-xs text-text-muted mt-1.5 text-center">Permanently delete your account and all data</p>
+              </>
+            )}
+            <div className="pt-3 mt-3">
+              <button
+                type="button"
+                onClick={onDeleteAccount}
+                className="w-full py-2.5 rounded-xl text-sm font-semibold text-gap-high hover:bg-gap-high/10 border border-gap-high/40 transition-colors"
+              >
+                Delete Account
+              </button>
+              <p className="text-xs text-text-muted mt-1.5 text-center">Permanently delete your account and all data</p>
+            </div>
           </div>
-          {error && <p className="text-sm text-gap-high">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm hover:bg-surface">Cancel</button>
-            <button type="submit" className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm">Save</button>
+          <div className="shrink-0 border-t border-border/60 bg-card px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3">
+            {error && <p className="text-sm text-gap-high">{error}</p>}
+            <div className="flex gap-3">
+              <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl bg-surface text-text-muted font-semibold text-sm hover:bg-surface">Cancel</button>
+              <button type="submit" className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm">Save</button>
+            </div>
           </div>
         </form>
       </motion.div>
@@ -1539,11 +1589,19 @@ function InstallPromptBanner() {
 }
 
 // ═══════════════════════════════════════════════════════
-// FLIGHT PATH (BH / FH MIRRORING)
+// FLIGHT PATH (pair mode: RHBH/LHFH vs RHFH/LHBH vs both)
 // ═══════════════════════════════════════════════════════
-function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
-  const [mode,setMode] = useState(defaultMode);
-  useEffect(() => { setMode(defaultMode); }, [defaultMode]);
+function defaultPairModeFromThrowStyle(ts) {
+  const t = normalizeThrowStyle(ts) ?? 'rhbh';
+  if (t === 'rhfh' || t === 'lhbh') return 'mirrored';
+  return 'standard';
+}
+
+function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowStyle }) {
+  const [pairMode, setPairMode] = useState(() => defaultPairModeFromThrowStyle(defaultThrowStyle));
+  useEffect(() => {
+    setPairMode(defaultPairModeFromThrowStyle(defaultThrowStyle));
+  }, [defaultThrowStyle]);
   const sc = large?1.55:1;
   const w = Math.round(82*sc), h = Math.round(96*sc), cx = w/2;
   const tNum = parseFlightNum(turn);
@@ -1567,56 +1625,162 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
     };
   };
 
-  const bh = makePath(false), fh = makePath(true);
-  const showBH = mode!=='fh', showFH = mode!=='bh';
-  const fs = large?9:7, lfs = large?8:6;
+  /** Standard (RHBH/LHFH) vs mirrored (RHFH/LHBH) geometry; "both" overlays the two shapes. */
+  const std = makePath(false);
+  const mir = makePath(true);
+  const showStandard = pairMode === 'standard' || pairMode === 'both';
+  const showMirrored = pairMode === 'mirrored' || pairMode === 'both';
+  const fs = large?9:7;
+  /** In "Both", use flat colors + dashed mirrored path so the two flights read clearly (gradients hide dashes). */
+  const bothMode = pairMode === 'both';
+  const stdStroke = bothMode || straight ? '#10b981' : `url(#bh_${id})`;
+  const mirStroke = bothMode || straight ? '#a78bfa' : `url(#fh_${id})`;
+  const labelFs = large ? 7 : 6;
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center w-full max-w-full">
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
         <line x1={cx} y1={6} x2={cx} y2={h-6} stroke="white" strokeOpacity={0.06} strokeDasharray="2,4"/>
         <text x={cx} y={h-1} textAnchor="middle" fill="white" fillOpacity={0.1} fontSize={fs} fontWeight="bold">TEE</text>
-        {showBH && (
+        {showStandard && (
           <motion.path
-            key={`bh-${mode}`}
-            d={bh.d}
+            key={`std-${pairMode}`}
+            d={std.d}
             fill="none"
-            stroke={straight ? '#10b981' : `url(#bh_${id})`}
-            strokeWidth={2.5}
+            stroke={stdStroke}
+            strokeWidth={bothMode ? 2.75 : 2.5}
             strokeLinecap="round"
+            strokeLinejoin="round"
             initial={{ pathLength: 0 }}
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.9, ease: 'easeOut' }}
           />
         )}
-        {showFH && (
+        {showMirrored && (
           <motion.path
-            key={`fh-${mode}`}
-            d={fh.d}
+            key={`mir-${pairMode}`}
+            d={mir.d}
             fill="none"
-            stroke={straight ? '#a78bfa' : `url(#fh_${id})`}
-            strokeWidth={2}
+            stroke={mirStroke}
+            strokeWidth={bothMode ? 2.5 : 2}
             strokeLinecap="round"
-            strokeDasharray={mode === 'both' ? '5,3' : undefined}
+            strokeLinejoin="round"
+            strokeDasharray={bothMode ? '6 4' : undefined}
             initial={{ pathLength: 0 }}
             animate={{ pathLength: 1 }}
             transition={{ duration: 0.9, ease: 'easeOut' }}
           />
         )}
-        {showBH && <circle cx={bh.sx} cy={bh.sy} r={2.5} fill="#10b981"/>}
-        {showBH && <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}><circle cx={bh.ex} cy={bh.ey} r={2} fill="#10b981"/>{mode==='both'&&<text x={bh.ex} y={bh.ey-5} textAnchor="middle" fill="#10b981" fontSize={lfs} fontWeight="bold">BH</text>}</motion.g>}
-        {showFH && <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}><circle cx={fh.ex} cy={fh.ey} r={2} fill="#a78bfa"/>{mode==='both'&&<text x={fh.ex} y={fh.ey-5} textAnchor="middle" fill="#a78bfa" fontSize={lfs} fontWeight="bold">FH</text>}</motion.g>}
+        {showStandard && <circle cx={std.sx} cy={std.sy} r={2.5} fill="#10b981"/>}
+        {showStandard && (
+          <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}>
+            <circle cx={std.ex} cy={std.ey} r={2} fill="#10b981"/>
+            {bothMode && (
+              <text
+                x={std.ex}
+                y={std.ey - 5}
+                textAnchor="middle"
+                fill="#10b981"
+                stroke="rgba(0,0,0,0.35)"
+                strokeWidth={0.35}
+                paintOrder="stroke fill"
+                fontSize={labelFs}
+                fontWeight="800"
+              >
+                1
+              </text>
+            )}
+          </motion.g>
+        )}
+        {showMirrored && (
+          <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}>
+            <circle cx={mir.ex} cy={mir.ey} r={2} fill="#a78bfa"/>
+            {bothMode && (
+              <text
+                x={mir.ex}
+                y={mir.ey - 5}
+                textAnchor="middle"
+                fill="#c4b5fd"
+                stroke="rgba(0,0,0,0.4)"
+                strokeWidth={0.35}
+                paintOrder="stroke fill"
+                fontSize={labelFs}
+                fontWeight="800"
+              >
+                2
+              </text>
+            )}
+          </motion.g>
+        )}
         <defs>
           <linearGradient id={`bh_${id}`} x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stopColor="#10b981"/><stop offset="100%" stopColor="#f87171"/></linearGradient>
           <linearGradient id={`fh_${id}`} x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stopColor="#8b5cf6"/><stop offset="100%" stopColor="#fbbf24"/></linearGradient>
         </defs>
       </svg>
+      {pairMode === 'both' && !hideToggle && (
+        <div
+          className={`flex flex-wrap justify-center gap-x-3 gap-y-1 mt-1 px-0.5 max-w-full ${!large ? 'gap-x-4' : ''}`}
+          aria-label="Line key: 1 RHBH/LHFH, 2 RHFH/LHBH"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {!large ? (
+            <>
+              <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
+                <span className="font-extrabold tabular-nums text-emerald-500 shrink-0">1</span>
+                <span className="font-semibold text-text-muted">RHBH / LHFH</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
+                <span className="font-extrabold tabular-nums text-violet-400 shrink-0">2</span>
+                <span className="font-semibold text-text-muted">RHFH / LHBH</span>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
+                <span className="font-extrabold tabular-nums text-emerald-500 shrink-0" aria-hidden>
+                  1
+                </span>
+                <svg width={18} height={8} viewBox="0 0 18 8" className="shrink-0" aria-hidden>
+                  <line x1={0} y1={4} x2={18} y2={4} stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" />
+                </svg>
+                <span className="font-semibold text-text-muted">RHBH / LHFH</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
+                <span className="font-extrabold tabular-nums text-violet-400 shrink-0" aria-hidden>
+                  2
+                </span>
+                <svg width={18} height={8} viewBox="0 0 18 8" className="shrink-0" aria-hidden>
+                  <line x1={0} y1={4} x2={18} y2={4} stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 4" strokeLinecap="round" />
+                </svg>
+                <span className="font-semibold text-text-muted">RHFH / LHBH</span>
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {!hideToggle && (
-        <div className="flex gap-0.5 mt-0.5">
-          {[['bh','BH'],['both','Both'],['fh','FH']].map(([k,l]) => (
-            <button key={k} onClick={e=>{e.stopPropagation();setMode(k);}}
-              className={`px-1.5 py-0.5 rounded transition-all font-bold ${mode===k?'bg-surface text-text':'text-text-muted hover:text-text-muted'}`}
-              style={{fontSize:large?11:8}}>{l}</button>
+        <div
+          className="flex gap-0.5 mt-0.5 w-full max-w-full justify-center flex-wrap"
+          role="radiogroup"
+          aria-label="Flight path view"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {[
+            ['standard', 'RHBH / LHFH'],
+            ['both', 'Both'],
+            ['mirrored', 'RHFH / LHBH'],
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={pairMode === k}
+              onClick={(e) => { e.stopPropagation(); setPairMode(k); }}
+              className={`px-1.5 py-0.5 rounded transition-all font-bold ${pairMode === k ? 'bg-surface text-text' : 'text-text-muted hover:text-text-muted'}`}
+              style={{ fontSize: large ? 11 : 8 }}
+            >
+              {label}
+            </button>
           ))}
         </div>
       )}
@@ -1627,7 +1791,7 @@ function FlightPath({turn,fade,id,large,defaultMode='both',hideToggle=false}) {
 // ═══════════════════════════════════════════════════════
 // DISC FORM MODAL (Add / Edit)
 // ═══════════════════════════════════════════════════════
-function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDiscType, defaultBagId, bags, onRemoveDiscFromAllBags, onCreateBag }) {
+function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDiscType, defaultBagId, bags, onRemoveDiscFromAllBags, onCreateBag, defaultThrowStyle }) {
   const [f, setF] = useState({ ...EMPTY_DISC });
   const fileRef = useRef(null);
   const moldDropdownRef = useRef(null);
@@ -2025,7 +2189,7 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
               </div>
               {hasValidFlightNumbersForChart(f) && (
                 <div className="mt-3 flex justify-center bg-surface/50 rounded-xl p-3">
-                  <FlightPath turn={f.turn} fade={f.fade} id="preview" large defaultMode={f.flight_preference || 'both'} hideToggle/>
+                  <FlightPath turn={f.turn} fade={f.fade} id="preview" large hideToggle defaultThrowStyle={defaultThrowStyle}/>
                 </div>
               )}
               {!hasValidFlightNumbersForChart(f) && (
@@ -2751,7 +2915,7 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
   );
 }
 
-function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, onBuySearch, discListSlot, onEditBag, onRequestDeleteBag, userSkillLevel }) {
+function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, onBuySearch, discListSlot, onEditBag, onRequestDeleteBag, userSkillLevel, defaultThrowStyle }) {
   const [expandedGap,setExpandedGap] = useState(null);
   const [expandedSkillDiscId, setExpandedSkillDiscId] = useState(null);
   const [skillOverBlockExpanded, setSkillOverBlockExpanded] = useState(false);
@@ -3217,7 +3381,7 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
       {/* Flight Chart — mobile-first (see components/FlightChart.jsx) */}
       <div className="min-w-0 flex justify-center w-full px-2 sm:px-0">
         {bagDiscs.length > 0 && (
-          <FlightChart bagDiscs={bagDiscs} defaultSkillLevel={normalizeSkillLevel(userSkillLevel) ?? 'intermediate'} />
+          <FlightChart bagDiscs={bagDiscs} defaultSkillLevel={normalizeSkillLevel(userSkillLevel) ?? 'intermediate'} defaultThrowStyle={normalizeThrowStyle(defaultThrowStyle) ?? 'rhbh'} />
         )}
       </div>
     </motion.div>
@@ -4579,7 +4743,7 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
 // ═══════════════════════════════════════════════════════
 // DISC DETAIL MODAL
 // ═══════════════════════════════════════════════════════
-function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onToggleBag}) {
+function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup, onToggleBag, defaultThrowStyle }) {
   const [bagDrop,setBagDrop] = useState(false);
   useEffect(() => {if(open)setBagDrop(false);}, [open]);
   useEffect(() => {
@@ -4664,7 +4828,7 @@ function DiscDetailModal({open,disc,onClose,bags,onEdit,onDelete,onBackup,onTogg
           {/* Flight Path */}
           <section className="bg-card/80 rounded-xl p-5 border border-border/50">
             <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Target size={12}/>Flight Path</h3>
-            <div className="flex justify-center"><FlightPath turn={disc.turn} fade={disc.fade} id={`detail-${disc.id}`} large defaultMode={disc.flight_preference || 'both'}/></div>
+            <div className="flex justify-center"><FlightPath turn={disc.turn} fade={disc.fade} id={`detail-${disc.id}`} large defaultThrowStyle={defaultThrowStyle}/></div>
           </section>
           {/* Flight numbers */}
           <div className="grid grid-cols-4 gap-2">
@@ -4748,6 +4912,7 @@ function DiscCard({
   onCreateBag,
   bagDetailCompact = false,
   idx,
+  defaultThrowStyle,
 }) {
   const [newBagOpen, setNewBagOpen] = useState(false);
   const [newBagName, setNewBagName] = useState('');
@@ -4968,7 +5133,7 @@ function DiscCard({
               {disc.estimated_value && <span className="text-xs text-primary/60 font-semibold block">${disc.estimated_value}</span>}
               {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={8}/>{b.name}</span>))}</div>}
             </div>
-            <div onClick={e=>e.stopPropagation()}><FlightPath turn={disc.turn} fade={disc.fade} id={disc.id} defaultMode={disc.flight_preference || 'both'}/></div>
+            <div onClick={e=>e.stopPropagation()}><FlightPath turn={disc.turn} fade={disc.fade} id={disc.id} defaultThrowStyle={defaultThrowStyle}/></div>
           </div>
         )}
         {/* Flight numbers (list only) */}
@@ -5103,7 +5268,7 @@ function GoogleLogo({ className = '' }) {
 // WELCOME / LANDING SCREEN
 // ═══════════════════════════════════════════════════════
 function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, theme, onThemeChange }) {
-  const [view, setView] = useState('main'); // 'main' | 'signup' | 'signupSkill' | 'login'
+  const [view, setView] = useState('main'); // 'main' | 'signup' | 'signupSkill' | 'signupThrowStyle' | 'login'
   const [authError, setAuthError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -5111,6 +5276,7 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
   const [signupConfirm, setSignupConfirm] = useState('');
   const [pendingSignup, setPendingSignup] = useState(null);
   const [signupSkillLevel, setSignupSkillLevel] = useState(null);
+  const [signupThrowStyle, setSignupThrowStyle] = useState('rhbh');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
@@ -5124,6 +5290,7 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
     setSignupConfirm('');
     setPendingSignup(null);
     setSignupSkillLevel(null);
+    setSignupThrowStyle('rhbh');
   };
   const goLogin = () => { setView('login'); setAuthError(''); setLoginEmail(''); setLoginPassword(''); };
 
@@ -5138,15 +5305,25 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
     if (signupPassword !== signupConfirm) { setAuthError('Passwords do not match.'); return; }
     setPendingSignup({ email, displayName, password: signupPassword });
     setSignupSkillLevel(null);
+    setSignupThrowStyle('rhbh');
     setView('signupSkill');
   };
 
-  const handleCreateAccountWithSkill = () => {
+  const handleContinueToThrowStyle = () => {
     setAuthError('');
     const sk = normalizeSkillLevel(signupSkillLevel);
     if (!sk) { setAuthError('Please select your skill level.'); return; }
+    setSignupThrowStyle((v) => normalizeThrowStyle(v) ?? 'rhbh');
+    setView('signupThrowStyle');
+  };
+
+  const handleCreateAccountWithThrowStyle = () => {
+    setAuthError('');
+    const sk = normalizeSkillLevel(signupSkillLevel);
+    if (!sk) { setAuthError('Please select your skill level.'); return; }
+    const ts = normalizeThrowStyle(signupThrowStyle) ?? 'rhbh';
     if (!pendingSignup) { setAuthError('Something went wrong. Go back and try again.'); return; }
-    const result = onEmailSignUp({ ...pendingSignup, skillLevel: sk });
+    const result = onEmailSignUp({ ...pendingSignup, skillLevel: sk, throwStyle: ts });
     if (result && result.error) { setAuthError(result.error); return; }
     setPendingSignup(null);
     setView('main');
@@ -5238,7 +5415,21 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
             <p className="text-xs text-text-muted mb-3">Pick the option that best describes you.</p>
             <SkillLevelPicker value={signupSkillLevel} onChange={setSignupSkillLevel} />
             {authError && <p className="text-sm text-gap-high mt-2">{authError}</p>}
-            <motion.button type="button" onClick={handleCreateAccountWithSkill} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full mt-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Create account</motion.button>
+            <motion.button type="button" onClick={handleContinueToThrowStyle} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full mt-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Continue</motion.button>
+          </motion.div>
+        )}
+
+        {view === 'signupThrowStyle' && (
+          <motion.div key="signupThrowStyle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-left max-w-md mx-auto">
+            <button type="button" onClick={() => { setView('signupSkill'); setAuthError(''); }} className="flex items-center gap-1.5 text-text-muted hover:text-text text-sm mb-4">
+              <ChevronRight size={16} className="rotate-180"/> Back
+            </button>
+            <h2 className="text-sm font-bold text-text mb-1">Primary throwing style</h2>
+            <p className="text-xs text-text-muted mb-2">How do you usually throw?</p>
+            <p className="text-[11px] text-text-muted mb-3 leading-snug">This adjusts your flight charts to match your throw. You can always view other styles too.</p>
+            <ThrowStylePicker value={signupThrowStyle} onChange={setSignupThrowStyle} />
+            {authError && <p className="text-sm text-gap-high mt-2">{authError}</p>}
+            <motion.button type="button" onClick={handleCreateAccountWithThrowStyle} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full mt-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Create account</motion.button>
           </motion.div>
         )}
 
@@ -5317,6 +5508,8 @@ function DiscLibrary() {
   const [userAuth, setUserAuth] = useState(() => loadAuth());
 
   const showApp = guestMode || userAuth;
+  /** Saved profile throw style for flight visualizations; RHBH when unset. */
+  const chartDefaultThrowStyle = normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh';
 
   // Load initial state from localStorage
   const [discs,setDiscs] = useState(() => {
@@ -5407,9 +5600,14 @@ function DiscLibrary() {
         setTournaments(mergeById(remoteTournaments, localTournaments));
         setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
-        if (data?.skillLevel) {
-          setUserAuth((prev) => (prev ? { ...prev, skillLevel: data.skillLevel } : null));
-        }
+        setUserAuth((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...(data?.skillLevel ? { skillLevel: data.skillLevel } : {}),
+            throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
+          };
+        });
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
       .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
@@ -5427,10 +5625,10 @@ function DiscLibrary() {
     const tournamentsCopy = [...tournaments];
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
-    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel)
+    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); });
-  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+  }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   useEffect(() => {
     if (guestMode) try { localStorage.setItem(GUEST_MODE_KEY, 'true'); } catch(_) {}
@@ -5452,16 +5650,17 @@ function DiscLibrary() {
     if (showApp) ReactGA.send({ hitType: 'pageview', page: '/bag' });
   }, [showApp]);
 
-  const handleEmailSignUp = useCallback(({ email, displayName, password, skillLevel }) => {
+  const handleEmailSignUp = useCallback(({ email, displayName, password, skillLevel, throwStyle }) => {
     const accounts = loadEmailAccounts();
     if (accounts[email]) return { error: 'An account with this email already exists.' };
     const sk = normalizeSkillLevel(skillLevel);
     if (!sk) return { error: 'Please select a skill level.' };
-    accounts[email] = { displayName, password, skillLevel: sk };
+    const ts = normalizeThrowStyle(throwStyle) ?? 'rhbh';
+    accounts[email] = { displayName, password, skillLevel: sk, throwStyle: ts };
     saveEmailAccounts(accounts);
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
     setGuestMode(false);
-    setUserAuth({ type: 'email', email, displayName, skillLevel: sk });
+    setUserAuth({ type: 'email', email, displayName, skillLevel: sk, throwStyle: ts });
     return null;
   }, []);
 
@@ -5472,16 +5671,23 @@ function DiscLibrary() {
     if (account.password !== password) return { error: 'Wrong password.' };
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
     setGuestMode(false);
-    setUserAuth({ type: 'email', email, displayName: account.displayName, skillLevel: normalizeSkillLevel(account.skillLevel) });
+    setUserAuth({
+      type: 'email',
+      email,
+      displayName: account.displayName,
+      skillLevel: normalizeSkillLevel(account.skillLevel),
+      throwStyle: normalizeThrowStyle(account.throwStyle) ?? 'rhbh',
+    });
     return null;
   }, []);
 
-  const handleSaveProfile = useCallback(({ displayName, currentPassword, newPassword, skillLevel }) => {
+  const handleSaveProfile = useCallback(({ displayName, currentPassword, newPassword, skillLevel, throwStyle }) => {
     if (!userAuth) return 'Not signed in.';
     const name = (displayName || '').trim();
     if (!name) return 'Display name cannot be empty.';
     const sk = normalizeSkillLevel(skillLevel);
     if (!sk) return 'Please select a skill level.';
+    const ts = normalizeThrowStyle(throwStyle) ?? 'rhbh';
     if (userAuth.type === 'email') {
       const accounts = loadEmailAccounts();
       const account = accounts[userAuth.email];
@@ -5494,9 +5700,10 @@ function DiscLibrary() {
       }
       account.displayName = name;
       account.skillLevel = sk;
+      account.throwStyle = ts;
       saveEmailAccounts(accounts);
     }
-    setUserAuth(prev => prev ? { ...prev, displayName: name, skillLevel: sk } : null);
+    setUserAuth(prev => prev ? { ...prev, displayName: name, skillLevel: sk, throwStyle: ts } : null);
     return null;
   }, [userAuth]);
 
@@ -5599,7 +5806,7 @@ function DiscLibrary() {
       const longestCopy = [...longestThrows];
       const pbsCopy = [...personalBests];
       // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel)
+      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
         .then(() => console.log('[signOut] Firestore save on sign-out completed'))
         .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
@@ -6145,6 +6352,7 @@ function DiscLibrary() {
                 bag={activeBag}
                 allDiscs={discs}
                 userSkillLevel={normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate'}
+                defaultThrowStyle={chartDefaultThrowStyle}
                 onAddToBag={addDiscToBag}
                 onRemoveFromBag={removeDiscFromBag}
                 onBuySearch={handleBuySearch}
@@ -6163,6 +6371,7 @@ function DiscLibrary() {
                             statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
                             onStatusChange={handleDiscStatusChange}
                             onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
+                            defaultThrowStyle={chartDefaultThrowStyle}
                             idx={i}/>
                         ))}
                       </AnimatePresence>
@@ -6195,6 +6404,7 @@ function DiscLibrary() {
                       statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
                       onStatusChange={handleDiscStatusChange}
                       onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
+                      defaultThrowStyle={chartDefaultThrowStyle}
                       idx={i}/>
                   ))}
                 </AnimatePresence>
@@ -6227,8 +6437,8 @@ function DiscLibrary() {
       </div>
 
       {/* ── MODALS ── */}
-      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag}/>}</AnimatePresence>
-      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType} defaultBagId={addDiscContext?.bagId} bags={bags} onRemoveDiscFromAllBags={removeDiscFromAllBags} onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}/>
+      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} defaultThrowStyle={chartDefaultThrowStyle}/>}</AnimatePresence>
+      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType} defaultBagId={addDiscContext?.bagId} bags={bags} onRemoveDiscFromAllBags={removeDiscFromAllBags} onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })} defaultThrowStyle={chartDefaultThrowStyle}/>
       <AnimatePresence>
         {lostFlowDisc && (
           <LostDiscDialog
@@ -6315,7 +6525,7 @@ function DiscLibrary() {
           onComplete={(sk) => {
             const v = normalizeSkillLevel(sk);
             if (!v) return;
-            setUserAuth((prev) => (prev ? { ...prev, skillLevel: v } : null));
+            setUserAuth((prev) => (prev ? { ...prev, skillLevel: v, throwStyle: normalizeThrowStyle(prev.throwStyle) ?? 'rhbh' } : null));
           }}
         />
       )}

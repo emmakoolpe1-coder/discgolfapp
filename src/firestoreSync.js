@@ -113,7 +113,13 @@ export function normalizeSkillLevel(v) {
   return undefined;
 }
 
-export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel) {
+/** Primary throwing style for profile / future flight charts. */
+export function normalizeThrowStyle(v) {
+  if (v === 'rhbh' || v === 'rhfh' || v === 'lhbh' || v === 'lhfh') return v;
+  return undefined;
+}
+
+export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel, throwStyle) {
   if (!userId || !db) return;
   const firebaseUser = getAuth().currentUser;
   // This app uses custom email auth + Google Identity Services; Firebase Auth currentUser
@@ -205,6 +211,8 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     });
     const sk = normalizeSkillLevel(skillLevel);
     if (sk) payload.skillLevel = sk;
+    const ts = normalizeThrowStyle(throwStyle) ?? 'rhbh';
+    payload.throwStyle = ts;
     const existingBags = existing.bags;
     const existingTournaments = existing.tournaments;
     const existingLongestThrows = existing.longestThrows;
@@ -293,6 +301,7 @@ export async function loadFromFirestore(userId) {
         longestThrows: [],
         personalBests: [],
         skillLevel: undefined,
+        throwStyle: 'rhbh',
       };
     } else {
       const d = userSnap.data() || {};
@@ -308,6 +317,7 @@ export async function loadFromFirestore(userId) {
         longestThrows: longestThrowsRaw.map(lt => lt && typeof lt === 'object' ? { id: lt.id ?? '', discId: lt.discId ?? '', distance: lt.distance ?? 0, ...lt } : { id: '', discId: '', distance: 0 }),
         personalBests: personalBestsRaw.map(pb => pb && typeof pb === 'object' ? { id: pb.id ?? '', category: pb.category ?? '', value: pb.value ?? '', course: pb.course ?? '', date: pb.date ?? '', ...pb } : { id: '', category: '', value: '', course: '', date: '' }),
         skillLevel: normalizeSkillLevel(d.skillLevel),
+        throwStyle: normalizeThrowStyle(d.throwStyle) ?? 'rhbh',
       };
     }
 

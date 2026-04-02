@@ -17,6 +17,7 @@ import {
   SKILL_PROFILES,
   hasValidFlightNumbersForChart,
 } from '../flightChartMath.js';
+import { normalizeThrowStyle } from '../firestoreSync.js';
 
 const CHART_W = 400;
 const CHART_H_DEFAULT = 400;
@@ -49,11 +50,11 @@ const SKILL_OPTIONS = [
   { id: 'advanced', label: 'Advanced' },
 ];
 
-/** RHBH/LHFH → unmirrored path; LHBH/RHFH → mirrored (same as legacy LHBH). */
-const HAND_FLIGHT_PAIR = {
-  RHBH_LHFH: 'RHBH_LHFH',
-  LHBH_RHFH: 'LHBH_RHFH',
-};
+function defaultPairModeFromThrowStyle(ts) {
+  const t = normalizeThrowStyle(ts) ?? 'rhbh';
+  if (t === 'rhfh' || t === 'lhbh') return 'mirrored';
+  return 'standard';
+}
 
 function useNarrowChartHeight() {
   const [narrow, setNarrow] = useState(
@@ -93,16 +94,19 @@ function useChartEffectiveTheme() {
 }
 
 /**
- * @param {{ bagDiscs: any[], defaultSkillLevel?: 'beginner' | 'intermediate' | 'advanced' }} props
+ * @param {{ bagDiscs: any[], defaultSkillLevel?: 'beginner' | 'intermediate' | 'advanced', defaultThrowStyle?: string }} props
  */
-export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediate' }) {
+export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediate', defaultThrowStyle }) {
   const chartH = useNarrowChartHeight();
   const effectiveChartMode = useChartEffectiveTheme();
   const chartableDiscs = useMemo(
     () => (bagDiscs ?? []).filter(hasValidFlightNumbersForChart),
     [bagDiscs]
   );
-  const [handPair, setHandPair] = useState(/** @type {keyof typeof HAND_FLIGHT_PAIR} */ (HAND_FLIGHT_PAIR.RHBH_LHFH));
+  const [pairMode, setPairMode] = useState(() => defaultPairModeFromThrowStyle(defaultThrowStyle));
+  useEffect(() => {
+    setPairMode(defaultPairModeFromThrowStyle(defaultThrowStyle));
+  }, [defaultThrowStyle]);
   const resolvedDefault =
     defaultSkillLevel === 'beginner' || defaultSkillLevel === 'intermediate' || defaultSkillLevel === 'advanced'
       ? defaultSkillLevel
@@ -135,7 +139,8 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     /** @type {{ flights: import('../flightChartMath.js').DiscFlightData[]; maxDistance: number; maxLateral: number } | null} */ (null)
   );
 
-  const mirror = handPair === HAND_FLIGHT_PAIR.LHBH_RHFH;
+  /** Envelope / power paths use this mirror flag; "both" uses standard for envelope. */
+  const mirror = pairMode === 'mirrored';
 
   const discsForColorAssignment = useMemo(
     () =>
@@ -182,25 +187,67 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     });
   }, [chartableDiscs, colorById, effectiveChartMode]);
 
-  const { flights, maxDistance, maxLateral, discWarnings } = useMemo(() => {
+  const dataStandard = useMemo(() => {
     if (!definitions.length) {
       return {
-        flights: [],
+        flights: /** @type {import('../flightChartMath.js').DiscFlightData[]} */ ([]),
         maxDistance: 400,
         maxLateral: 30,
         discWarnings: /** @type {Map<string, string>} */ (new Map()),
       };
     }
+    return generateBagFlightData(definitions, skillLevel, false);
+  }, [definitions, skillLevel]);
 
-    const data = generateBagFlightData(definitions, skillLevel, mirror);
+  const dataMirrored = useMemo(() => {
+    if (!definitions.length) {
+      return {
+        flights: /** @type {import('../flightChartMath.js').DiscFlightData[]} */ ([]),
+        maxDistance: 400,
+        maxLateral: 30,
+        discWarnings: /** @type {Map<string, string>} */ (new Map()),
+      };
+    }
+    return generateBagFlightData(definitions, skillLevel, true);
+  }, [definitions, skillLevel]);
 
+  const { flights, mirrorFlights, maxDistance, maxLateral, discWarnings } = useMemo(() => {
+    if (!definitions.length) {
+      return {
+        flights: [],
+        mirrorFlights: null,
+        maxDistance: 400,
+        maxLateral: 30,
+        discWarnings: /** @type {Map<string, string>} */ (new Map()),
+      };
+    }
+    if (pairMode === 'both') {
+      return {
+        flights: dataStandard.flights,
+        mirrorFlights: dataMirrored.flights,
+        maxDistance: Math.max(dataStandard.maxDistance, dataMirrored.maxDistance),
+        maxLateral: Math.max(dataStandard.maxLateral, dataMirrored.maxLateral),
+        discWarnings: dataStandard.discWarnings,
+      };
+    }
+    const data = pairMode === 'mirrored' ? dataMirrored : dataStandard;
     return {
       flights: data.flights,
+      mirrorFlights: null,
       maxDistance: data.maxDistance,
       maxLateral: data.maxLateral,
       discWarnings: data.discWarnings,
     };
-  }, [definitions, mirror, skillLevel]);
+  }, [pairMode, dataStandard, dataMirrored]);
+
+  const mirrorFlightsById = useMemo(() => {
+    if (!mirrorFlights) return null;
+    const m = new Map();
+    for (const f of mirrorFlights) {
+      m.set(String(f.disc.id), f);
+    }
+    return m;
+  }, [mirrorFlights]);
 
   const displayFlights = animDisplay?.flights ?? flights;
   const displayMaxDistance = animDisplay?.maxDistance ?? maxDistance;
@@ -306,6 +353,11 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     [displayFlights, primaryId]
   );
 
+  const selectedMirroredDisplayFlight = useMemo(() => {
+    if (pairMode !== 'both' || !mirrorFlightsById || !hasSelectedDiscId(primaryId) || isAnimating) return null;
+    return mirrorFlightsById.get(String(primaryId)) ?? null;
+  }, [pairMode, mirrorFlightsById, primaryId, isAnimating]);
+
   const finishHintForever = useCallback(() => {
     try {
       localStorage.setItem(HINT_KEY, 'true');
@@ -359,16 +411,17 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
   }, [closeDiscPicker]);
 
   const skillLabel = SKILL_PROFILES[skillLevel]?.label ?? skillLevel;
-  const handLabel = useMemo(
-    () =>
-      handPair === HAND_FLIGHT_PAIR.LHBH_RHFH ? 'LHBH / RHFH' : 'RHBH / LHFH',
-    [handPair]
-  );
+  const pairLabel =
+    pairMode === 'both'
+      ? 'RHBH/LHFH and RHFH/LHBH overlay'
+      : pairMode === 'mirrored'
+        ? 'RHFH/LHBH'
+        : 'RHBH/LHFH';
 
   const svgAria = useMemo(() => {
     const n = displayFlights.length;
-    return `Bag flight chart showing ${n} disc${n !== 1 ? 's' : ''} at ${skillLabel} level, ${handLabel} throw`;
-  }, [displayFlights.length, skillLabel, handLabel]);
+    return `Bag flight chart showing ${n} disc${n !== 1 ? 's' : ''} at ${skillLabel} level, ${pairLabel} view`;
+  }, [displayFlights.length, skillLabel, pairLabel]);
 
   const discPickerSummary = useMemo(() => {
     const total = displayFlights.length;
@@ -488,49 +541,67 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
       </AnimatePresence>
 
       <fieldset className="border-0 p-0 m-0 mb-2">
-        <legend className="sr-only">Throw type</legend>
+        <legend className="sr-only">Flight path view</legend>
         <div
-          className="flex w-full rounded-[18px] overflow-hidden p-0.5 gap-0.5 min-h-[36px] flight-chart-themed"
+          className="flex w-full gap-0.5 rounded-[18px] overflow-hidden p-0.5 min-h-[36px] flight-chart-themed"
           style={{ backgroundColor: 'var(--chart-toggle-bg)' }}
           role="radiogroup"
-          aria-label="Throw type: RHBH and LHFH together, or LHBH and RHFH together"
+          aria-label="Flight path view"
         >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={handPair === HAND_FLIGHT_PAIR.RHBH_LHFH}
-            onClick={() => setHandPair(HAND_FLIGHT_PAIR.RHBH_LHFH)}
-            className="no-hover-scale flex-1 min-h-[36px] rounded-2xl text-[13px] font-bold transition-colors duration-200 ease-out flight-chart-themed"
-            style={
-              handPair === HAND_FLIGHT_PAIR.RHBH_LHFH
-                ? {
-                    backgroundColor: 'var(--chart-toggle-active-bg)',
-                    color: 'var(--chart-toggle-active-text)',
-                  }
-                : { backgroundColor: 'transparent', color: 'var(--chart-toggle-inactive-text)' }
-            }
-          >
-            RHBH / LHFH
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={handPair === HAND_FLIGHT_PAIR.LHBH_RHFH}
-            onClick={() => setHandPair(HAND_FLIGHT_PAIR.LHBH_RHFH)}
-            className="no-hover-scale flex-1 min-h-[36px] rounded-2xl text-[13px] font-bold transition-colors duration-200 ease-out flight-chart-themed"
-            style={
-              handPair === HAND_FLIGHT_PAIR.LHBH_RHFH
-                ? {
-                    backgroundColor: 'var(--chart-toggle-active-bg)',
-                    color: 'var(--chart-toggle-active-text)',
-                  }
-                : { backgroundColor: 'transparent', color: 'var(--chart-toggle-inactive-text)' }
-            }
-          >
-            LHBH / RHFH
-          </button>
+          {[
+            { id: 'standard', label: 'RHBH / LHFH' },
+            { id: 'both', label: 'Both' },
+            { id: 'mirrored', label: 'RHFH / LHBH' },
+          ].map(({ id, label }) => {
+            const selected = pairMode === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setPairMode(id)}
+                className="no-hover-scale flex-1 min-h-[36px] min-w-0 px-1 rounded-2xl text-[10px] sm:text-[11px] font-bold leading-tight transition-colors duration-200 ease-out flight-chart-themed"
+                style={
+                  selected
+                    ? {
+                        backgroundColor: 'var(--chart-toggle-active-bg)',
+                        color: 'var(--chart-toggle-active-text)',
+                      }
+                    : { backgroundColor: 'transparent', color: 'var(--chart-toggle-inactive-text)' }
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </fieldset>
+
+      {pairMode === 'both' && (
+        <div
+          className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mb-2 px-1"
+          role="note"
+          aria-label="Overlaid paths: solid line is RHBH and LHFH; dashed line is RHFH and LHBH"
+        >
+          <div className="flex items-center gap-1.5">
+            <svg width={24} height={10} viewBox="0 0 24 10" className="shrink-0 chart-svg-path" aria-hidden>
+              <line x1={0} y1={5} x2={24} y2={5} stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" />
+            </svg>
+            <span className="text-[11px] font-semibold flight-chart-themed" style={{ color: 'var(--chart-legend-text)' }}>
+              RHBH / LHFH
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <svg width={24} height={10} viewBox="0 0 24 10" className="shrink-0 chart-svg-path" aria-hidden>
+              <line x1={0} y1={5} x2={24} y2={5} stroke="#a78bfa" strokeWidth={2} strokeDasharray="4 3" strokeLinecap="round" />
+            </svg>
+            <span className="text-[11px] font-semibold flight-chart-themed" style={{ color: 'var(--chart-legend-text)' }}>
+              RHFH / LHBH
+            </span>
+          </div>
+        </div>
+      )}
 
       <fieldset className="border-0 p-0 m-0 mb-3">
         <legend className="sr-only">Skill level</legend>
@@ -637,23 +708,42 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
             const d = pathD(std);
             const overview = highlightedDiscId == null;
             const strokeW = overview ? 2.5 : 1.5;
+            const mirF = pairMode === 'both' && mirrorFlightsById ? mirrorFlightsById.get(String(flight.disc.id)) : null;
 
             return (
-              <path
-                key={`line-${flight.disc.id}`}
-                d={d}
-                fill="none"
-                stroke={flight.color}
-                strokeWidth={strokeW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="chart-svg-path"
-                pointerEvents="none"
-                style={{
-                  opacity: overview ? 'var(--chart-path-opacity-default)' : 'var(--chart-path-dimmed)',
-                  transition: 'opacity 250ms ease, stroke-width 250ms ease, stroke 200ms ease',
-                }}
-              />
+              <g key={`line-group-${flight.disc.id}`}>
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={flight.color}
+                  strokeWidth={strokeW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="chart-svg-path"
+                  pointerEvents="none"
+                  style={{
+                    opacity: overview ? 'var(--chart-path-opacity-default)' : 'var(--chart-path-dimmed)',
+                    transition: 'opacity 250ms ease, stroke-width 250ms ease, stroke 200ms ease',
+                  }}
+                />
+                {mirF && (
+                  <path
+                    d={pathD(mirF.paths.standard)}
+                    fill="none"
+                    stroke={flight.color}
+                    strokeWidth={strokeW}
+                    strokeDasharray="5 4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="chart-svg-path"
+                    pointerEvents="none"
+                    style={{
+                      opacity: overview ? 'var(--chart-path-opacity-default)' : 'var(--chart-path-dimmed)',
+                      transition: 'opacity 250ms ease, stroke-width 250ms ease, stroke 200ms ease',
+                    }}
+                  />
+                )}
+              </g>
             );
           })}
 
@@ -693,6 +783,19 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
                   strokeOpacity="var(--chart-variant-opacity)"
                   className="chart-svg-path"
                 />
+                {selectedMirroredDisplayFlight && (
+                  <path
+                    d={pathD(selectedMirroredDisplayFlight.paths.standard)}
+                    fill="none"
+                    stroke={discColor}
+                    strokeWidth={2.5}
+                    strokeDasharray="6 4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeOpacity={0.9}
+                    className="chart-svg-path"
+                  />
+                )}
                 <path
                   d={pathD(selectedDisplayFlight.paths.standard)}
                   fill="none"
