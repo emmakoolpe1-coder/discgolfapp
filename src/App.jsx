@@ -5,7 +5,7 @@
 // Part 2: Bags, Dashboard, Detail, Cards, Main App
 // ═══════════════════════════════════════════════════════
 
-import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel, normalizeThrowStyle } from './firestoreSync.js';
@@ -364,6 +364,237 @@ const BUY_SUGGESTIONS = {
     { mold:'Leopard3', manufacturer:'Innova', plastic:'Champion', speed:7, glide:5, turn:-2, fade:1, price:'$13–17', color:'#22c55e', desc:'Consider swapping one for different shot shape' },
   ],
 };
+
+// ── Disc golf glossary (tooltips) ─────────────────────────────────
+const GLOSSARY_DIR_NOTE = ' (Directions based on RHBH — reversed for RHFH.)';
+
+const DISC_GLOSSARY = {
+  understable: {
+    title: 'Understable',
+    body: `A disc that curves to the right during flight (for RHBH throws). Understable discs are great for beginners and useful for turnover shots.${GLOSSARY_DIR_NOTE}`,
+  },
+  overstable: {
+    title: 'Overstable',
+    body: `A disc that curves hard to the left at the end of flight (for RHBH throws). Overstable discs fight wind and finish with a reliable fade.${GLOSSARY_DIR_NOTE}`,
+  },
+  stable: {
+    title: 'Stable',
+    body: 'A disc that flies relatively straight with a predictable gentle fade at the end.',
+  },
+  anhyzer: {
+    title: 'Anhyzer',
+    body: `A throw angle where the disc is tilted away from your body. This encourages the disc to curve right (for RHBH) for sweeping turnover lines.${GLOSSARY_DIR_NOTE}`,
+  },
+  hyzer: {
+    title: 'Hyzer',
+    body: `A throw angle where the disc is tilted toward your body. This encourages the disc to curve left (for RHBH) and is the most natural release angle.${GLOSSARY_DIR_NOTE}`,
+  },
+  tailwind: {
+    title: 'Tailwind',
+    body: "Wind blowing in the same direction you're throwing. Tailwinds make discs act more understable (turn more).",
+  },
+  headwind: {
+    title: 'Headwind',
+    body: "Wind blowing toward you as you throw. Headwinds make discs act more overstable (fade harder and resist turning).",
+  },
+  fade: {
+    title: 'Fade',
+    body: `The natural end-of-flight hook to the left (for RHBH). A disc's fade number indicates how hard it hooks at the end. Higher fade = more hook.${GLOSSARY_DIR_NOTE}`,
+  },
+  turn: {
+    title: 'Turn',
+    body: `The tendency of a disc to curve right during the high-speed part of flight (for RHBH). Negative turn numbers mean more rightward movement.${GLOSSARY_DIR_NOTE}`,
+  },
+  glide: {
+    title: 'Glide',
+    body: 'How well a disc stays in the air. Higher glide means more distance and float.',
+  },
+  speed: {
+    title: 'Speed',
+    body: "How fast a disc needs to be thrown to achieve its intended flight. Higher speed discs require more arm speed but can go farther.",
+  },
+  turnover_shot: {
+    title: 'Turnover shot',
+    body: `A shot where the disc curves opposite to its natural fade — turning right for RHBH throwers. Used for shaping lines around obstacles.${GLOSSARY_DIR_NOTE}`,
+  },
+  hard_finishing_line: {
+    title: 'Hard-finishing line',
+    body: 'A shot that hooks hard at the end of its flight, usually using an overstable disc. Useful for dogleg holes and getting around corners.',
+  },
+  skip_shot: {
+    title: 'Skip shot',
+    body: 'A shot where the disc intentionally hits the ground at an angle and skips forward or sideways. Overstable discs on hyzer are best for skips.',
+  },
+  roller: {
+    title: 'Roller',
+    body: 'A throw where the disc is released nearly vertical so it lands on its edge and rolls along the ground. Used for extra distance or getting under low ceilings.',
+  },
+  s_curve: {
+    title: 'S-curve',
+    body: `A flight path where the disc first turns right then fades back left (for RHBH), making an S-shape. Common with slightly understable discs thrown with good speed.${GLOSSARY_DIR_NOTE}`,
+  },
+  flippy: {
+    title: 'Flippy',
+    body: 'Slang for very understable. A flippy disc turns over easily and is great for beginners or turnover shots.',
+  },
+  beef_beefy: {
+    title: 'Beef / Beefy',
+    body: `Slang for very overstable. A beefy disc resists turn and has a hard fade. Good for windy conditions and reliable left finishes.${GLOSSARY_DIR_NOTE}`,
+  },
+  parking: {
+    title: 'Parking',
+    body: 'Landing your disc right next to the basket — a great approach shot.',
+  },
+  gap: {
+    title: 'Gap',
+    body: 'In bag building, a gap is a missing flight shape or disc category in your bag that limits the shots you can throw on the course.',
+  },
+};
+
+const GLOSSARY_MATCHERS_ORDERED = [
+  { id: 'turnover_shot', re: /^turnover\s+shot\b/i },
+  { id: 'turnover_shot', re: /^turnover\b/i },
+  { id: 'hard_finishing_line', re: /^hard[- ]finishing\s+line\b/i },
+  { id: 'skip_shot', re: /^skip\s+shot\b/i },
+  { id: 'understable', re: /^understable\b/i },
+  { id: 'overstable', re: /^overstable\b/i },
+  { id: 'turnover', re: /^turnover\b/i },
+  { id: 'anhyzer', re: /^anhyzer\b/i },
+  { id: 'hyzer', re: /^hyzer\b/i },
+  { id: 'tailwind', re: /^tailwind\b/i },
+  { id: 'headwind', re: /^headwind\b/i },
+  { id: 's_curve', re: /^s[- ]?curve\b/i },
+  { id: 'flippy', re: /^flippy\b/i },
+  { id: 'beefy', re: /^beefy\b/i },
+  { id: 'roller', re: /^roller\b/i },
+  { id: 'parking', re: /^parking\b/i },
+  { id: 'stable', re: /^stable\b/i },
+  { id: 'glide', re: /^glide\b/i },
+  { id: 'speed', re: /^speed\b/i },
+  { id: 'fade', re: /^fade\b/i },
+  { id: 'turn', re: /^turn\b/i },
+  { id: 'beef_beefy', re: /^beef\b/i },
+  { id: 'gap', re: /^gap\b/i },
+];
+
+function parseGlossaryTextToNodes(text, openTerm) {
+  const parts = [];
+  let i = 0;
+  let k = 0;
+  while (i < text.length) {
+    const rest = text.slice(i);
+    let matched = null;
+    for (const m of GLOSSARY_MATCHERS_ORDERED) {
+      const hit = rest.match(m.re);
+      if (hit && hit.index === 0) {
+        matched = { id: m.id, len: hit[0].length };
+        break;
+      }
+    }
+    if (matched) {
+      const display = text.slice(i, i + matched.len);
+      parts.push(
+        <button
+          key={`g-${k++}`}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openTerm(matched.id);
+          }}
+          className="text-primary underline decoration-dotted decoration-primary underline-offset-[3px] cursor-pointer bg-transparent p-0 border-0 font-inherit text-left inline align-baseline"
+          aria-label={`Glossary: ${DISC_GLOSSARY[matched.id]?.title || display}`}
+        >
+          {display}
+        </button>
+      );
+      i += matched.len;
+    } else {
+      let j = i;
+      while (j < text.length) {
+        const sub = text.slice(j);
+        let hit = false;
+        for (const m of GLOSSARY_MATCHERS_ORDERED) {
+          const h = sub.match(m.re);
+          if (h && h.index === 0) {
+            hit = true;
+            break;
+          }
+        }
+        if (hit) break;
+        j += 1;
+      }
+      if (j > i) {
+        parts.push(text.slice(i, j));
+      }
+      i = j;
+    }
+  }
+  return parts;
+}
+
+const GlossaryContext = React.createContext(null);
+
+function GlossaryProvider({ children }) {
+  const [activeId, setActiveId] = useState(null);
+  const openTerm = useCallback((id) => {
+    if (DISC_GLOSSARY[id]) setActiveId(id);
+  }, []);
+  const closeTerm = useCallback(() => setActiveId(null), []);
+  const value = useMemo(() => ({ openTerm, closeTerm, activeId }), [activeId, openTerm, closeTerm]);
+  return (
+    <GlossaryContext.Provider value={value}>
+      {children}
+      <GlossaryTermModal activeId={activeId} onClose={closeTerm} />
+    </GlossaryContext.Provider>
+  );
+}
+
+function GlossaryBody({ children, className = '', as: Comp = 'span' }) {
+  const ctx = useContext(GlossaryContext);
+  const text = typeof children === 'string' ? children : '';
+  const nodes = useMemo(() => {
+    if (!ctx?.openTerm || !text) return null;
+    return parseGlossaryTextToNodes(text, ctx.openTerm);
+  }, [text, ctx]);
+  if (!ctx || nodes == null) return <Comp className={className}>{children}</Comp>;
+  return <Comp className={className}>{nodes}</Comp>;
+}
+
+function GlossaryTermModal({ activeId, onClose }) {
+  useEffect(() => {
+    if (!activeId) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeId, onClose]);
+  if (!activeId) return null;
+  const entry = DISC_GLOSSARY[activeId];
+  if (!entry) return null;
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="glossary-term-title">
+      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm border-0 cursor-default p-0" aria-label="Close glossary" onClick={onClose} />
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.96, opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="relative z-10 w-full max-w-md bg-card border border-border rounded-2xl shadow-card-lg p-5 mx-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-start gap-3 mb-3">
+          <h2 id="glossary-term-title" className="text-lg font-bold text-text pr-2">{entry.title}</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface text-text-muted shrink-0" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-sm text-text-muted leading-relaxed">{entry.body}</p>
+      </motion.div>
+    </div>
+  );
+}
 
 // ── Helpers (function declarations so they are hoisted and safe with minification) ───
 function wc(l) { return l>=8?'bg-gap-low':l>=6?'bg-primary':l>=4?'bg-gap-medium':l>=2?'bg-gap-medium':'bg-gap-high'; }
@@ -2193,7 +2424,7 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
                 </div>
               )}
               {!hasValidFlightNumbersForChart(f) && (
-                <p className="mt-3 text-center text-xs text-text-muted py-4 px-2 bg-surface/50 rounded-xl">Enter flight numbers to see the flight path</p>
+                <GlossaryBody as="p" className="mt-3 text-center text-xs text-text-muted py-4 px-2 bg-surface/50 rounded-xl">Enter flight numbers to see the flight path</GlossaryBody>
               )}
               <div className="mt-3">
                 <label className="block text-xs text-text-muted mb-1.5 font-medium">Default Flight View</label>
@@ -3076,9 +3307,9 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
                 {skillOverBlockExpanded && (
                   <div className="mt-2 pt-2 border-t border-border/50 space-y-2.5">
                     <div className="rounded-xl border border-border bg-amber-50 dark:bg-amber-950/25 px-3 py-3 text-text shadow-sm">
-                      <p className="text-xs leading-relaxed text-text">
-                        These discs are outside the typical speed range for {skillLevelDisplayLabel(userSkillLevel)} players. You can still throw them — many players bag one &quot;challenge&quot; disc — but slower discs in a similar role are often easier to control while you build form.
-                      </p>
+                      <GlossaryBody as="p" className="text-xs leading-relaxed text-text">
+                        {`These discs are outside the typical speed range for ${skillLevelDisplayLabel(userSkillLevel)} players. You can still throw them — many players bag one "challenge" disc — but slower discs in a similar role are often easier to control while you build form.`}
+                      </GlossaryBody>
                     </div>
                     <div className="space-y-1.5">
                       {flaggedOverSkill.map((fd) => {
@@ -3110,7 +3341,7 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
                                         <span className="text-xs font-bold text-text truncate block">{fd.custom_name || fd.mold}</span>
                                         <span className="text-[10px] text-text-muted">{[fd.manufacturer, fd.plastic_type || fd.plastic].filter(Boolean).join(' · ')}</span>
                                         <div className="text-[10px] font-semibold text-text tabular-nums tracking-tight mt-0.5">{fmtDiscFlightLine(fd)}</div>
-                                        <p className="text-[11px] text-text mt-1 leading-snug">{explainDiscOutsideSkillRange(fd, skillRange, userSkillLevel)}</p>
+                                        <GlossaryBody as="p" className="text-[11px] text-text mt-1 leading-snug">{explainDiscOutsideSkillRange(fd, skillRange, userSkillLevel)}</GlossaryBody>
                                       </div>
                                     </div>
                                     {libRep.length > 0 && (
@@ -3229,11 +3460,11 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
                                                   </div>
                                                 ))}
                                               </div>
-                                              <p className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</p>
+                                              <GlossaryBody as="p" className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</GlossaryBody>
                                             </>
                                           ) : (
                                             <>
-                                              <p className="text-xs text-text-muted">{g.suggest}</p>
+                                              <GlossaryBody as="p" className="text-xs text-text-muted">{g.suggest}</GlossaryBody>
                                               {libraryMatches.length > 0 && (
                                                 <div>
                                                   <h5 className="flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase tracking-wider mb-1.5"><Library size={11}/>From Your Collection ({libraryMatches.length})</h5>
@@ -3254,7 +3485,7 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
                                                         {filterBySkillLevel && isRecAboveSkillSpeed(d) && (
                                                           <div className="w-full min-w-0 rounded-md border border-amber-600/35 bg-amber-100 px-2.5 py-2 text-[10px] font-medium leading-snug text-neutral-900 shadow-sm dark:border-amber-500/50 dark:bg-amber-200/95 dark:text-neutral-950">
                                                             <span aria-hidden className="mr-1">⚠️</span>
-                                                            {explainDiscOutsideSkillRange(d, skillRange, userSkillLevel)}
+                                                            <GlossaryBody>{explainDiscOutsideSkillRange(d, skillRange, userSkillLevel)}</GlossaryBody>
                                                           </div>
                                                         )}
                                                       </div>
@@ -3287,7 +3518,7 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
                                                         {filterBySkillLevel && isRecAboveSkillSpeed(s) && (
                                                           <div className="w-full min-w-0 rounded-md border border-amber-600/35 bg-amber-100 px-2.5 py-2 text-[10px] font-medium leading-snug text-neutral-900 shadow-sm dark:border-amber-500/50 dark:bg-amber-200/95 dark:text-neutral-950">
                                                             <span aria-hidden className="mr-1">⚠️</span>
-                                                            {explainDiscOutsideSkillRange(s, skillRange, userSkillLevel)}
+                                                            <GlossaryBody>{explainDiscOutsideSkillRange(s, skillRange, userSkillLevel)}</GlossaryBody>
                                                           </div>
                                                         )}
                                                       </div>
@@ -4068,7 +4299,7 @@ function TrophyCasePage({
           <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
             <Target size={64} className="text-gap-high/50 mx-auto"/>
             <h3 className="text-lg font-bold text-text mt-4">How far can you send it?</h3>
-            <p className="text-sm text-text-muted max-w-xs mt-2">Log your longest throws with the disc you used.</p>
+            <GlossaryBody as="p" className="text-sm text-text-muted max-w-xs mt-2">Log your longest throws with the disc you used.</GlossaryBody>
             <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setEditingLongestThrow(null); setLongestThrowFormOpen(true); }} className="mt-6 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-gap-high text-text"><Target size={16}/>Add Longest Throw</motion.button>
           </div>
         ) : sortedLongestThrows.map((t, i) => {
@@ -4596,7 +4827,7 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
                               </div>
                             ))}
                           </div>
-                          <p className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</p>
+                          <GlossaryBody as="p" className="text-[11px] text-text-muted italic">Consider swapping one for a different stability to cover more shot shapes.</GlossaryBody>
                         </div>
                       </motion.div>
                     )}
@@ -4627,8 +4858,8 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
                               <ChevronDown size={14} className="rotate-180 transition-transform duration-200" />
                             </motion.button>
                           </div>
-                          <p className="text-xs text-text-muted">{selectedGap.suggest}</p>
-                          <p className="text-[11px] text-text-muted italic">Consider adding a disc from your library or the list below to fill this gap.</p>
+                          <GlossaryBody as="p" className="text-xs text-text-muted">{selectedGap.suggest}</GlossaryBody>
+                          <GlossaryBody as="p" className="text-[11px] text-text-muted italic">Consider adding a disc from your library or the list below to fill this gap.</GlossaryBody>
                         </div>
                       </motion.div>
                     )}
@@ -4818,10 +5049,10 @@ function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup
                 </div>
               )}
               {disc.status === 'lost' && String(disc.lostNote || '').trim() && (
-                <p className="text-sm text-text-muted italic">{disc.lostNote}</p>
+                <GlossaryBody as="p" className="text-sm text-text-muted italic">{String(disc.lostNote)}</GlossaryBody>
               )}
               {disc.status === 'gave_away_sold' && String(disc.gaveAwayNote || '').trim() && (
-                <p className="text-sm text-text-muted italic">{disc.gaveAwayNote}</p>
+                <GlossaryBody as="p" className="text-sm text-text-muted italic">{String(disc.gaveAwayNote)}</GlossaryBody>
               )}
             </div>
           )}
@@ -5426,7 +5657,7 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
             </button>
             <h2 className="text-sm font-bold text-text mb-1">Primary throwing style</h2>
             <p className="text-xs text-text-muted mb-2">How do you usually throw?</p>
-            <p className="text-[11px] text-text-muted mb-3 leading-snug">This adjusts your flight charts to match your throw. You can always view other styles too.</p>
+            <GlossaryBody as="p" className="text-[11px] text-text-muted mb-3 leading-snug">This adjusts your flight charts to match your throw. You can always view other styles too.</GlossaryBody>
             <ThrowStylePicker value={signupThrowStyle} onChange={setSignupThrowStyle} />
             {authError && <p className="text-sm text-gap-high mt-2">{authError}</p>}
             <motion.button type="button" onClick={handleCreateAccountWithThrowStyle} whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} className="w-full mt-4 py-3.5 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors">Create account</motion.button>
@@ -6172,18 +6403,20 @@ function DiscLibrary() {
 
   if (!showApp) {
     return (
-      <>
-        <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
-        <WelcomeScreen
-          onGuestClick={() => { ReactGA.event({ category: 'Auth', action: 'Guest Mode' }); setGuestMode(true); }}
-          onGoogleClick={handleGoogleSignIn}
-          onEmailSignUp={handleEmailSignUp}
-          onEmailLogin={handleEmailLogin}
-          theme={theme}
-          onThemeChange={setTheme}
-        />
-        <Analytics />
-      </>
+      <GlossaryProvider>
+        <>
+          <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
+          <WelcomeScreen
+            onGuestClick={() => { ReactGA.event({ category: 'Auth', action: 'Guest Mode' }); setGuestMode(true); }}
+            onGoogleClick={handleGoogleSignIn}
+            onEmailSignUp={handleEmailSignUp}
+            onEmailLogin={handleEmailLogin}
+            theme={theme}
+            onThemeChange={setTheme}
+          />
+          <Analytics />
+        </>
+      </GlossaryProvider>
     );
   }
 
@@ -6193,6 +6426,7 @@ function DiscLibrary() {
   const goToDiscs = () => { setMainView('discs'); setActiveBagId(null); };
 
   return (
+    <GlossaryProvider>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-bg text-text">
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
       <InstallPromptBanner />
@@ -6531,6 +6765,7 @@ function DiscLibrary() {
       )}
       <Analytics />
     </motion.div>
+    </GlossaryProvider>
   );
 }
 
