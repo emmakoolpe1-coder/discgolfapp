@@ -5,7 +5,7 @@
 // Part 2: Bags, Dashboard, Detail, Cards, Main App
 // ═══════════════════════════════════════════════════════
 
-import React, { useState, useMemo, useEffect, useCallback, useRef, useContext } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel, normalizeThrowStyle } from './firestoreSync.js';
@@ -13,6 +13,7 @@ import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/a
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
 import { hasValidFlightNumbersForChart, parseFlightNum } from './flightChartMath.js';
+import { track } from './utils/analytics.js';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
@@ -545,7 +546,7 @@ function GlossaryProvider({ children }) {
   return (
     <GlossaryContext.Provider value={value}>
       {children}
-      <GlossaryTermModal activeId={activeId} onClose={closeTerm} />
+      <GlossaryTermBottomSheet activeId={activeId} onClose={closeTerm} />
     </GlossaryContext.Provider>
   );
 }
@@ -561,7 +562,7 @@ function GlossaryBody({ children, className = '', as: Comp = 'span' }) {
   return <Comp className={className}>{nodes}</Comp>;
 }
 
-function GlossaryTermModal({ activeId, onClose }) {
+function GlossaryTermBottomSheet({ activeId, onClose }) {
   useEffect(() => {
     if (!activeId) return undefined;
     const onKey = (e) => {
@@ -570,29 +571,60 @@ function GlossaryTermModal({ activeId, onClose }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeId, onClose]);
-  if (!activeId) return null;
-  const entry = DISC_GLOSSARY[activeId];
-  if (!entry) return null;
+  const entry = activeId ? DISC_GLOSSARY[activeId] : null;
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="glossary-term-title">
-      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm border-0 cursor-default p-0" aria-label="Close glossary" onClick={onClose} />
-      <motion.div
-        initial={{ scale: 0.96, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.96, opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="relative z-10 w-full max-w-md bg-card border border-border rounded-2xl shadow-card-lg p-5 mx-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-start gap-3 mb-3">
-          <h2 id="glossary-term-title" className="text-lg font-bold text-text pr-2">{entry.title}</h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-xl hover:bg-surface text-text-muted shrink-0" aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-        <p className="text-sm text-text-muted leading-relaxed">{entry.body}</p>
-      </motion.div>
-    </div>
+    <AnimatePresence>
+      {activeId && entry ? (
+        <motion.button
+          key="glossary-backdrop"
+          type="button"
+          aria-label="Close glossary"
+          className="fixed inset-0 z-[200] border-0 p-0 cursor-default bg-black/30"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+          onClick={onClose}
+        />
+      ) : null}
+      {activeId && entry ? (
+        <motion.div
+          key="glossary-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="glossary-term-title"
+          className="fixed left-0 right-0 bottom-0 z-[201] flex justify-center pointer-events-none"
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+        >
+          <motion.div
+            className="pointer-events-auto w-full max-w-lg mx-auto bg-card border border-border rounded-t-2xl shadow-card-lg flex flex-col max-h-[40vh] overflow-hidden"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 320 }}
+            dragElastic={{ top: 0, bottom: 0.25 }}
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 72 || info.velocity.y > 500) onClose();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-2 pb-3 shrink-0 cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1 rounded-full bg-black/15 dark:bg-white/20" aria-hidden />
+            </div>
+            <div className="px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] flex flex-col gap-3 min-h-0">
+              <h2 id="glossary-term-title" className="text-[18px] font-bold text-text leading-tight shrink-0">
+                {entry.title}
+              </h2>
+              <p className="text-[15px] font-normal text-text-muted leading-relaxed overflow-y-auto overscroll-contain touch-pan-y max-h-[calc(40vh-7rem)]">
+                {entry.body}
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -1189,6 +1221,85 @@ function FilterDropdown({value,options,onChange,label}) {
 // ═══════════════════════════════════════════════════════
 // DISC VISUAL (defined before ConfirmDialog which uses it)
 // ═══════════════════════════════════════════════════════
+
+/** Fits disc name on one line (no wrap, no ellipsis): shrinks font from maxPx until it fits, down to hardMinPx. */
+function FittedDiscText({ text, maxPx, hardMinPx = 6, className = '', style }) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const el = textRef.current;
+    if (!wrap || !el) return;
+    const apply = () => {
+      const cw = wrap.clientWidth;
+      if (cw <= 0) return;
+      const str = text != null ? String(text) : '';
+      el.style.whiteSpace = 'nowrap';
+      el.style.wordBreak = 'normal';
+      el.style.overflow = 'visible';
+      el.style.textOverflow = 'clip';
+      if (!str) return;
+      let chosen = hardMinPx;
+      for (let fs = maxPx; fs >= hardMinPx; fs -= 0.5) {
+        el.style.fontSize = `${fs}px`;
+        if (el.scrollWidth <= cw) {
+          chosen = fs;
+          break;
+        }
+      }
+      el.style.fontSize = `${chosen}px`;
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [text, maxPx, hardMinPx]);
+  return (
+    <div ref={wrapRef} className="w-full min-w-0 overflow-visible">
+      <span ref={textRef} className={`block whitespace-nowrap ${className}`} style={{ ...style, fontSize: maxPx }}>{text}</span>
+    </div>
+  );
+}
+
+/** One line inside the disc circle (manufacturer or mold): shrink to fit, no wrap, no ellipsis. */
+function FittedCircleLine({ text, maxPx, hardMinPx = 4, className = '', style }) {
+  const wrapRef = useRef(null);
+  const textRef = useRef(null);
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const el = textRef.current;
+    if (!wrap || !el) return;
+    const apply = () => {
+      const cw = wrap.clientWidth;
+      if (cw <= 0) return;
+      const str = text != null ? String(text) : '';
+      el.style.whiteSpace = 'nowrap';
+      el.style.wordBreak = 'normal';
+      el.style.overflow = 'visible';
+      el.style.textOverflow = 'clip';
+      if (!str) return;
+      let chosen = hardMinPx;
+      for (let fs = maxPx; fs >= hardMinPx; fs -= 0.5) {
+        el.style.fontSize = `${fs}px`;
+        if (el.scrollWidth <= cw) {
+          chosen = fs;
+          break;
+        }
+      }
+      el.style.fontSize = `${chosen}px`;
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [text, maxPx, hardMinPx]);
+  return (
+    <div ref={wrapRef} className="w-full min-w-0 px-0.5 flex justify-center overflow-visible">
+      <span ref={textRef} className={`text-center leading-tight block whitespace-nowrap ${className}`} style={{ ...style, fontSize: maxPx }}>{text}</span>
+    </div>
+  );
+}
+
 function DiscVisual({disc,size='md'}) {
   const sz = {sm:'w-14 h-14',md:'w-20 h-20',lg:'w-28 h-28',xl:'w-36 h-36'}[size]||'w-20 h-20';
   const dark = luma(disc.color||'#888')>160;
@@ -1196,16 +1307,18 @@ function DiscVisual({disc,size='md'}) {
   const sc2 = dark?'rgba(0,0,0,0.45)':'rgba(255,255,255,0.55)';
   const mfs = {sm:8,md:9,lg:10,xl:11}[size]||9;
   const dfs = {sm:11,md:14,lg:17,xl:22}[size]||14;
+  const mfsMin = {sm:5,md:5,lg:6,xl:6}[size]||5;
+  const dfsMin = {sm:5,md:6,lg:7,xl:8}[size]||6;
   return (
-    <div className={`relative rounded-full overflow-hidden ${sz} shrink-0 shadow-lg`}
+  <div className={`relative rounded-full overflow-hidden ${sz} shrink-0 shadow-lg`}
       style={disc.wear_level<=4?{filter:`saturate(${0.55+disc.wear_level*0.1})`}:undefined}>
       {disc.photo ? (
         <img src={disc.photo} className="w-full h-full object-cover" alt={disc.mold}/>
       ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center p-1"
+        <div className="w-full h-full flex flex-col items-center justify-center p-1 min-h-0 gap-px"
           style={{backgroundColor:disc.color||'#6b7280',boxShadow:'inset 0 2px 8px rgba(255,255,255,0.15), inset 0 -2px 8px rgba(0,0,0,0.2)'}}>
-          <span className="text-center leading-tight font-semibold truncate w-full px-0.5" style={{color:sc2,fontSize:mfs}}>{disc.manufacturer}</span>
-          <span className="text-center leading-tight font-extrabold truncate w-full px-0.5" style={{color:tc,fontSize:dfs}}>{disc.mold}</span>
+          <FittedCircleLine text={disc.manufacturer} maxPx={mfs} hardMinPx={mfsMin} className="font-semibold" style={{ color: sc2 }} />
+          <FittedCircleLine text={disc.mold} maxPx={dfs} hardMinPx={dfsMin} className="font-extrabold" style={{ color: tc }} />
         </div>
       )}
     </div>
@@ -3213,6 +3326,25 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
 
   const hasSkillOverChip = filterBySkillLevel && flaggedOverSkill.length > 0;
   const gapFinderPanelOpen = gapFilter !== null && gaps.length > 0;
+  useEffect(() => {
+    if (gapFinderPanelOpen) {
+      track.gapFinderOpened({
+        gap_count: gaps.length,
+        bag_id: bag?.id,
+        bag_name: bag?.name,
+      });
+    }
+  }, [gapFinderPanelOpen]);
+
+  useEffect(() => {
+    if (gaps.length > 0) {
+      track.gapFinderCompleted({
+        gap_count: gaps.length,
+        bag_id: bag?.id,
+        bag_name: bag?.name,
+      });
+    }
+  }, [gaps.length]);
   const isRecAboveSkillSpeed = useCallback((d) => {
     const sp = Number(d?.speed);
     if (!Number.isFinite(sp)) return false;
@@ -5173,8 +5305,10 @@ function DiscCard({
       >
         <div className="flex flex-col items-center text-center">
           <DiscVisual disc={disc} size="md" />
-          <p className="text-[10px] text-text-muted leading-tight truncate w-full mt-1.5 px-0.5">{disc.manufacturer}</p>
-          <p className="text-xs font-bold text-text leading-snug truncate w-full mt-0.5 px-0.5">{displayName}</p>
+          <p className="text-[10px] text-text-muted leading-tight w-full mt-1.5 px-0.5">{disc.manufacturer}</p>
+            <div className="w-full mt-0.5 px-0.5">
+            <FittedDiscText text={displayName} maxPx={12} hardMinPx={10} className="font-bold text-text leading-snug text-center" />
+          </div>
           <div className="grid grid-cols-4 gap-0.5 w-full mt-2">
             {FN_META.map((fn) => (
               <div key={fn.key} className={`rounded-md py-0.5 text-center ${fn.bg}`}>
@@ -5304,8 +5438,8 @@ function DiscCard({
         {isGallery ? (
           <>
             <DiscVisual disc={disc} size="lg"/>
-            <div className="text-center mt-3 w-full">
-              {hasNick ? (<><h3 className="text-base font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted truncate">{disc.manufacturer} · {disc.mold}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-base font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3></>)}
+            <div className="text-center mt-3 w-full min-w-0 px-0.5">
+              {hasNick ? (<><FittedDiscText text={disc.custom_name} maxPx={16} hardMinPx={8} className="font-black text-text group-hover:text-primary text-center" /><p className="text-xs text-text-muted">{disc.manufacturer} · {disc.mold}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><FittedDiscText text={disc.mold} maxPx={16} hardMinPx={8} className="font-extrabold text-text group-hover:text-primary text-center" /></>)}
               {showLostNoteHint && (
                 <p className="text-[10px] text-text-muted italic truncate mt-1.5 max-w-full px-0.5" title={lostNotePreview}>📝 {lostNotePreview.length > 44 ? `${lostNotePreview.slice(0, 44)}…` : lostNotePreview}</p>
               )}
@@ -5354,7 +5488,7 @@ function DiscCard({
           <div className="flex gap-3 mb-3">
             <DiscVisual disc={disc} size="md"/>
             <div className="flex-1 min-w-0">
-              {hasNick ? (<><h3 className="text-lg font-black text-text group-hover:text-primary truncate">{disc.custom_name}</h3><p className="text-xs text-text-muted mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><h3 className="text-lg font-extrabold text-text group-hover:text-primary truncate">{disc.mold}</h3><span className="text-xs text-text-muted">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
+              {hasNick ? (<><FittedDiscText text={disc.custom_name} maxPx={18} hardMinPx={8} className="font-black text-text group-hover:text-primary" /><p className="text-xs text-text-muted mt-0.5">{disc.manufacturer} · {disc.mold} · {disc.plastic_type}</p></>) : (<><span className="text-xs text-text-muted">{disc.manufacturer}</span><FittedDiscText text={disc.mold} maxPx={18} hardMinPx={8} className="font-extrabold text-text group-hover:text-primary" /><span className="text-xs text-text-muted">{disc.plastic_type}{disc.weight_grams?` · ${disc.weight_grams}g`:''}</span></>)}
               {showLostNoteHint && (
                 <p className="text-[10px] text-text-muted italic truncate mt-1 max-w-full" title={lostNotePreview}>📝 {lostNotePreview.length > 56 ? `${lostNotePreview.slice(0, 56)}…` : lostNotePreview}</p>
               )}
@@ -6207,6 +6341,13 @@ function DiscLibrary() {
     const d = discs.find((x) => x.id === discId);
     const bg = bags.find((x) => x.id === bagId);
     setToast(`✅ ${d?.mold || 'Disc'} added to ${bg?.name || 'bag'}`);
+    track.discAddedToBag({
+      mold: d?.mold,
+      brand: d?.manufacturer,
+      plastic: d?.plastic_type,
+      bag_id: bagId,
+      bag_name: bg?.name,
+    });
   }, [discs, bags]);
 
   const removeDiscFromBag = useCallback((bagId, discId) => {
@@ -6395,6 +6536,12 @@ function DiscLibrary() {
   const updateBag = (id,data) => setBags(p=>p.map(b=>b.id===id?{...b,...data}:b));
 
   const handleBuySearch = useCallback(suggestion => {
+    track.buyLinkClicked({
+      mold: suggestion.mold,
+      brand: suggestion.manufacturer,
+      plastic: suggestion.plastic,
+      source: 'gap_finder',
+    });
     setBackupDisc({id:'sug_'+Date.now(),manufacturer:suggestion.manufacturer,mold:suggestion.mold,plastic_type:suggestion.plastic,color:suggestion.color||'#6b7280',speed:suggestion.speed,glide:suggestion.glide,turn:suggestion.turn,fade:suggestion.fade,wear_level:10,weight_grams:175,custom_name:'',photo:null});
   }, []);
 
