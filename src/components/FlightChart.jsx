@@ -16,8 +16,16 @@ import {
   buildYGridTicks150,
   SKILL_PROFILES,
   hasValidFlightNumbersForChart,
+  mapDiscFlightsFlipHorizontal,
+  flipFlightPointsHorizontal,
 } from '../flightChartMath.js';
-import { normalizeThrowStyle } from '../firestoreSync.js';
+import {
+  defaultPairModeFromThrowStyle,
+  getFlightPathToggleLabels,
+  getBothModeLegendLabels,
+  getPairLabelForAria,
+} from '../flightViewLabels.js';
+import { useThrowStyle } from '../throwStyleContext.js';
 
 const CHART_W = 400;
 const CHART_H_DEFAULT = 400;
@@ -49,12 +57,6 @@ const SKILL_OPTIONS = [
   { id: 'intermediate', label: 'Intermediate' },
   { id: 'advanced', label: 'Advanced' },
 ];
-
-function defaultPairModeFromThrowStyle(ts) {
-  const t = normalizeThrowStyle(ts) ?? 'rhbh';
-  if (t === 'rhfh' || t === 'lhbh') return 'mirrored';
-  return 'standard';
-}
 
 function useNarrowChartHeight() {
   const [narrow, setNarrow] = useState(
@@ -94,19 +96,22 @@ function useChartEffectiveTheme() {
 }
 
 /**
- * @param {{ bagDiscs: any[], defaultSkillLevel?: 'beginner' | 'intermediate' | 'advanced', defaultThrowStyle?: string }} props
+ * @param {{ bagDiscs: any[], defaultSkillLevel?: 'beginner' | 'intermediate' | 'advanced', onSkillLevelChange?: (level: 'beginner' | 'intermediate' | 'advanced') => void }} props
  */
-export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediate', defaultThrowStyle }) {
+export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediate', onSkillLevelChange }) {
+  const throwStyle = useThrowStyle();
   const chartH = useNarrowChartHeight();
   const effectiveChartMode = useChartEffectiveTheme();
   const chartableDiscs = useMemo(
     () => (bagDiscs ?? []).filter(hasValidFlightNumbersForChart),
     [bagDiscs]
   );
-  const [pairMode, setPairMode] = useState(() => defaultPairModeFromThrowStyle(defaultThrowStyle));
-  useEffect(() => {
-    setPairMode(defaultPairModeFromThrowStyle(defaultThrowStyle));
-  }, [defaultThrowStyle]);
+  const [pairMode, setPairMode] = useState(() => defaultPairModeFromThrowStyle(throwStyle));
+  /** Tracks pairMode across renders so path animations never lerp between standard vs mirrored (same disc ids). */
+  const pairModeLerpRef = useRef(pairMode);
+  useLayoutEffect(() => {
+    setPairMode(defaultPairModeFromThrowStyle(throwStyle));
+  }, [throwStyle]);
   const resolvedDefault =
     defaultSkillLevel === 'beginner' || defaultSkillLevel === 'intermediate' || defaultSkillLevel === 'advanced'
       ? defaultSkillLevel
@@ -138,6 +143,11 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
   const [animDisplay, setAnimDisplay] = useState(
     /** @type {{ flights: import('../flightChartMath.js').DiscFlightData[]; maxDistance: number; maxLateral: number } | null} */ (null)
   );
+
+  /** When throw style changes, drop mid-animation overlay so we never show lerped paths from the previous geometry. */
+  useLayoutEffect(() => {
+    setAnimDisplay(null);
+  }, [throwStyle]);
 
   /** Envelope / power paths use this mirror flag; "both" uses standard for envelope. */
   const mirror = pairMode === 'mirrored';
@@ -172,7 +182,7 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
   const definitions = useMemo(() => {
     if (!chartableDiscs.length) return [];
     return chartableDiscs.map((d) => {
-      const base = colorById.get(d.id) ?? '#888888';
+      const base = colorById.get(String(d.id)) ?? '#888888';
       const color =
         effectiveChartMode === 'light' ? adjustColorForLightMode(base) : base;
       return {
@@ -199,23 +209,28 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     return generateBagFlightData(definitions, skillLevel, false);
   }, [definitions, skillLevel]);
 
+  /** RHFH/LHBH paths = horizontal mirror of RHBH/LHFH (same as integrate mirror flag). */
   const dataMirrored = useMemo(() => {
-    if (!definitions.length) {
+    if (!dataStandard.flights.length) {
       return {
         flights: /** @type {import('../flightChartMath.js').DiscFlightData[]} */ ([]),
-        maxDistance: 400,
-        maxLateral: 30,
-        discWarnings: /** @type {Map<string, string>} */ (new Map()),
+        maxDistance: dataStandard.maxDistance,
+        maxLateral: dataStandard.maxLateral,
+        discWarnings: dataStandard.discWarnings,
       };
     }
-    return generateBagFlightData(definitions, skillLevel, true);
-  }, [definitions, skillLevel]);
+    return {
+      flights: mapDiscFlightsFlipHorizontal(dataStandard.flights),
+      maxDistance: dataStandard.maxDistance,
+      maxLateral: dataStandard.maxLateral,
+      discWarnings: dataStandard.discWarnings,
+    };
+  }, [dataStandard]);
 
-  const { flights, mirrorFlights, maxDistance, maxLateral, discWarnings } = useMemo(() => {
+  const { flights, maxDistance, maxLateral, discWarnings } = useMemo(() => {
     if (!definitions.length) {
       return {
         flights: [],
-        mirrorFlights: null,
         maxDistance: 400,
         maxLateral: 30,
         discWarnings: /** @type {Map<string, string>} */ (new Map()),
@@ -224,30 +239,19 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     if (pairMode === 'both') {
       return {
         flights: dataStandard.flights,
-        mirrorFlights: dataMirrored.flights,
-        maxDistance: Math.max(dataStandard.maxDistance, dataMirrored.maxDistance),
-        maxLateral: Math.max(dataStandard.maxLateral, dataMirrored.maxLateral),
+        maxDistance: dataStandard.maxDistance,
+        maxLateral: dataStandard.maxLateral,
         discWarnings: dataStandard.discWarnings,
       };
     }
     const data = pairMode === 'mirrored' ? dataMirrored : dataStandard;
     return {
       flights: data.flights,
-      mirrorFlights: null,
       maxDistance: data.maxDistance,
       maxLateral: data.maxLateral,
       discWarnings: data.discWarnings,
     };
   }, [pairMode, dataStandard, dataMirrored]);
-
-  const mirrorFlightsById = useMemo(() => {
-    if (!mirrorFlights) return null;
-    const m = new Map();
-    for (const f of mirrorFlights) {
-      m.set(String(f.disc.id), f);
-    }
-    return m;
-  }, [mirrorFlights]);
 
   const displayFlights = animDisplay?.flights ?? flights;
   const displayMaxDistance = animDisplay?.maxDistance ?? maxDistance;
@@ -256,8 +260,10 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
   useLayoutEffect(() => {
     const next = { flights, maxDistance, maxLateral };
     const prev = snapshotRef.current;
+    const pairModeChanged = pairModeLerpRef.current !== pairMode;
+    pairModeLerpRef.current = pairMode;
 
-    if (!prev || !flightsMatch(prev.flights, next.flights)) {
+    if (!prev || !flightsMatch(prev.flights, next.flights) || pairModeChanged) {
       snapshotRef.current = next;
       queueMicrotask(() => setAnimDisplay(null));
       return;
@@ -287,8 +293,11 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
       },
     });
 
-    return () => controls.stop();
-  }, [flights, maxDistance, maxLateral]);
+    return () => {
+      controls.stop();
+      setAnimDisplay(null);
+    };
+  }, [flights, maxDistance, maxLateral, pairMode]);
 
   /** Clear highlight if that disc is no longer in the bag. */
   useEffect(() => {
@@ -353,10 +362,13 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
     [displayFlights, primaryId]
   );
 
+  /** Mirrored overlay = flip-x of the displayed standard path (stays in sync during skill lerp). */
   const selectedMirroredDisplayFlight = useMemo(() => {
-    if (pairMode !== 'both' || !mirrorFlightsById || !hasSelectedDiscId(primaryId) || isAnimating) return null;
-    return mirrorFlightsById.get(String(primaryId)) ?? null;
-  }, [pairMode, mirrorFlightsById, primaryId, isAnimating]);
+    if (pairMode !== 'both' || !hasSelectedDiscId(primaryId) || !selectedDisplayFlight) return null;
+    return {
+      paths: { standard: flipFlightPointsHorizontal(selectedDisplayFlight.paths.standard) },
+    };
+  }, [pairMode, primaryId, selectedDisplayFlight]);
 
   const finishHintForever = useCallback(() => {
     try {
@@ -411,12 +423,9 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
   }, [closeDiscPicker]);
 
   const skillLabel = SKILL_PROFILES[skillLevel]?.label ?? skillLevel;
-  const pairLabel =
-    pairMode === 'both'
-      ? 'RHBH/LHFH and RHFH/LHBH overlay'
-      : pairMode === 'mirrored'
-        ? 'RHFH/LHBH'
-        : 'RHBH/LHFH';
+  const pairLabel = getPairLabelForAria(pairMode, throwStyle);
+  const chartToggleLabels = getFlightPathToggleLabels(throwStyle);
+  const bothLegend = getBothModeLegendLabels(throwStyle);
 
   const svgAria = useMemo(() => {
     const n = displayFlights.length;
@@ -549,14 +558,14 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
           aria-label="Flight path view"
         >
           {[
-            { id: 'standard', label: 'RHBH / LHFH' },
-            { id: 'both', label: 'Both' },
-            { id: 'mirrored', label: 'RHFH / LHBH' },
+            { id: 'standard', label: chartToggleLabels.primary },
+            { id: 'both', label: chartToggleLabels.middle },
+            { id: 'mirrored', label: chartToggleLabels.opposite },
           ].map(({ id, label }) => {
             const selected = pairMode === id;
             return (
               <button
-                key={id}
+                key={String(id)}
                 type="button"
                 role="radio"
                 aria-checked={selected}
@@ -582,14 +591,14 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
         <div
           className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mb-2 px-1"
           role="note"
-          aria-label="Overlaid paths: solid line is RHBH and LHFH; dashed line is RHFH and LHBH"
+          aria-label={`Overlaid paths: solid line is ${bothLegend.solidLineLabel}; dashed line is ${bothLegend.dashedLineLabel}`}
         >
           <div className="flex items-center gap-1.5">
             <svg width={24} height={10} viewBox="0 0 24 10" className="shrink-0 chart-svg-path" aria-hidden>
               <line x1={0} y1={5} x2={24} y2={5} stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" />
             </svg>
             <span className="text-[11px] font-semibold flight-chart-themed" style={{ color: 'var(--chart-legend-text)' }}>
-              RHBH / LHFH
+              {bothLegend.solidLineLabel}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -597,7 +606,7 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
               <line x1={0} y1={5} x2={24} y2={5} stroke="#a78bfa" strokeWidth={2} strokeDasharray="4 3" strokeLinecap="round" />
             </svg>
             <span className="text-[11px] font-semibold flight-chart-themed" style={{ color: 'var(--chart-legend-text)' }}>
-              RHFH / LHBH
+              {bothLegend.dashedLineLabel}
             </span>
           </div>
         </div>
@@ -617,7 +626,10 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
               type="button"
               role="radio"
               aria-checked={skillLevel === opt.id}
-              onClick={() => setSkillLevel(opt.id)}
+              onClick={() => {
+                setSkillLevel(opt.id);
+                onSkillLevelChange?.(opt.id);
+              }}
               className={`no-hover-scale flex-1 min-h-[40px] rounded-2xl text-[13px] transition-colors duration-200 ease-out flight-chart-themed ${
                 skillLevel === opt.id ? 'font-bold' : 'font-normal'
               }`}
@@ -708,7 +720,7 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
             const d = pathD(std);
             const overview = highlightedDiscId == null;
             const strokeW = overview ? 2.5 : 1.5;
-            const mirF = pairMode === 'both' && mirrorFlightsById ? mirrorFlightsById.get(String(flight.disc.id)) : null;
+            const mirPts = pairMode === 'both' ? flipFlightPointsHorizontal(std) : null;
 
             return (
               <g key={`line-group-${flight.disc.id}`}>
@@ -726,9 +738,9 @@ export default function FlightChart({ bagDiscs, defaultSkillLevel = 'intermediat
                     transition: 'opacity 250ms ease, stroke-width 250ms ease, stroke 200ms ease',
                   }}
                 />
-                {mirF && (
+                {mirPts && (
                   <path
-                    d={pathD(mirF.paths.standard)}
+                    d={pathD(mirPts)}
                     fill="none"
                     stroke={flight.color}
                     strokeWidth={strokeW}

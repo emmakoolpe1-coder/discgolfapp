@@ -6,14 +6,34 @@
 // ═══════════════════════════════════════════════════════
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
 import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel, normalizeThrowStyle } from './firestoreSync.js';
-import { getAuth, signOut as firebaseSignOut, signInWithPopup } from 'firebase/auth';
+import {
+  defaultPairModeFromThrowStyle,
+  getFlightPathToggleLabels,
+  getBothModeLegendLabels,
+  pairModeFromPreference,
+  normalizeFlightPreference,
+  preserveFlightPreferenceAcrossThrowStyleChange,
+  userDominantHandLabel,
+} from './flightViewLabels.js';
+import { getAuth, signOut as firebaseSignOut, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
-import { hasValidFlightNumbersForChart, parseFlightNum } from './flightChartMath.js';
+import { ThrowStyleContext, useThrowStyle } from './throwStyleContext.js';
+import {
+  hasValidFlightNumbersForChart,
+  parseFlightNum,
+  generateSkillFlightPath,
+  flightPointsToSmoothSVGPath,
+  flightPointToSVG,
+  roundDistanceAxisMax,
+  flipFlightPointsHorizontal,
+} from './flightChartMath.js';
 import { track } from './utils/analytics.js';
+import { getPlasticsForManufacturer } from './plasticTypes.js';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
@@ -26,7 +46,7 @@ import {
 } from 'lucide-react';
 
 // ── Constants ────────────────────────────────────────
-const MFRS = ['Axiom','Clash','DGA','Discraft','Dynamic Discs','Gateway','Innova','Kastaplast','Latitude 64','Lone Star','Mint','MVP','Prodigy','RPM','Streamline','TSA','Westside'];
+const MFRS = ['Axiom','Clash','DGA','Discmania','Discraft','Dynamic Discs','Flight Lab Discs','Gateway','Infinite Discs','Innova','Kastaplast','Latitude 64','Lone Star','Millennium','Mint','MVP','Prodigy','RPM','Streamline','TSA','Westside'];
 const DT = {
   putter:          { label:'Putter',   bg:'bg-secondary/15',     text:'text-secondary',     border:'border-secondary/30',   color:'#6B8F71' },
   midrange:        { label:'Midrange', bg:'bg-primary/15', text:'text-primary', border:'border-primary/30',color:'#1F3D2B' },
@@ -179,11 +199,11 @@ const MOLD_LOOKUP = [
   { manufacturer:'Latitude 64', mold:'Rive', speed:12, glide:6, turn:0, fade:3 }, { manufacturer:'Latitude 64', mold:'Saint', speed:9, glide:7, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Saint Pro', speed:9, glide:6, turn:0, fade:3 },
   { manufacturer:'Latitude 64', mold:'Sapphire', speed:10, glide:6, turn:-1, fade:2 }, { manufacturer:'Latitude 64', mold:'Trust', speed:9, glide:5, turn:0, fade:2 },
   // Kastaplast (20)
-  { manufacturer:'Kastaplast', mold:'Berg', speed:1, glide:1, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 },
+  { manufacturer:'Kastaplast', mold:'Berg', speed:1, glide:1, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Falk', speed:9, glide:6, turn:-2, fade:1 },
   { manufacturer:'Kastaplast', mold:'Göte', speed:5, glide:5, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Grym', speed:11, glide:6, turn:-2, fade:2 }, { manufacturer:'Kastaplast', mold:'Grym X', speed:11, glide:5, turn:0, fade:3 },
   { manufacturer:'Kastaplast', mold:'Guld', speed:12, glide:6, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Impa', speed:11, glide:6, turn:-4, fade:1 }, { manufacturer:'Kastaplast', mold:'Järn', speed:4, glide:2, turn:0, fade:3 },
   { manufacturer:'Kastaplast', mold:'Kaxe', speed:6, glide:4, turn:0, fade:3 }, { manufacturer:'Kastaplast', mold:'Kaxe Z', speed:6, glide:5, turn:-1, fade:2 }, { manufacturer:'Kastaplast', mold:'Lots', speed:9, glide:5, turn:-1, fade:2 },
-  { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Reko', speed:3, glide:3, turn:0, fade:1 },
+  { manufacturer:'Kastaplast', mold:'Rask', speed:12, glide:4, turn:0, fade:4 }, { manufacturer:'Kastaplast', mold:'Reko', speed:3, glide:3, turn:0, fade:1 },
   { manufacturer:'Kastaplast', mold:'Reko X', speed:3, glide:3, turn:0, fade:2 }, { manufacturer:'Kastaplast', mold:'Stig', speed:8, glide:6, turn:-2, fade:1 }, { manufacturer:'Kastaplast', mold:'Stål', speed:9, glide:4, turn:0, fade:3 },
   { manufacturer:'Kastaplast', mold:'Svea', speed:5, glide:6, turn:-1, fade:0 }, { manufacturer:'Kastaplast', mold:'Vass', speed:13, glide:5, turn:-1, fade:3 },
   // Westside (22)
@@ -644,6 +664,71 @@ function fmtD(d) {
   }
 }
 function luma(hex) { const c=(hex||'#888').replace('#',''); return (parseInt(c.substr(0,2),16)*299+parseInt(c.substr(2,2),16)*587+parseInt(c.substr(4,2),16)*114)/1000; }
+function isGlowPlastic(plasticName) {
+  const s = String(plasticName ?? '').trim().toLowerCase();
+  if (!s) return false;
+  if (s.includes('glow')) return true;
+  if (s === 'eclipse 2.0') return true;
+  if (s === 'moonshine') return true;
+  if (s.includes('nocturnal')) return true;
+  if (s.includes('lunar')) return true;
+  return false;
+}
+const GLOW_RGB_FALLBACK = '150, 230, 200';
+function colorToGlowRgbTriplet(colorInput) {
+  if (!colorInput || typeof colorInput !== 'string') return GLOW_RGB_FALLBACK;
+  const s = colorInput.trim();
+  if (!s) return GLOW_RGB_FALLBACK;
+  if (s.startsWith('#')) {
+    let h = s.slice(1);
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    if (h.length === 6) {
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      if ([r, g, b].every((n) => Number.isFinite(n))) return `${r}, ${g}, ${b}`;
+    }
+    return GLOW_RGB_FALLBACK;
+  }
+  const rgbaMatch = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  if (rgbaMatch) {
+    const r = Math.round(parseFloat(rgbaMatch[1]));
+    const g = Math.round(parseFloat(rgbaMatch[2]));
+    const b = Math.round(parseFloat(rgbaMatch[3]));
+    if ([r, g, b].every((n) => Number.isFinite(n))) return `${r}, ${g}, ${b}`;
+  }
+  if (typeof document !== 'undefined') {
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = s;
+        const out = ctx.fillStyle;
+        if (typeof out === 'string') {
+          if (out.startsWith('#')) {
+            const h = out.slice(1);
+            if (h.length === 6) {
+              const r = parseInt(h.slice(0, 2), 16);
+              const g = parseInt(h.slice(2, 4), 16);
+              const b = parseInt(h.slice(4, 6), 16);
+              if ([r, g, b].every((n) => Number.isFinite(n))) return `${r}, ${g}, ${b}`;
+            }
+          }
+          const rgb = out.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+          if (rgb) return `${rgb[1]}, ${rgb[2]}, ${rgb[3]}`;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return GLOW_RGB_FALLBACK;
+}
+function isGlowRgbNearWhite(rgbTriplet) {
+  const parts = String(rgbTriplet).split(',').map((x) => parseInt(x.trim(), 10));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return false;
+  return parts[0] > 220 && parts[1] > 220 && parts[2] > 220;
+}
 function classifyStability(d) {
   const t = parseFlightNum(d.turn);
   const f = parseFlightNum(d.fade);
@@ -804,12 +889,42 @@ function getPBRarity() {
 
 const APP_URL = 'Disc Golf Companion';
 const GUEST_MODE_KEY = 'discgolf_guest_mode';
+const GUEST_CHART_SKILL_KEY = 'discgolf_guest_chart_skill';
+const GUEST_CHART_THROW_KEY = 'discgolf_guest_chart_throw';
+
+function readGuestChartSkillFromStorage() {
+  try {
+    const v = localStorage.getItem(GUEST_CHART_SKILL_KEY);
+    return normalizeSkillLevel(v) ?? 'intermediate';
+  } catch {
+    return 'intermediate';
+  }
+}
+function readGuestChartThrowFromStorage() {
+  try {
+    const v = localStorage.getItem(GUEST_CHART_THROW_KEY);
+    return normalizeThrowStyle(v) ?? 'rhbh';
+  } catch {
+    return 'rhbh';
+  }
+}
 const AUTH_KEY = 'discgolf_auth';
 const EMAIL_ACCOUNTS_KEY = 'discgolf_email_accounts';
 const USER_PROFILE_PIC_KEY = 'discgolf_user_profile_pic';
 const PROFILE_PIC_MAX_SIZE = 200;
 const LS_KEY = 'discgolf_app_v2';
 const MIN_PASSWORD_LENGTH = 6;
+
+function firebaseAuthErrorMessage(err) {
+  const code = err?.code;
+  if (code === 'auth/email-already-in-use') return 'This email is already registered. Try signing in instead.';
+  if (code === 'auth/invalid-email') return 'Invalid email address.';
+  if (code === 'auth/weak-password') return 'Password is too weak. Use at least 6 characters.';
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return 'Sign-in was cancelled.';
+  if (code === 'auth/network-request-failed') return 'Network error. Check your connection and try again.';
+  if (typeof err?.message === 'string' && err.message.trim()) return err.message;
+  return 'Something went wrong. Please try again.';
+}
 
 const SKILL_LEVEL_OPTIONS = [
   { value: 'beginner', label: 'Beginner', description: 'New to disc golf or still learning form. Typical arm speed under 45 mph.' },
@@ -848,6 +963,22 @@ const THROW_STYLE_OPTIONS = [
   { value: 'lhbh', label: 'Left Hand Backhand (LHBH)', description: 'Backhand with your left hand.', suggested: false },
   { value: 'lhfh', label: 'Left Hand Forehand (LHFH)', description: 'Forehand (sidearm) with your left hand.', suggested: false },
 ];
+
+/** Human-readable name for dialogs/toasts (e.g. "Left Hand Backhand"). */
+function getThrowStyleDisplayNameForMessage(ts) {
+  const t = normalizeThrowStyle(ts) ?? 'rhbh';
+  const opt = THROW_STYLE_OPTIONS.find((o) => o.value === t);
+  if (!opt) return t;
+  return opt.label.replace(/\s*\([^)]+\)\s*$/, '').trim();
+}
+
+/**
+ * Stored flight_preference for "match my new throw style": always `primary` (left toggle).
+ * For RHBH/LHFH that is the RHBH/LHFH path; for RHFH/LHBH it is the RHFH/LHBH path.
+ */
+function bulkFlightPreferenceForThrowStyle() {
+  return 'primary';
+}
 
 function ThrowStylePicker({ value, onChange }) {
   return (
@@ -905,7 +1036,7 @@ function SkillLevelRequiredModal({ open, onComplete }) {
     </motion.div>
   );
 }
-const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'both',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:'',lostNote:'',gaveAwayNote:'',bagIds:[],bagId:null};
+const EMPTY_DISC = {manufacturer:'',mold:'',plastic_type:'',custom_name:'',speed:7,glide:5,turn:-1,fade:1,weight_grams:175,disc_type:'midrange',wear_level:10,status:'backup',flight_preference:'primary',color:'#22c55e',photo:null,date_acquired:'',story:'',estimated_value:18,hasAce:false,aceDate:'',aceLocation:'',aceHole:'',lostNote:'',gaveAwayNote:'',bagIds:[],bagId:null};
 const PWA_INSTALL_DISMISSED_KEY = 'discgolf-pwa-install-dismissed';
 const VIEW_MODE_KEY = 'discgolf_view_mode';
 const THEME_KEY = 'discgolf_theme';
@@ -1309,18 +1440,35 @@ function DiscVisual({disc,size='md'}) {
   const dfs = {sm:11,md:14,lg:17,xl:22}[size]||14;
   const mfsMin = {sm:5,md:5,lg:6,xl:6}[size]||5;
   const dfsMin = {sm:5,md:6,lg:7,xl:8}[size]||6;
-  return (
-  <div className={`relative rounded-full overflow-hidden ${sz} shrink-0 shadow-lg`}
-      style={disc.wear_level<=4?{filter:`saturate(${0.55+disc.wear_level*0.1})`}:undefined}>
-      {disc.photo ? (
-        <img src={disc.photo} className="w-full h-full object-cover" alt={disc.mold}/>
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center p-1 min-h-0 gap-px"
-          style={{backgroundColor:disc.color||'#6b7280',boxShadow:'inset 0 2px 8px rgba(255,255,255,0.15), inset 0 -2px 8px rgba(0,0,0,0.2)'}}>
-          <FittedCircleLine text={disc.manufacturer} maxPx={mfs} hardMinPx={mfsMin} className="font-semibold" style={{ color: sc2 }} />
-          <FittedCircleLine text={disc.mold} maxPx={dfs} hardMinPx={dfsMin} className="font-extrabold" style={{ color: tc }} />
+  const wearStyle = disc.wear_level<=4?{filter:`saturate(${0.55+disc.wear_level*0.1})`}:undefined;
+  const glow = isGlowPlastic(disc.plastic_type ?? disc.plastic);
+  const rawColor = disc.color && String(disc.color).trim();
+  let glowRgb = rawColor ? colorToGlowRgbTriplet(rawColor) : GLOW_RGB_FALLBACK;
+  if (rawColor && isGlowRgbNearWhite(glowRgb)) glowRgb = GLOW_RGB_FALLBACK;
+  const inner = disc.photo ? (
+    <img src={disc.photo} className="w-full h-full object-cover" alt={disc.mold}/>
+  ) : (
+    <div className="w-full h-full flex flex-col items-center justify-center p-1 min-h-0 gap-px"
+      style={{backgroundColor:disc.color||'#6b7280',boxShadow:'inset 0 2px 8px rgba(255,255,255,0.15), inset 0 -2px 8px rgba(0,0,0,0.2)'}}>
+      <FittedCircleLine text={disc.manufacturer} maxPx={mfs} hardMinPx={mfsMin} className="font-semibold" style={{ color: sc2 }} />
+      <FittedCircleLine text={disc.mold} maxPx={dfs} hardMinPx={dfsMin} className="font-extrabold" style={{ color: tc }} />
+    </div>
+  );
+  if (glow) {
+    const glowDiscStyle = { ...wearStyle, '--glow-color-rgb': glowRgb };
+    return (
+      <div className="shrink-0 p-2 overflow-visible">
+        <div className={`relative rounded-full ${sz} shrink-0 glow-disc-image`} style={glowDiscStyle}>
+          <div className="absolute inset-0 rounded-full overflow-hidden">
+            {inner}
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
+  return (
+    <div className={`relative rounded-full overflow-hidden ${sz} shrink-0 shadow-lg`} style={wearStyle}>
+      {inner}
     </div>
   );
 }
@@ -1407,6 +1555,47 @@ function LostNoteQuickModal({ open, draft, onDraft, onCancel, onSave }) {
   );
 }
 
+function ThrowStyleBulkUpdateDialog({ open, newThrowStyle, onConfirmUpdateDiscs, onSkipDiscUpdates, onClose }) {
+  if (!open) return null;
+  const styleName = getThrowStyleDisplayNameForMessage(newThrowStyle);
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 85 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="throw-style-bulk-title"
+      >
+        <div className="p-6">
+          <h3 id="throw-style-bulk-title" className="text-base font-bold text-text">Update Your Discs?</h3>
+          <p className="text-sm text-text-muted mt-2 leading-relaxed">
+            Would you like to update the default flight chart view on all your discs to match your new throwing style ({styleName})?
+          </p>
+        </div>
+        <div className="px-6 pb-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={onConfirmUpdateDiscs}
+            className="w-full min-h-[48px] py-3 rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/20 transition-colors"
+          >
+            Yes, Update All Discs
+          </button>
+          <button
+            type="button"
+            onClick={onSkipDiscUpdates}
+            className="w-full min-h-[48px] py-3 rounded-xl bg-surface text-text font-semibold text-sm border border-border hover:bg-surface/80 transition-colors"
+          >
+            No, Keep Current Settings
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function ConfirmDialog({open,title,message,onConfirm,onCancel,danger,confirmLabel,discInfo}) {
   if (!open) return null;
   return (
@@ -1438,6 +1627,249 @@ function ConfirmDialog({open,title,message,onConfirm,onCancel,danger,confirmLabe
           <button onClick={onConfirm} className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${danger?'bg-gap-high hover:bg-gap-high text-on-primary':'bg-gap-medium hover:bg-gap-medium text-on-primary'}`}>
             {danger&&<Trash2 size={14}/>}{confirmLabel||(danger?'Delete':'Confirm')}
           </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function GuestSignOutWarningModal({ open, discCount, onCreateAccount, onSignOutAnyway, onCancel }) {
+  if (!open) return null;
+  const discWord = discCount === 1 ? 'disc' : 'discs';
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 80 }}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} aria-hidden="true" />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full max-w-sm bg-card rounded-2xl border border-border overflow-hidden shadow-card-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guest-signout-warning-title"
+      >
+        <div className="p-6 text-center">
+          <div className="text-4xl mb-3" role="img" aria-hidden>⚠️</div>
+          <h3 id="guest-signout-warning-title" className="text-base font-bold text-text">You have unsaved discs!</h3>
+          <p className="text-sm text-text-muted mt-3 leading-relaxed text-left">
+            You&apos;re in guest mode. If you sign out, your {discCount} {discWord} will be permanently lost. Create a free account to save your data and access it on any device.
+          </p>
+        </div>
+        <div className="px-6 pb-6 flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={onCreateAccount}
+            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-900/20 transition-colors"
+          >
+            Create Account
+          </button>
+          <button
+            type="button"
+            onClick={onSignOutAnyway}
+            className="w-full py-3 rounded-xl bg-surface text-gap-high font-semibold text-sm hover:bg-surface/80 transition-colors"
+          >
+            Sign Out Anyway
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full py-3 rounded-xl bg-surface/60 text-text-muted font-semibold text-sm hover:bg-surface transition-colors border border-border/50"
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function GuestCreateAccountModal({ open, onClose, discCount, onContinueGoogle, onContinueEmail }) {
+  const [step, setStep] = useState('choice');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [googleError, setGoogleError] = useState('');
+  const [emailFormError, setEmailFormError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setStep('choice');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setGoogleError('');
+    setEmailFormError('');
+    setBusy(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const discWord = discCount === 1 ? 'disc' : 'discs';
+  const footerText = `Your ${discCount} ${discWord} will be saved to your new account`;
+
+  const handleGoogle = async () => {
+    setGoogleError('');
+    setBusy(true);
+    try {
+      await onContinueGoogle();
+    } catch (err) {
+      setGoogleError(firebaseAuthErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleEmailSubmit = async (e) => {
+    e.preventDefault();
+    setEmailFormError('');
+    const em = email.trim().toLowerCase();
+    if (!em) {
+      setEmailFormError('Please enter your email.');
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setEmailFormError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setEmailFormError('Passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await onContinueEmail({ email: em, password });
+    } catch (err) {
+      setEmailFormError(firebaseAuthErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 90 }}
+    >
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={busy ? undefined : onClose} aria-hidden="true" />
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="relative w-full max-w-md bg-card rounded-2xl border border-border shadow-card-lg overflow-hidden flex flex-col max-h-[min(92dvh,560px)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guest-create-account-title"
+      >
+        <div className="relative px-6 pt-6 pb-6 overflow-y-auto overscroll-contain flex-1 min-h-0">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="absolute top-4 right-4 z-10 p-2 rounded-xl hover:bg-surface text-text-muted disabled:opacity-50"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
+          {step === 'choice' && (
+            <>
+              <h2 id="guest-create-account-title" className="text-xl font-bold text-text text-center mb-1 pr-10">
+                Create Your Free Account
+              </h2>
+              <p className="text-sm text-text-muted text-center mb-6 leading-relaxed">
+                It&apos;s 100% free. Save your data and access it on any device.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleGoogle}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-3 px-4 rounded-2xl bg-white text-gray-900 font-semibold text-sm border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-60"
+                >
+                  <GoogleLogo className="w-[22px] h-[22px] shrink-0" />
+                  Continue with Google
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { setStep('email'); setEmailFormError(''); }}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-3 px-4 rounded-2xl bg-card font-semibold text-sm border-2 border-border text-text hover:bg-surface/80 transition-colors disabled:opacity-60"
+                >
+                  <Mail size={22} className="shrink-0 text-text-muted" />
+                  Continue with Email
+                </button>
+              </div>
+              {googleError && <p className="text-sm text-gap-high mt-4 text-center">{googleError}</p>}
+              <p className="text-xs text-text-muted text-center mt-6 leading-relaxed">{footerText}</p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onClose}
+                className="w-full mt-4 text-sm font-semibold text-text-muted hover:text-text py-2 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          {step === 'email' && (
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => { setStep('choice'); setEmailFormError(''); }}
+                  className="p-1.5 rounded-lg hover:bg-surface text-text-muted disabled:opacity-50"
+                  aria-label="Back"
+                >
+                  <ChevronRight size={20} className="rotate-180" />
+                </button>
+                <h2 className="text-lg font-bold text-text flex-1">Create with Email</h2>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted font-medium mb-1">Email address</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  className="w-full min-h-[48px] bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted font-medium mb-1">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full min-h-[48px] bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"
+                  placeholder="At least 6 characters"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted font-medium mb-1">Confirm password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full min-h-[48px] bg-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"
+                  placeholder="Repeat password"
+                />
+              </div>
+              {emailFormError && <p className="text-sm text-gap-high">{emailFormError}</p>}
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full min-h-[50px] rounded-xl bg-primary hover:bg-primary text-on-primary font-semibold text-sm shadow-lg shadow-primary/25 transition-colors disabled:opacity-60"
+              >
+                {busy ? 'Creating…' : 'Create Account'}
+              </button>
+              <p className="text-xs text-text-muted text-center leading-relaxed">{footerText}</p>
+            </form>
+          )}
         </div>
       </motion.div>
     </motion.div>
@@ -1584,7 +2016,7 @@ function ProfileAvatar({ src, displayName, size = 'md', onUpload, className = ''
   );
 }
 
-function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload, onSave, setToast, onDeleteAccount }) {
+function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload, onSave, onDeleteAccount }) {
   const [displayName, setDisplayName] = useState(userAuth?.displayName ?? '');
   const [skillLevel, setSkillLevel] = useState(() => normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate');
   const [throwStyle, setThrowStyle] = useState(() => normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh');
@@ -1629,8 +2061,7 @@ function ProfileModal({ open, onClose, userAuth, profilePic, onProfilePicUpload,
       ...(isEmail && { currentPassword: currentPassword || undefined, newPassword: newPassword || undefined }),
     });
     if (err) { setError(err); return; }
-    setToast?.('Profile updated!');
-    onClose();
+    // Success: parent closes modal, shows toasts, and may open bulk disc update dialog
   };
 
   return (
@@ -1933,63 +2364,113 @@ function InstallPromptBanner() {
 }
 
 // ═══════════════════════════════════════════════════════
-// FLIGHT PATH (pair mode: RHBH/LHFH vs RHFH/LHBH vs both)
+// FLIGHT PATH (pair mode: primary vs opposite geometry vs both)
 // ═══════════════════════════════════════════════════════
-function defaultPairModeFromThrowStyle(ts) {
-  const t = normalizeThrowStyle(ts) ?? 'rhbh';
-  if (t === 'rhfh' || t === 'lhbh') return 'mirrored';
-  return 'standard';
-}
-
-function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowStyle }) {
-  const [pairMode, setPairMode] = useState(() => defaultPairModeFromThrowStyle(defaultThrowStyle));
-  useEffect(() => {
-    setPairMode(defaultPairModeFromThrowStyle(defaultThrowStyle));
-  }, [defaultThrowStyle]);
-  const sc = large?1.55:1;
-  const w = Math.round(82*sc), h = Math.round(96*sc), cx = w/2;
-  const tNum = parseFlightNum(turn);
-  const fNum = parseFlightNum(fade);
-  /** Neutral flight (0/0): vertical path has zero-width bbox; objectBoundingBox gradients don't paint — use solid strokes below. */
-  const straight = Math.abs(tNum) < 1e-9 && Math.abs(fNum) < 1e-9;
-
-  const makePath = (mirror) => {
-    const m = mirror ? -1 : 1;
-    const tp = tNum * -5.5 * m * sc, fp = fNum * -5 * m * sc;
-    const cl = (v,mn,mx) => Math.max(mn,Math.min(mx,v));
-    const sy = h-Math.round(10*sc), ty = h*0.38, ey = Math.round(10*sc);
-    const tx = cl(cx+tp,8,w-8), ex = cl(cx+tp*0.5+fp,8,w-8);
-    // Turn 0 + fade 0 → straight vertical; degenerate cubics + gradient-on-zero-width stroke both fail to paint.
-    if (straight) {
-      return { d: `M ${cx} ${sy} L ${cx} ${ey}`, ex, ey, sx: cx, sy };
+function FlightPath({
+  speed,
+  glide,
+  turn,
+  fade,
+  id,
+  large,
+  hideToggle = false,
+  skillLevel = 'intermediate',
+  flightViewPreference,
+}) {
+  const throwStyle = useThrowStyle();
+  const prefNorm =
+    flightViewPreference !== undefined && flightViewPreference !== null
+      ? normalizeFlightPreference(flightViewPreference)
+      : null;
+  const isFormPreview = hideToggle && prefNorm != null;
+  const [pairMode, setPairMode] = useState(() =>
+    prefNorm != null && !hideToggle
+      ? pairModeFromPreference(prefNorm, throwStyle)
+      : defaultPairModeFromThrowStyle(throwStyle)
+  );
+  useLayoutEffect(() => {
+    if (isFormPreview) return;
+    if (prefNorm != null) {
+      setPairMode(pairModeFromPreference(prefNorm, throwStyle));
+    } else {
+      setPairMode(defaultPairModeFromThrowStyle(throwStyle));
     }
-    return {
-      d:`M ${cx} ${sy} C ${cx} ${(sy+ty)/2}, ${tx} ${ty+15*sc}, ${tx} ${ty} C ${tx} ${ty-12*sc}, ${ex} ${ey+15*sc}, ${ex} ${ey}`,
-      ex, ey, sx:cx, sy
-    };
-  };
+  }, [throwStyle, prefNorm, isFormPreview]);
+  const effectivePairMode = isFormPreview
+    ? pairModeFromPreference(prefNorm, throwStyle)
+    : pairMode;
+  const toggleLabels = getFlightPathToggleLabels(throwStyle);
+  const bothLegend = getBothModeLegendLabels(throwStyle);
+  const sc = large ? 1.55 : 1;
+  const w = Math.round(82 * sc);
+  const h = Math.round(96 * sc);
+  const pad = { left: 4, right: 4, top: 6, bottom: 10 };
+  const fs = large ? 9 : 7;
+  const labelFs = large ? 7 : 6;
 
-  /** Standard (RHBH/LHFH) vs mirrored (RHFH/LHBH) geometry; "both" overlays the two shapes. */
-  const std = makePath(false);
-  const mir = makePath(true);
-  const showStandard = pairMode === 'standard' || pairMode === 'both';
-  const showMirrored = pairMode === 'mirrored' || pairMode === 'both';
-  const fs = large?9:7;
-  /** In "Both", use flat colors + dashed mirrored path so the two flights read clearly (gradients hide dashes). */
-  const bothMode = pairMode === 'both';
+  const chart = useMemo(() => {
+    const disc = { speed, glide, turn, fade };
+    if (!hasValidFlightNumbersForChart(disc)) return null;
+    const s = parseFlightNum(speed);
+    const g = parseFlightNum(glide);
+    const t = parseFlightNum(turn);
+    const f = parseFlightNum(fade);
+    const sk =
+      skillLevel === 'beginner' || skillLevel === 'intermediate' || skillLevel === 'advanced'
+        ? skillLevel
+        : 'intermediate';
+    const stdPts = generateSkillFlightPath(s, g, t, f, sk, false);
+    const mirPts = flipFlightPointsHorizontal(stdPts);
+    let maxD = 0;
+    let maxL = 30;
+    for (const p of stdPts) {
+      maxD = Math.max(maxD, p.y);
+      maxL = Math.max(maxL, Math.abs(p.x));
+    }
+    for (const p of mirPts) {
+      maxD = Math.max(maxD, p.y);
+      maxL = Math.max(maxL, Math.abs(p.x));
+    }
+    maxD *= 1.1;
+    maxL *= 1.15;
+    const axisMax = roundDistanceAxisMax(maxD);
+    const dStd = flightPointsToSmoothSVGPath(stdPts, w, h, maxL, axisMax, pad);
+    const dMir = flightPointsToSmoothSVGPath(mirPts, w, h, maxL, axisMax, pad);
+    const teeStd = flightPointToSVG(stdPts, w, h, maxL, axisMax, 0, pad);
+    const landStd = flightPointToSVG(stdPts, w, h, maxL, axisMax, -1, pad);
+    const teeMir = flightPointToSVG(mirPts, w, h, maxL, axisMax, 0, pad);
+    const landMir = flightPointToSVG(mirPts, w, h, maxL, axisMax, -1, pad);
+    const straight = Math.abs(t) < 1e-9 && Math.abs(f) < 1e-9;
+    const cx = teeStd.sx;
+    return { dStd, dMir, teeStd, landStd, teeMir, landMir, straight, cx };
+  }, [speed, glide, turn, fade, w, h, skillLevel]);
+
+  const showStandard = effectivePairMode === 'standard' || effectivePairMode === 'both';
+  const showMirrored = effectivePairMode === 'mirrored' || effectivePairMode === 'both';
+  const bothMode = effectivePairMode === 'both';
+  const straight = chart?.straight ?? false;
   const stdStroke = bothMode || straight ? '#10b981' : `url(#bh_${id})`;
   const mirStroke = bothMode || straight ? '#a78bfa' : `url(#fh_${id})`;
-  const labelFs = large ? 7 : 6;
+
+  if (!chart) {
+    return (
+      <div className="flex flex-col items-center w-full max-w-full min-h-[48px] justify-center">
+        <span className="text-[8px] text-text-muted">—</span>
+      </div>
+    );
+  }
+
+  const { dStd, dMir, teeStd, landStd, teeMir, landMir, cx } = chart;
 
   return (
     <div className="flex flex-col items-center w-full max-w-full">
       <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0">
-        <line x1={cx} y1={6} x2={cx} y2={h-6} stroke="white" strokeOpacity={0.06} strokeDasharray="2,4"/>
-        <text x={cx} y={h-1} textAnchor="middle" fill="white" fillOpacity={0.1} fontSize={fs} fontWeight="bold">TEE</text>
+        <line x1={cx} y1={6} x2={cx} y2={h - 6} stroke="white" strokeOpacity={0.06} strokeDasharray="2,4"/>
+        <text x={cx} y={h - 1} textAnchor="middle" fill="white" fillOpacity={0.1} fontSize={fs} fontWeight="bold">TEE</text>
         {showStandard && (
           <motion.path
-            key={`std-${pairMode}`}
-            d={std.d}
+            key={`std-${effectivePairMode}-${id}`}
+            d={dStd}
             fill="none"
             stroke={stdStroke}
             strokeWidth={bothMode ? 2.75 : 2.5}
@@ -2002,8 +2483,8 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
         )}
         {showMirrored && (
           <motion.path
-            key={`mir-${pairMode}`}
-            d={mir.d}
+            key={`mir-${effectivePairMode}-${id}`}
+            d={dMir}
             fill="none"
             stroke={mirStroke}
             strokeWidth={bothMode ? 2.5 : 2}
@@ -2015,14 +2496,14 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
             transition={{ duration: 0.9, ease: 'easeOut' }}
           />
         )}
-        {showStandard && <circle cx={std.sx} cy={std.sy} r={2.5} fill="#10b981"/>}
+        {showStandard && <circle cx={teeStd.sx} cy={teeStd.sy} r={2.5} fill="#10b981"/>}
         {showStandard && (
-          <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}>
-            <circle cx={std.ex} cy={std.ey} r={2} fill="#10b981"/>
+          <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
+            <circle cx={landStd.sx} cy={landStd.sy} r={2} fill="#10b981"/>
             {bothMode && (
               <text
-                x={std.ex}
-                y={std.ey - 5}
+                x={landStd.sx}
+                y={landStd.sy - 5}
                 textAnchor="middle"
                 fill="#10b981"
                 stroke="rgba(0,0,0,0.35)"
@@ -2037,12 +2518,12 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
           </motion.g>
         )}
         {showMirrored && (
-          <motion.g initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.7}}>
-            <circle cx={mir.ex} cy={mir.ey} r={2} fill="#a78bfa"/>
+          <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
+            <circle cx={landMir.sx} cy={landMir.sy} r={2} fill="#a78bfa"/>
             {bothMode && (
               <text
-                x={mir.ex}
-                y={mir.ey - 5}
+                x={landMir.sx}
+                y={landMir.sy - 5}
                 textAnchor="middle"
                 fill="#c4b5fd"
                 stroke="rgba(0,0,0,0.4)"
@@ -2061,21 +2542,21 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
           <linearGradient id={`fh_${id}`} x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stopColor="#8b5cf6"/><stop offset="100%" stopColor="#fbbf24"/></linearGradient>
         </defs>
       </svg>
-      {pairMode === 'both' && !hideToggle && (
+      {effectivePairMode === 'both' && !hideToggle && (
         <div
           className={`flex flex-wrap justify-center gap-x-3 gap-y-1 mt-1 px-0.5 max-w-full ${!large ? 'gap-x-4' : ''}`}
-          aria-label="Line key: 1 RHBH/LHFH, 2 RHFH/LHBH"
+          aria-label={`Line key: 1 ${bothLegend.solidLineLabel}, 2 ${bothLegend.dashedLineLabel}`}
           onClick={(e) => e.stopPropagation()}
         >
           {!large ? (
             <>
               <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
                 <span className="font-extrabold tabular-nums text-emerald-500 shrink-0">1</span>
-                <span className="font-semibold text-text-muted">RHBH / LHFH</span>
+                <span className="font-semibold text-text-muted">{bothLegend.solidLineLabel}</span>
               </span>
               <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
                 <span className="font-extrabold tabular-nums text-violet-400 shrink-0">2</span>
-                <span className="font-semibold text-text-muted">RHFH / LHBH</span>
+                <span className="font-semibold text-text-muted">{bothLegend.dashedLineLabel}</span>
               </span>
             </>
           ) : (
@@ -2087,7 +2568,7 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
                 <svg width={18} height={8} viewBox="0 0 18 8" className="shrink-0" aria-hidden>
                   <line x1={0} y1={4} x2={18} y2={4} stroke="#10b981" strokeWidth={2.5} strokeLinecap="round" />
                 </svg>
-                <span className="font-semibold text-text-muted">RHBH / LHFH</span>
+                <span className="font-semibold text-text-muted">{bothLegend.solidLineLabel}</span>
               </span>
               <span className="inline-flex items-center gap-1 text-[7px] sm:text-[8px] text-text-muted leading-tight">
                 <span className="font-extrabold tabular-nums text-violet-400 shrink-0" aria-hidden>
@@ -2096,7 +2577,7 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
                 <svg width={18} height={8} viewBox="0 0 18 8" className="shrink-0" aria-hidden>
                   <line x1={0} y1={4} x2={18} y2={4} stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 4" strokeLinecap="round" />
                 </svg>
-                <span className="font-semibold text-text-muted">RHFH / LHBH</span>
+                <span className="font-semibold text-text-muted">{bothLegend.dashedLineLabel}</span>
               </span>
             </>
           )}
@@ -2110,17 +2591,17 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
           onClick={(e) => e.stopPropagation()}
         >
           {[
-            ['standard', 'RHBH / LHFH'],
-            ['both', 'Both'],
-            ['mirrored', 'RHFH / LHBH'],
+            ['standard', toggleLabels.primary],
+            ['both', toggleLabels.middle],
+            ['mirrored', toggleLabels.opposite],
           ].map(([k, label]) => (
             <button
-              key={k}
+              key={String(k)}
               type="button"
               role="radio"
-              aria-checked={pairMode === k}
+              aria-checked={effectivePairMode === k}
               onClick={(e) => { e.stopPropagation(); setPairMode(k); }}
-              className={`px-1.5 py-0.5 rounded transition-all font-bold ${pairMode === k ? 'bg-surface text-text' : 'text-text-muted hover:text-text-muted'}`}
+              className={`px-1.5 py-0.5 rounded transition-all font-bold ${effectivePairMode === k ? 'bg-surface text-text' : 'text-text-muted hover:text-text-muted'}`}
               style={{ fontSize: large ? 11 : 8 }}
             >
               {label}
@@ -2132,23 +2613,103 @@ function FlightPath({ turn, fade, id, large, hideToggle = false, defaultThrowSty
   );
 }
 
+const FLIGHT_VIEW_HINT_PRIMARY =
+  'Right Hand Backhand / Left Hand Forehand — disc curves right then fades left';
+const FLIGHT_VIEW_HINT_BOTH = 'Shows both flight paths overlaid';
+const FLIGHT_VIEW_HINT_OPPOSITE =
+  'Right Hand Forehand / Left Hand Backhand — disc curves left then fades right';
+
+/** Bottom snackbar for add/edit disc default flight view toggles only (portal to body). */
+function DiscFormFlightViewHintSnackbar({ message, hintKey, onDismiss }) {
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <AnimatePresence mode="wait">
+      {message ? (
+        <motion.div
+          key={`${hintKey}-${message}`}
+          className="fixed inset-x-0 z-[92] flex justify-center px-4 pointer-events-none"
+          style={{ bottom: 'max(16px, env(safe-area-inset-bottom))' }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+        >
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 16, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+            role="status"
+            className="pointer-events-auto w-full max-w-[min(90vw,420px)] rounded-2xl border border-border bg-card/95 px-4 py-3.5 shadow-card-lg backdrop-blur-sm"
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 120 }}
+            dragElastic={{ top: 0, bottom: 0.2 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 48 || info.velocity.y > 400) onDismiss();
+            }}
+            onClick={onDismiss}
+          >
+            <p className="text-[14px] leading-snug text-text">{message}</p>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body
+  );
+}
+
 // ═══════════════════════════════════════════════════════
 // DISC FORM MODAL (Add / Edit)
 // ═══════════════════════════════════════════════════════
-function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDiscType, defaultBagId, bags, onRemoveDiscFromAllBags, onCreateBag, defaultThrowStyle }) {
+function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDiscType, defaultBagId, bags, onRemoveDiscFromAllBags, onCreateBag, flightChartSkillLevel }) {
   const [f, setF] = useState({ ...EMPTY_DISC });
   const fileRef = useRef(null);
   const moldDropdownRef = useRef(null);
   const userTouchedFlightRef = useRef(false);
   const lastMoldAutoKeyRef = useRef('');
   const [moldDropdownOpen, setMoldDropdownOpen] = useState(false);
+  const plasticDropdownRef = useRef(null);
+  const [plasticDropdownOpen, setPlasticDropdownOpen] = useState(false);
   const [lostDialogOpen, setLostDialogOpen] = useState(false);
   const [newBagOpen, setNewBagOpen] = useState(false);
   const [newBagName, setNewBagName] = useState('');
+  const throwStyle = useThrowStyle();
+  const [flightViewHint, setFlightViewHint] = useState('');
+  const [flightHintKey, setFlightHintKey] = useState(0);
+  const flightHintTimerRef = useRef(null);
   const isEdit = !!editDisc;
+
+  const dismissFlightViewHint = useCallback(() => {
+    if (flightHintTimerRef.current) {
+      clearTimeout(flightHintTimerRef.current);
+      flightHintTimerRef.current = null;
+    }
+    setFlightViewHint('');
+  }, []);
+
+  const showFlightViewHint = useCallback((msg) => {
+    setFlightViewHint(msg);
+    setFlightHintKey((k) => k + 1);
+    if (flightHintTimerRef.current) clearTimeout(flightHintTimerRef.current);
+    flightHintTimerRef.current = setTimeout(() => {
+      flightHintTimerRef.current = null;
+      setFlightViewHint('');
+    }, 3000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flightHintTimerRef.current) clearTimeout(flightHintTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) dismissFlightViewHint();
+  }, [open, dismissFlightViewHint]);
 
   useEffect(() => {
     if (open) {
+      setPlasticDropdownOpen(false);
       lastMoldAutoKeyRef.current = '';
       setLostDialogOpen(false);
       setNewBagOpen(false);
@@ -2180,6 +2741,14 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
       }
     }
   }, [open, editDisc, defaultDiscType, defaultBagId, bags]);
+
+  const plasticsForMfr = useMemo(() => getPlasticsForManufacturer(f.manufacturer), [f.manufacturer]);
+  const hasPlasticList = Boolean(f.manufacturer && plasticsForMfr.length > 0);
+  const plasticSuggestions = useMemo(() => {
+    if (!plasticsForMfr.length || !f.manufacturer) return [];
+    const q = (f.plastic_type || '').trim().toLowerCase();
+    return plasticsForMfr.filter((p) => !q || p.toLowerCase().includes(q)).slice(0, 20);
+  }, [plasticsForMfr, f.manufacturer, f.plastic_type]);
 
   const s = (k,v) => setF(p=>({...p,[k]:v}));
   const setFlightNum = (k, v) => {
@@ -2234,10 +2803,13 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
   };
 
   useEffect(() => {
-    const handleClickOutside = (e) => { if (moldDropdownRef.current && !moldDropdownRef.current.contains(e.target)) setMoldDropdownOpen(false); };
-    if (moldDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+    const handleClickOutside = (e) => {
+      if (moldDropdownRef.current && !moldDropdownRef.current.contains(e.target)) setMoldDropdownOpen(false);
+      if (plasticDropdownRef.current && !plasticDropdownRef.current.contains(e.target)) setPlasticDropdownOpen(false);
+    };
+    if (moldDropdownOpen || plasticDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [moldDropdownOpen]);
+  }, [moldDropdownOpen, plasticDropdownOpen]);
   const flightFormOk = hasValidFlightNumbersForChart(f);
   const ok = f.manufacturer && f.mold && f.plastic_type && flightFormOk;
   const handleStatusClick = (k) => {
@@ -2342,7 +2914,7 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
             <section>
               <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-2">Identity</h3>
               <div className="space-y-2">
-                <select value={f.manufacturer} onChange={e=>{ lastMoldAutoKeyRef.current=''; s('manufacturer',e.target.value); setMoldDropdownOpen(false); }} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
+                <select value={f.manufacturer} onChange={e=>{ lastMoldAutoKeyRef.current=''; setPlasticDropdownOpen(false); setMoldDropdownOpen(false); const v=e.target.value; setF(p=>({...p,manufacturer:v,plastic_type:''})); }} className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text focus:outline-none focus:border-primary">
                   <option value="">Select manufacturer…</option>{MFRS.map(m=><option key={m}>{m}</option>)}
                 </select>
                 <div className="grid grid-cols-2 gap-2">
@@ -2360,7 +2932,24 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
                       </ul>
                     )}
                   </div>
-                  <input value={f.plastic_type} onChange={e=>s('plastic_type',e.target.value)} placeholder="Plastic *" className="bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                  {hasPlasticList ? (
+                    <div className="relative" ref={plasticDropdownRef}>
+                      <input value={f.plastic_type} onChange={e=>{ s('plastic_type',e.target.value); setPlasticDropdownOpen(true); }} onFocus={()=>setPlasticDropdownOpen(true)} placeholder="Plastic *" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                      {plasticDropdownOpen && f.manufacturer && (
+                        <ul className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-card border border-border rounded-lg shadow-card py-1">
+                          {plasticSuggestions.length ? plasticSuggestions.map((p) => (
+                            <li key={p}>
+                              <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-surface focus:bg-surface focus:outline-none" onClick={()=>{ s('plastic_type',p); setPlasticDropdownOpen(false); }}>
+                                {p}
+                              </button>
+                            </li>
+                          )) : <li className="px-3 py-2 text-xs text-text-muted">No plastics found — type to search or enter custom</li>}
+                        </ul>
+                      )}
+                    </div>
+                  ) : (
+                    <input value={f.plastic_type} onChange={e=>s('plastic_type',e.target.value)} placeholder="Plastic *" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
+                  )}
                 </div>
                 <input value={f.custom_name} onChange={e=>s('custom_name',e.target.value)} placeholder="Nickname (optional)" className="w-full bg-surface border border-border rounded-lg px-3 py-2.5 text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary"/>
                 <label className="block text-xs text-text-muted mb-1.5 font-medium">Disc Color</label>
@@ -2533,23 +3122,58 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
               </div>
               {hasValidFlightNumbersForChart(f) && (
                 <div className="mt-3 flex justify-center bg-surface/50 rounded-xl p-3">
-                  <FlightPath turn={f.turn} fade={f.fade} id="preview" large hideToggle defaultThrowStyle={defaultThrowStyle}/>
+                  <FlightPath
+                    key="disc-form-preview"
+                    speed={f.speed}
+                    glide={f.glide}
+                    turn={f.turn}
+                    fade={f.fade}
+                    id="preview"
+                    large
+                    hideToggle
+                    skillLevel={flightChartSkillLevel}
+                    flightViewPreference={f.flight_preference}
+                  />
                 </div>
               )}
               {!hasValidFlightNumbersForChart(f) && (
                 <GlossaryBody as="p" className="mt-3 text-center text-xs text-text-muted py-4 px-2 bg-surface/50 rounded-xl">Enter flight numbers to see the flight path</GlossaryBody>
               )}
               <div className="mt-3">
-                <label className="block text-xs text-text-muted mb-1.5 font-medium">Default Flight View</label>
-                <div className="flex gap-1.5">
-                  {[['bh','Backhand Only','🫲'],['both','Both','↔️'],['fh','Forehand Only','🫱']].map(([k,l,icon]) => (
-                    <button key={k} type="button" onClick={() => s('flight_preference',k)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
-                        f.flight_preference===k 
-                          ? 'bg-primary/20 text-primary border-primary/50' 
-                          : 'bg-surface text-text-muted border-border hover:border-border'
-                      }`}>{icon} {l}</button>
-                  ))}
+                <label className="block text-xs text-text-muted mb-1.5 font-medium">
+                  Default Flight View ({userDominantHandLabel(throwStyle)})
+                </label>
+                <div className="flex gap-1.5 w-full">
+                  {(() => {
+                    const tl = getFlightPathToggleLabels(throwStyle);
+                    const fp = normalizeFlightPreference(f.flight_preference);
+                    const hintByPref = {
+                      primary: FLIGHT_VIEW_HINT_PRIMARY,
+                      both: FLIGHT_VIEW_HINT_BOTH,
+                      opposite: FLIGHT_VIEW_HINT_OPPOSITE,
+                    };
+                    return [
+                      ['primary', tl.primary],
+                      ['both', tl.middle],
+                      ['opposite', tl.opposite],
+                    ].map(([k, label]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => {
+                          s('flight_preference', k);
+                          showFlightViewHint(hintByPref[k]);
+                        }}
+                        className={`flex-1 min-h-[48px] py-2 rounded-lg text-xs font-bold border transition-all ${
+                          fp === k
+                            ? 'bg-primary/20 text-primary border-primary/50'
+                            : 'bg-surface text-text-muted border-border hover:border-border'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ));
+                  })()}
                 </div>
               </div>
             </section>
@@ -2591,7 +3215,15 @@ function DiscFormModal({ open, onClose, onSave, editDisc, uploadImage, defaultDi
           )}
         </AnimatePresence>
       </motion.div>
-    )}</AnimatePresence>
+    )}
+      {open && (
+        <DiscFormFlightViewHintSnackbar
+          message={flightViewHint}
+          hintKey={flightHintKey}
+          onDismiss={dismissFlightViewHint}
+        />
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -3259,7 +3891,7 @@ function EditBagModal({ open, bag, onClose, onSave, onDelete }) {
   );
 }
 
-function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, onBuySearch, discListSlot, onEditBag, onRequestDeleteBag, userSkillLevel, defaultThrowStyle }) {
+function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, onBuySearch, discListSlot, onEditBag, onRequestDeleteBag, userSkillLevel, onFlightChartSkillChange }) {
   const [expandedGap,setExpandedGap] = useState(null);
   const [expandedSkillDiscId, setExpandedSkillDiscId] = useState(null);
   const [skillOverBlockExpanded, setSkillOverBlockExpanded] = useState(false);
@@ -3744,7 +4376,11 @@ function BagDashboard({ bagDiscs, bag, allDiscs, onAddToBag, onRemoveFromBag, on
       {/* Flight Chart — mobile-first (see components/FlightChart.jsx) */}
       <div className="min-w-0 flex justify-center w-full px-2 sm:px-0">
         {bagDiscs.length > 0 && (
-          <FlightChart bagDiscs={bagDiscs} defaultSkillLevel={normalizeSkillLevel(userSkillLevel) ?? 'intermediate'} defaultThrowStyle={normalizeThrowStyle(defaultThrowStyle) ?? 'rhbh'} />
+          <FlightChart
+            bagDiscs={bagDiscs}
+            defaultSkillLevel={normalizeSkillLevel(userSkillLevel) ?? 'intermediate'}
+            onSkillLevelChange={onFlightChartSkillChange}
+          />
         )}
       </div>
     </motion.div>
@@ -5106,7 +5742,7 @@ function AddToBagPicker({ open, onClose, discs, bag, onAdd, onAddDisc, onOpenAdd
 // ═══════════════════════════════════════════════════════
 // DISC DETAIL MODAL
 // ═══════════════════════════════════════════════════════
-function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup, onToggleBag, defaultThrowStyle }) {
+function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup, onToggleBag, flightChartSkillLevel }) {
   const [bagDrop,setBagDrop] = useState(false);
   useEffect(() => {if(open)setBagDrop(false);}, [open]);
   useEffect(() => {
@@ -5191,7 +5827,7 @@ function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup
           {/* Flight Path */}
           <section className="bg-card/80 rounded-xl p-5 border border-border/50">
             <h3 className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3"><Target size={12}/>Flight Path</h3>
-            <div className="flex justify-center"><FlightPath turn={disc.turn} fade={disc.fade} id={`detail-${disc.id}`} large defaultThrowStyle={defaultThrowStyle}/></div>
+            <div className="flex justify-center"><FlightPath key={`detail-${disc.id}`} speed={disc.speed} glide={disc.glide} turn={disc.turn} fade={disc.fade} id={`detail-${disc.id}`} large skillLevel={flightChartSkillLevel} flightViewPreference={disc.flight_preference}/></div>
           </section>
           {/* Flight numbers */}
           <div className="grid grid-cols-4 gap-2">
@@ -5275,7 +5911,7 @@ function DiscCard({
   onCreateBag,
   bagDetailCompact = false,
   idx,
-  defaultThrowStyle,
+  flightChartSkillLevel,
 }) {
   const [newBagOpen, setNewBagOpen] = useState(false);
   const [newBagName, setNewBagName] = useState('');
@@ -5385,7 +6021,7 @@ function DiscCard({
   return (
     <motion.div layout initial={{opacity:0,y:24}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:.96}} transition={{duration:.35,delay:idx*.025,layout:{duration:0.25,ease:'easeOut'}}}
       whileHover={{y:-4,transition:{duration:.2}}} onClick={() => onDetail(disc)}
-      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen || statusMenuOpen ? 'z-30 relative' : 'relative'} pb-14`}>
+      className={`bg-card rounded-2xl border border-border overflow-hidden hover:border-primary/40 transition-[border-color,box-shadow] duration-200 ease-out group cursor-pointer shadow-card ${bagMenuOpen || statusMenuOpen ? 'z-30 relative' : 'relative'}`}>
       <div className={`p-4 ${isGallery?'flex flex-col items-center min-h-[200px]':''}`}>
         {/* Type badge + status (list only) */}
         {!isGallery && (
@@ -5498,7 +6134,7 @@ function DiscCard({
               {disc.estimated_value && <span className="text-xs text-primary/60 font-semibold block">${disc.estimated_value}</span>}
               {inBags.length>0 && <div className="flex flex-wrap gap-1 mt-1.5">{inBags.map(b=>(<span key={b.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold" style={{backgroundColor:(b.bagColor||'#6b7280')+'18',color:b.bagColor||'#9ca3af',border:`1px solid ${(b.bagColor||'#6b7280')}40`}}><Backpack size={8}/>{b.name}</span>))}</div>}
             </div>
-            <div onClick={e=>e.stopPropagation()}><FlightPath turn={disc.turn} fade={disc.fade} id={disc.id} defaultThrowStyle={defaultThrowStyle}/></div>
+            <div onClick={e=>e.stopPropagation()}><FlightPath key={`card-${disc.id}`} speed={disc.speed} glide={disc.glide} turn={disc.turn} fade={disc.fade} id={disc.id} skillLevel={flightChartSkillLevel} flightViewPreference={disc.flight_preference}/></div>
           </div>
         )}
         {/* Flight numbers (list only) */}
@@ -5511,19 +6147,15 @@ function DiscCard({
           <span className="text-xs text-text-muted">{disc.wear_level}/10</span>
         </div>
         )}
-        {/* Actions */}
-        <div className={`pt-2 mt-2 transition-[gap,padding] duration-200 ease-out ${isGallery?'w-full mt-1 grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_auto_1fr] grid-rows-[auto_auto] md:grid-rows-1 gap-1.5 items-center':'flex items-center gap-1.5'} relative`} onClick={e=>e.stopPropagation()}>
+        {/* Actions — same row for list and gallery: edit/delete (left), bag (center), buy backup (right) */}
+        <div className="pt-2 mt-2 flex items-center gap-1.5 relative" onClick={e=>e.stopPropagation()}>
           <div className="flex gap-0.5 shrink-0">
-            {!isGallery && (
-              <>
-                <button type="button" onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors duration-200" aria-label="Edit">
-                  <Edit3 size={14}/>
-                </button>
-                <button type="button" onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10 transition-colors duration-200" aria-label="Delete">
-                  <Trash2 size={14}/>
-                </button>
-              </>
-            )}
+            <button type="button" onClick={() => onEdit(disc)} className="p-1.5 rounded-md text-text-muted hover:text-primary hover:bg-primary/10 transition-colors duration-200" aria-label="Edit">
+              <Edit3 size={14}/>
+            </button>
+            <button type="button" onClick={() => onDelete(disc.id)} className="p-1.5 rounded-md text-text-muted hover:text-gap-high hover:bg-gap-high/10 transition-colors duration-200" aria-label="Delete">
+              <Trash2 size={14}/>
+            </button>
           </div>
           {activeBagId && !isGallery ? (
             <button
@@ -5533,37 +6165,6 @@ function DiscCard({
             >
               <Minus size={11}/>
             </button>
-          ) : isGallery ? (
-            <>
-              <div className="min-w-0" aria-hidden="true" />
-              <div className="flex flex-col md:contents items-center gap-1 col-span-2 row-start-2 md:row-start-auto min-w-0">
-                <div className="relative md:col-start-3 w-full flex justify-center md:w-auto">
-                  <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200 ${bagMenuOpen?'bg-secondary/25 text-primary border-secondary/40':'bg-secondary/10 text-primary border-secondary/20'}`}>
-                    <Backpack size={11}/>Bag
-                  </motion.button>
-                  {bagMenuOpen && (
-                    <>
-                      <div className="fixed inset-0" style={{zIndex:39}} onClick={e=>{e.stopPropagation();setBagMenu(null);}}/>
-                      <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-44 left-1/2 -translate-x-1/2" style={{zIndex:40}}>
-                        {bags.length===0 && <div className="px-3 py-2.5 text-xs text-text-muted">No bags yet</div>}
-                        {bags.map(b => {
-                          const inBag = b.disc_ids.includes(disc.id);
-                          return (
-                            <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface/60">
-                              <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={8} className="text-text"/>}</span>
-                              <span className={`truncate ${inBag?'text-text':'text-text-muted'}`}>{b.name}</span>
-                            </button>
-                          );
-                        })}
-                        {bagMenuExtra}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <button onClick={() => onBackup(disc)} title="Buy backup" className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20 transition-colors duration-200 hover:bg-primary/15 shrink-0 md:col-start-4 md:justify-self-end" aria-label="Buy backup"><ShoppingCart size={11}/>Buy</button>
-              </div>
-            </>
           ) : (
             <div className="flex-1 min-w-[60px] flex justify-center relative shrink-0">
               <motion.button whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }} onClick={() => setBagMenu(bagMenuOpen?null:disc.id)}
@@ -5590,29 +6191,9 @@ function DiscCard({
               )}
             </div>
           )}
-          {!isGallery && <button onClick={() => onBackup(disc)} title="Buy backup" className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20" aria-label="Buy backup"><ShoppingCart size={11}/>Buy Backup</button>}
+          <button onClick={() => onBackup(disc)} title="Buy backup" className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20" aria-label="Buy backup"><ShoppingCart size={11}/>Buy Backup</button>
         </div>
       </div>
-      {isGallery && (
-        <>
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onEdit(disc); }}
-            className="absolute bottom-3 left-3 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
-            aria-label="Edit disc"
-          >
-            <Edit3 size={18}/>
-          </button>
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onDelete(disc.id); }}
-            className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60"
-            aria-label="Delete disc"
-          >
-            <Trash2 size={18}/>
-          </button>
-        </>
-      )}
     </motion.div>
   );
 }
@@ -5632,8 +6213,8 @@ function GoogleLogo({ className = '' }) {
 // ═══════════════════════════════════════════════════════
 // WELCOME / LANDING SCREEN
 // ═══════════════════════════════════════════════════════
-function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, theme, onThemeChange }) {
-  const [view, setView] = useState('main'); // 'main' | 'signup' | 'signupSkill' | 'signupThrowStyle' | 'login'
+function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogin, theme, onThemeChange, initialView = 'main' }) {
+  const [view, setView] = useState(initialView); // 'main' | 'signup' | 'signupSkill' | 'signupThrowStyle' | 'login'
   const [authError, setAuthError] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupName, setSignupName] = useState('');
@@ -5871,10 +6452,18 @@ function DiscLibrary() {
     try { return localStorage.getItem(GUEST_MODE_KEY) === 'true'; } catch(_) { return false; }
   });
   const [userAuth, setUserAuth] = useState(() => loadAuth());
+  const [guestChartSkill, setGuestChartSkill] = useState(() => readGuestChartSkillFromStorage());
+  const [guestChartThrow, setGuestChartThrow] = useState(() => readGuestChartThrowFromStorage());
 
   const showApp = guestMode || userAuth;
-  /** Saved profile throw style for flight visualizations; RHBH when unset. */
-  const chartDefaultThrowStyle = normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh';
+  /** Saved profile throw style for flight visualizations; guests use persisted prefs (no account profile). */
+  const chartDefaultThrowStyle = guestMode
+    ? guestChartThrow
+    : (normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh');
+  /** Matches bag FlightChart skill — used for FlightPath mini charts (add/edit disc, cards, detail). */
+  const flightChartSkillLevel = guestMode
+    ? guestChartSkill
+    : (normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate');
 
   // Load initial state from localStorage
   const [discs,setDiscs] = useState(() => {
@@ -5997,6 +6586,22 @@ function DiscLibrary() {
 
   useEffect(() => {
     if (guestMode) try { localStorage.setItem(GUEST_MODE_KEY, 'true'); } catch(_) {}
+  }, [guestMode]);
+
+  useEffect(() => {
+    if (!guestMode) return;
+    try { localStorage.setItem(GUEST_CHART_SKILL_KEY, guestChartSkill); } catch (_) {}
+  }, [guestMode, guestChartSkill]);
+
+  useEffect(() => {
+    if (!guestMode) return;
+    try { localStorage.setItem(GUEST_CHART_THROW_KEY, guestChartThrow); } catch (_) {}
+  }, [guestMode, guestChartThrow]);
+
+  useEffect(() => {
+    if (!guestMode) return;
+    setGuestChartSkill(readGuestChartSkillFromStorage());
+    setGuestChartThrow(readGuestChartThrowFromStorage());
   }, [guestMode]);
 
   useEffect(() => {
@@ -6143,8 +6748,93 @@ function DiscLibrary() {
   const [showPrivacy,setShowPrivacy] = useState(false);
   const [settingsOpen,setSettingsOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+  /** After saving profile or changing guest throw: optionally bulk-update disc flight_preference. */
+  const [throwStyleBulkConfirm, setThrowStyleBulkConfirm] = useState(
+    /** @type {null | { mode: 'account' | 'guest'; newTs: string; prevTs: string }} */ (null)
+  );
+
+  const handleProfileSave = useCallback(
+    (payload) => {
+      const prevTs = normalizeThrowStyle(userAuth?.throwStyle) ?? 'rhbh';
+      const newTs = normalizeThrowStyle(payload.throwStyle) ?? 'rhbh';
+      const err = handleSaveProfile(payload);
+      if (err) return err;
+      if (prevTs !== newTs && discs.length > 0) {
+        setThrowStyleBulkConfirm({ mode: 'account', newTs, prevTs });
+        setShowProfileModal(false);
+        return null;
+      }
+      setToast('Profile updated!');
+      setShowProfileModal(false);
+      return null;
+    },
+    [userAuth?.throwStyle, discs, handleSaveProfile]
+  );
+
+  /** Guest: apply new throw style and set every disc to primary (after user taps Yes on bulk dialog). */
+  const applyGuestThrowStyleAndBulkPrimary = useCallback((newTsRaw) => {
+    const ts = normalizeThrowStyle(newTsRaw) ?? 'rhbh';
+    setGuestChartThrow(ts);
+    setDiscs((prev) => {
+      if (prev.length === 0) return prev;
+      const pref = bulkFlightPreferenceForThrowStyle();
+      return prev.map((d) => ({ ...d, flight_preference: pref }));
+    });
+    setToast(`All discs updated to ${getThrowStyleDisplayNameForMessage(ts)}.`);
+    setThrowStyleBulkConfirm(null);
+  }, []);
+
+  const handleGuestChartThrowSelect = useCallback(
+    (e) => {
+      const newTs = normalizeThrowStyle(e.target.value) ?? 'rhbh';
+      const prevTs = normalizeThrowStyle(guestChartThrow) ?? 'rhbh';
+      if (newTs !== prevTs && discs.length > 0) {
+        setThrowStyleBulkConfirm({ mode: 'guest', newTs, prevTs });
+        return;
+      }
+      setGuestChartThrow(newTs);
+    },
+    [guestChartThrow, discs.length]
+  );
+
+  const handleThrowStyleBulkYes = useCallback(() => {
+    if (!throwStyleBulkConfirm) return;
+    const { mode, newTs } = throwStyleBulkConfirm;
+    if (mode === 'account') {
+      const pref = bulkFlightPreferenceForThrowStyle();
+      setDiscs((prev) => prev.map((d) => ({ ...d, flight_preference: pref })));
+      setToast(`All discs updated to ${getThrowStyleDisplayNameForMessage(newTs)}.`);
+      setThrowStyleBulkConfirm(null);
+      return;
+    }
+    applyGuestThrowStyleAndBulkPrimary(newTs);
+  }, [throwStyleBulkConfirm, applyGuestThrowStyleAndBulkPrimary]);
+
+  const handleThrowStyleBulkNo = useCallback(() => {
+    if (!throwStyleBulkConfirm) return;
+    const { mode, newTs, prevTs } = throwStyleBulkConfirm;
+    const migrateDisc = (d) => ({
+      ...d,
+      flight_preference: preserveFlightPreferenceAcrossThrowStyleChange(d.flight_preference, prevTs, newTs),
+    });
+    if (mode === 'account') {
+      setDiscs((prev) => prev.map(migrateDisc));
+      setToast('Profile updated!');
+      setThrowStyleBulkConfirm(null);
+      return;
+    }
+    setGuestChartThrow(newTs);
+    setDiscs((prev) => prev.map(migrateDisc));
+    setToast('Throw style updated.');
+    setThrowStyleBulkConfirm(null);
+  }, [throwStyleBulkConfirm]);
+
   const [addToBagPickerOpen, setAddToBagPickerOpen] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [guestSignOutWarningOpen, setGuestSignOutWarningOpen] = useState(false);
+  const [createAccountModalOpen, setCreateAccountModalOpen] = useState(false);
+  const [welcomeInitialView, setWelcomeInitialView] = useState('main');
   const settingsRef = useRef(null);
 
   const handleUploadImage = useCallback(async (file, folder) => {
@@ -6180,10 +6870,14 @@ function DiscLibrary() {
       const savedViewMode = localStorage.getItem(VIEW_MODE_KEY);
       const savedEmailAccounts = localStorage.getItem(EMAIL_ACCOUNTS_KEY);
       const savedTheme = localStorage.getItem(THEME_KEY);
+      const savedGuestChartSkill = localStorage.getItem(GUEST_CHART_SKILL_KEY);
+      const savedGuestChartThrow = localStorage.getItem(GUEST_CHART_THROW_KEY);
       localStorage.clear();
       if (savedViewMode === 'gallery' || savedViewMode === 'list') localStorage.setItem(VIEW_MODE_KEY, savedViewMode);
       if (savedEmailAccounts) localStorage.setItem(EMAIL_ACCOUNTS_KEY, savedEmailAccounts);
       if (savedTheme) localStorage.setItem(THEME_KEY, savedTheme);
+      if (savedGuestChartSkill) localStorage.setItem(GUEST_CHART_SKILL_KEY, savedGuestChartSkill);
+      if (savedGuestChartThrow) localStorage.setItem(GUEST_CHART_THROW_KEY, savedGuestChartThrow);
     } catch(_) {}
     firestoreSyncUserIdRef.current = null;
     firestoreInitialLoadDoneRef.current = false;
@@ -6200,7 +6894,103 @@ function DiscLibrary() {
     setSettingsOpen(false);
     setShowProfileModal(false);
     setFirestoreProfileReady(false);
+    setWelcomeInitialView('main');
+    setCreateAccountModalOpen(false);
   }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+
+  const completeGuestFirebaseAuth = useCallback(async (firebaseUser, provider) => {
+    const email = firebaseUser.email;
+    if (!email) throw new Error('No email on this account.');
+    const userId = emailToUserId(email);
+    const sk = normalizeSkillLevel(guestChartSkill) ?? 'intermediate';
+    const ts = normalizeThrowStyle(guestChartThrow) ?? 'rhbh';
+    const discsCopy = [...discs];
+    const bagsCopy = [...bags];
+    const aceCopy = [...aceHistory];
+    const tournamentsCopy = [...tournaments];
+    const longestCopy = [...longestThrows];
+    const pbsCopy = [...personalBests];
+    let migrationOk = true;
+    try {
+      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
+      if (!ok) migrationOk = false;
+    } catch (e) {
+      console.warn('[guest] migrate guest data failed', e);
+      migrationOk = false;
+    }
+    try {
+      localStorage.removeItem(GUEST_MODE_KEY);
+      localStorage.removeItem(GUEST_CHART_SKILL_KEY);
+      localStorage.removeItem(GUEST_CHART_THROW_KEY);
+    } catch (_) {}
+    const fallbackName = email.split('@')[0] || 'Player';
+    const displayName = firebaseUser.displayName?.trim() || fallbackName;
+    const picture = firebaseUser.photoURL || null;
+    if (provider === 'google') {
+      setUserAuth({
+        type: 'google',
+        email,
+        displayName: firebaseUser.displayName || displayName,
+        picture,
+        skillLevel: sk,
+        throwStyle: ts,
+      });
+    } else {
+      setUserAuth({
+        type: 'firebase-email',
+        email,
+        displayName,
+        picture,
+        skillLevel: sk,
+        throwStyle: ts,
+      });
+    }
+    setGuestMode(false);
+    setCreateAccountModalOpen(false);
+    if (migrationOk) {
+      setToast('Account created! Your discs have been saved.');
+    } else {
+      setToast('Account created! Some data may not have transferred. Check your collection.');
+    }
+  }, [discs, bags, aceHistory, tournaments, longestThrows, personalBests, guestChartSkill, guestChartThrow]);
+
+  const handleCreateAccountGoogle = useCallback(async () => {
+    ReactGA.event({ category: 'Auth', action: 'Google Sign In' });
+    const result = await signInWithPopup(auth, googleProvider);
+    await completeGuestFirebaseAuth(result.user, 'google');
+  }, [completeGuestFirebaseAuth]);
+
+  const handleCreateAccountEmail = useCallback(async ({ email, password }) => {
+    ReactGA.event({ category: 'Auth', action: 'Email Sign Up' });
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const local = email.split('@')[0] || 'Player';
+    await updateProfile(cred.user, { displayName: local });
+    await completeGuestFirebaseAuth(cred.user, 'firebase-email');
+  }, [completeGuestFirebaseAuth]);
+
+  const requestSignOut = useCallback(() => {
+    if (guestMode && discs.length >= 1) {
+      setGuestSignOutWarningOpen(true);
+      return;
+    }
+    handleSignOut();
+  }, [guestMode, discs.length, handleSignOut]);
+
+  const handleGuestSignOutCreateAccount = useCallback(() => {
+    setGuestSignOutWarningOpen(false);
+    setSettingsOpen(false);
+    setCreateAccountModalOpen(true);
+  }, []);
+
+  const openGuestCreateAccountModal = useCallback(() => {
+    setSettingsOpen(false);
+    setCreateAccountModalOpen(true);
+  }, []);
+
+  const handleGuestSignOutConfirm = useCallback(() => {
+    setGuestSignOutWarningOpen(false);
+    handleSignOut();
+  }, [handleSignOut]);
 
   const handleDeleteAccount = useCallback(async () => {
     try {
@@ -6227,6 +7017,7 @@ function DiscLibrary() {
       setSettingsOpen(false);
       setShowProfileModal(false);
       setShowDeleteAccount(false);
+      setCreateAccountModalOpen(false);
       setFirestoreProfileReady(false);
       setToast('Account deleted successfully.');
     } catch (e) {
@@ -6554,7 +7345,8 @@ function DiscLibrary() {
         <>
           <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
           <WelcomeScreen
-            onGuestClick={() => { ReactGA.event({ category: 'Auth', action: 'Guest Mode' }); setGuestMode(true); }}
+            initialView={welcomeInitialView}
+            onGuestClick={() => { ReactGA.event({ category: 'Auth', action: 'Guest Mode' }); setWelcomeInitialView('main'); setGuestMode(true); }}
             onGoogleClick={handleGoogleSignIn}
             onEmailSignUp={handleEmailSignUp}
             onEmailLogin={handleEmailLogin}
@@ -6574,8 +7366,25 @@ function DiscLibrary() {
 
   return (
     <GlossaryProvider>
+    <ThrowStyleContext.Provider value={chartDefaultThrowStyle}>
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="min-h-screen bg-bg text-text">
       <AnimatePresence>{toast && <Toast key={toast} message={toast} onDone={() => setToast(null)}/>}</AnimatePresence>
+      <GuestSignOutWarningModal
+        open={guestSignOutWarningOpen}
+        discCount={discs.length}
+        onCreateAccount={handleGuestSignOutCreateAccount}
+        onSignOutAnyway={handleGuestSignOutConfirm}
+        onCancel={() => setGuestSignOutWarningOpen(false)}
+      />
+      {guestMode && (
+        <GuestCreateAccountModal
+          open={createAccountModalOpen}
+          onClose={() => setCreateAccountModalOpen(false)}
+          discCount={discs.length}
+          onContinueGoogle={handleCreateAccountGoogle}
+          onContinueEmail={handleCreateAccountEmail}
+        />
+      )}
       <InstallPromptBanner />
 
       {/* ── STICKY TOP: One consistent nav across all views ── */}
@@ -6645,7 +7454,42 @@ function DiscLibrary() {
                           ))}
                         </div>
                       </div>
-                      <button type="button" onClick={handleSignOut} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-text-muted hover:bg-surface/80 hover:text-text transition-colors">
+                      {guestMode && (
+                        <div className="px-3 py-2 border-t border-border/50">
+                          <p className="text-xs text-text-muted font-medium mb-2">Flight charts</p>
+                          <label className="text-xs text-text-muted block mb-1" htmlFor="guest-chart-skill">Arm speed</label>
+                          <select
+                            id="guest-chart-skill"
+                            value={guestChartSkill}
+                            onChange={(e) => setGuestChartSkill(normalizeSkillLevel(e.target.value) ?? 'intermediate')}
+                            className="w-full mb-2 bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-text"
+                          >
+                            <option value="beginner">Beginner</option>
+                            <option value="intermediate">Intermediate</option>
+                            <option value="advanced">Advanced</option>
+                          </select>
+                          <label className="text-xs text-text-muted block mb-1" htmlFor="guest-chart-throw">Default throw</label>
+                          <select
+                            id="guest-chart-throw"
+                            value={guestChartThrow}
+                            onChange={handleGuestChartThrowSelect}
+                            className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-sm text-text"
+                          >
+                            <option value="rhbh">RHBH / LHFH</option>
+                            <option value="rhfh">RHFH / LHBH</option>
+                            <option value="lhbh">LHBH / RHFH</option>
+                            <option value="lhfh">LHFH / RHBH</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={openGuestCreateAccountModal}
+                            className="w-full mt-3 min-h-[48px] rounded-xl bg-primary/15 border border-primary/30 text-primary font-semibold text-sm hover:bg-primary/20 transition-colors"
+                          >
+                            Create free account
+                          </button>
+                        </div>
+                      )}
+                      <button type="button" onClick={requestSignOut} className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm text-text-muted hover:bg-surface/80 hover:text-text transition-colors">
                         <LogOut size={16} className="shrink-0 text-text-muted"/> Sign Out
                       </button>
                     </div>
@@ -6732,8 +7576,8 @@ function DiscLibrary() {
                 bagDiscs={bagDiscsForDashboard}
                 bag={activeBag}
                 allDiscs={discs}
-                userSkillLevel={normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate'}
-                defaultThrowStyle={chartDefaultThrowStyle}
+                userSkillLevel={guestMode ? guestChartSkill : (normalizeSkillLevel(userAuth?.skillLevel) ?? 'intermediate')}
+                onFlightChartSkillChange={guestMode ? setGuestChartSkill : undefined}
                 onAddToBag={addDiscToBag}
                 onRemoveFromBag={removeDiscFromBag}
                 onBuySearch={handleBuySearch}
@@ -6752,7 +7596,7 @@ function DiscLibrary() {
                             statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
                             onStatusChange={handleDiscStatusChange}
                             onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
-                            defaultThrowStyle={chartDefaultThrowStyle}
+                            flightChartSkillLevel={flightChartSkillLevel}
                             idx={i}/>
                         ))}
                       </AnimatePresence>
@@ -6785,7 +7629,7 @@ function DiscLibrary() {
                       statusMenuOpen={statusMenuDiscId===d.id} setStatusMenu={setStatusMenuDiscId}
                       onStatusChange={handleDiscStatusChange}
                       onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })}
-                      defaultThrowStyle={chartDefaultThrowStyle}
+                      flightChartSkillLevel={flightChartSkillLevel}
                       idx={i}/>
                   ))}
                 </AnimatePresence>
@@ -6818,8 +7662,8 @@ function DiscLibrary() {
       </div>
 
       {/* ── MODALS ── */}
-      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} defaultThrowStyle={chartDefaultThrowStyle}/>}</AnimatePresence>
-      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType} defaultBagId={addDiscContext?.bagId} bags={bags} onRemoveDiscFromAllBags={removeDiscFromAllBags} onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })} defaultThrowStyle={chartDefaultThrowStyle}/>
+      <AnimatePresence>{detailDisc && <DiscDetailModal open disc={detailDisc} onClose={() => setDetailDisc(null)} bags={bags} onEdit={d=>{setDetailDisc(null);openEdit(d);}} onDelete={id=>{setDetailDisc(null);requestDeleteDisc(id);}} onBackup={d=>{setDetailDisc(null);setBackupDisc(d);}} onToggleBag={toggleBag} flightChartSkillLevel={flightChartSkillLevel}/>}</AnimatePresence>
+      <DiscFormModal open={formOpen} onClose={() => { if (addDiscContext) setAddToBagPickerOpen(true); setFormOpen(false); setEditingDisc(null); setAddDiscContext(null); }} onSave={handleSaveDisc} editDisc={editingDisc} uploadImage={handleUploadImage} defaultDiscType={addDiscContext?.defaultDiscType} defaultBagId={addDiscContext?.bagId} bags={bags} onRemoveDiscFromAllBags={removeDiscFromAllBags} onCreateBag={(name) => createBag({ name, bagColor: BAG_COLORS[bags.length % BAG_COLORS.length] })} flightChartSkillLevel={flightChartSkillLevel}/>
       <AnimatePresence>
         {lostFlowDisc && (
           <LostDiscDialog
@@ -6895,11 +7739,21 @@ function DiscLibrary() {
           userAuth={userAuth}
           profilePic={effectiveProfilePic}
           onProfilePicUpload={handleProfilePicUpload}
-          onSave={handleSaveProfile}
-          setToast={setToast}
+          onSave={handleProfileSave}
           onDeleteAccount={() => { setShowProfileModal(false); setTimeout(() => setShowDeleteAccount(true), 200); }}
         />
       )}</AnimatePresence>
+      <AnimatePresence>
+        {throwStyleBulkConfirm && (
+          <ThrowStyleBulkUpdateDialog
+            open
+            newThrowStyle={throwStyleBulkConfirm.newTs}
+            onConfirmUpdateDiscs={handleThrowStyleBulkYes}
+            onSkipDiscUpdates={handleThrowStyleBulkNo}
+            onClose={handleThrowStyleBulkNo}
+          />
+        )}
+      </AnimatePresence>
       {showApp && firestoreProfileReady && userAuth && !guestMode && !normalizeSkillLevel(userAuth.skillLevel) && (
         <SkillLevelRequiredModal
           open
@@ -6912,6 +7766,7 @@ function DiscLibrary() {
       )}
       <Analytics />
     </motion.div>
+    </ThrowStyleContext.Provider>
     </GlossaryProvider>
   );
 }

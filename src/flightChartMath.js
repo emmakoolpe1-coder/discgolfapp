@@ -119,16 +119,17 @@ export function assignDiscColors(discs) {
 
   for (const disc of sorted) {
     const uc = disc.userColor ? parseDiscColor(disc.userColor) : null;
+    const idKey = String(disc.id);
     if (uc) {
       const tooSimilar = usedColors.some((c) => colorDistance(c, uc) < 40);
       if (!tooSimilar) {
-        result.push({ discId: disc.id, displayColor: uc });
+        result.push({ discId: idKey, displayColor: uc });
         usedColors.push(uc);
       } else {
-        result.push({ discId: disc.id, displayColor: null });
+        result.push({ discId: idKey, displayColor: null });
       }
     } else {
-      result.push({ discId: disc.id, displayColor: null });
+      result.push({ discId: idKey, displayColor: null });
     }
   }
 
@@ -369,6 +370,29 @@ export function integrateFlightPath(eff, skill, opts, mirror = false) {
   }
 
   return points;
+}
+
+/**
+ * RHFH/LHBH path from RHBH/LHFH: negate lateral (x). Same as integrateFlightPath(..., mirror: true).
+ * @param {FlightPoint[]} points
+ * @returns {FlightPoint[]}
+ */
+export function flipFlightPointsHorizontal(points) {
+  if (!points?.length) return points;
+  return points.map((p) => ({ x: -p.x, y: p.y }));
+}
+
+/**
+ * Mirrored bag paths from standard (negate x per disc).
+ * @param {DiscFlightData[]} flights
+ * @returns {DiscFlightData[]}
+ */
+export function mapDiscFlightsFlipHorizontal(flights) {
+  if (!flights?.length) return [];
+  return flights.map((f) => ({
+    ...f,
+    paths: { standard: flipFlightPointsHorizontal(f.paths.standard) },
+  }));
 }
 
 /**

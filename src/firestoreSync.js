@@ -35,6 +35,15 @@ function normalizeFlightField(v, fallback) {
   return fallback;
 }
 
+/** Legacy bh/fh + new primary/opposite; missing field keeps prior default (both). */
+function normalizeFlightPreferenceField(v) {
+  if (v === 'bh' || v === 'primary') return 'primary';
+  if (v === 'fh' || v === 'opposite') return 'opposite';
+  if (v === 'both') return 'both';
+  if (v == null || v === '') return 'both';
+  return 'primary';
+}
+
 /** Normalize disc from Firestore with fallback defaults to prevent crashes on missing fields. */
 function normalizeDisc(data, docId) {
   const d = data && typeof data === 'object' ? data : {};
@@ -52,7 +61,7 @@ function normalizeDisc(data, docId) {
     disc_type: d.disc_type ?? 'midrange',
     wear_level: typeof d.wear_level === 'number' ? d.wear_level : (d.wear_level != null ? parseInt(d.wear_level, 10) : 10) ?? 10,
     status: d.status ?? 'backup',
-    flight_preference: d.flight_preference ?? 'both',
+    flight_preference: normalizeFlightPreferenceField(d.flight_preference),
     color: d.color ?? '#22c55e',
     photo: d.photo ?? null,
     date_acquired: d.date_acquired ?? '',
@@ -120,7 +129,7 @@ export function normalizeThrowStyle(v) {
 }
 
 export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel, throwStyle) {
-  if (!userId || !db) return;
+  if (!userId || !db) return false;
   const firebaseUser = getAuth().currentUser;
   // This app uses custom email auth + Google Identity Services; Firebase Auth currentUser
   // is only set for Google users who've signed in via Firebase. For email users it's always null.
@@ -129,7 +138,7 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
   console.log('[sync] Auth state:', { firebaseUser: firebaseUser?.email ?? null, userId, isAuthenticated });
   if (!isAuthenticated) {
     console.warn('[sync] Skipping sync — no authenticated user (signed out)');
-    return;
+    return false;
   }
   try {
     console.log('[sync] userId used for write:', userId);
@@ -144,12 +153,12 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
     if (discsList.length === 0 && remoteDiscCount > 0) {
       console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
-      return;
+      return false;
     }
     // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
     if (discsList.length < remoteDiscCount) {
       console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
-      return;
+      return false;
     }
 
     const batch = createBatch();
@@ -250,6 +259,7 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     } catch (backupErr) {
       console.warn('[sync] backupUserData after write failed', backupErr);
     }
+    return true;
   } catch (e) {
     console.error('[sync] ❌ Firestore sync FAILED:', e);
     console.error('[sync] Error code:', e?.code);

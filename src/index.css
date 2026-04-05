@@ -292,3 +292,24 @@ button.no-hover-scale:active {
 .shadow-card-lg {
   box-shadow: var(--shadow-card-lg);
 }
+
+.glow-disc-image {
+  --glow-color-rgb: 150, 230, 200;
+  box-shadow: 0 0 18px 6px rgba(var(--glow-color-rgb), 0.35);
+}
+
+html[data-theme="light"] .glow-disc-image {
+  box-shadow: 0 0 24px 8px rgba(var(--glow-color-rgb), 0.6);
+}
+
+@media (prefers-color-scheme: light) {
+  html[data-theme="system"] .glow-disc-image {
+    box-shadow: 0 0 24px 8px rgba(var(--glow-color-rgb), 0.6);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .glow-disc-image {
+    box-shadow: 0 0 18px 6px rgba(var(--glow-color-rgb), 0.35);
+  }
+}
