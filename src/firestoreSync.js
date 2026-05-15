@@ -16,6 +16,7 @@ import {
   safeDeleteDoc,
   backupUserData,
 } from './services/firestoreService.js';
+import { shouldBlockDiscSync } from './firestoreSyncGuards.js';
 
 function removeUndefined(obj) {
   try {
@@ -150,14 +151,8 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const currentDiscSnap = await getDocs(discsCol);
     const remoteDiscCount = currentDiscSnap.size;
 
-    // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
-    if (discsList.length === 0 && remoteDiscCount > 0) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
-      return false;
-    }
-    // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
-    if (discsList.length < remoteDiscCount) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
+    if (shouldBlockDiscSync({ localDiscCount: discsList.length, remoteDiscCount, dataLoaded })) {
+      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs before initial load when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
       return false;
     }
 
