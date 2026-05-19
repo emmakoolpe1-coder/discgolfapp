@@ -8,6 +8,7 @@
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from './firebase.js';
+import { getPreloadDiscSyncBlockReason } from './firestoreSyncGuards.js';
 import {
   createBatch,
   safeBatchSet,
@@ -150,14 +151,11 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const currentDiscSnap = await getDocs(discsCol);
     const remoteDiscCount = currentDiscSnap.size;
 
-    // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
-    if (discsList.length === 0 && remoteDiscCount > 0) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
-      return false;
-    }
-    // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
-    if (discsList.length < remoteDiscCount) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
+    // Before load, local state can be empty/default. After load, lower counts
+    // are intentional user deletions and must be allowed to sync.
+    const preloadBlockReason = getPreloadDiscSyncBlockReason(discsList.length, remoteDiscCount, dataLoaded);
+    if (preloadBlockReason) {
+      console.warn('[sync] ⚠️ BLOCKED:', preloadBlockReason);
       return false;
     }
 
