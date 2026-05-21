@@ -6511,6 +6511,7 @@ function DiscLibrary() {
 
   const firestoreSyncUserIdRef = useRef(null);
   const firestoreInitialLoadDoneRef = useRef(false);
+  const firestoreLoadGenerationRef = useRef(0);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
   const [firestoreProfileReady, setFirestoreProfileReady] = useState(false);
 
@@ -6519,18 +6520,25 @@ function DiscLibrary() {
   useEffect(() => {
     const email = userAuth?.email;
     if (!email) {
+      firestoreLoadGenerationRef.current += 1;
+      firestoreSyncUserIdRef.current = null;
+      firestoreInitialLoadDoneRef.current = false;
       setFirestoreProfileReady(false);
       return;
     }
     const userId = emailToUserId(email);
     if (firestoreSyncUserIdRef.current === userId) return;
+    const loadGeneration = firestoreLoadGenerationRef.current + 1;
+    firestoreLoadGenerationRef.current = loadGeneration;
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
     setSyncStatus('syncing');
     setFirestoreProfileReady(false);
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
+    const isCurrentLoad = () => firestoreLoadGenerationRef.current === loadGeneration && firestoreSyncUserIdRef.current === userId;
     loadFromFirestore(userId)
       .then((data) => {
+        if (!isCurrentLoad()) return false;
         const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
@@ -6555,17 +6563,32 @@ function DiscLibrary() {
         setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
         setUserAuth((prev) => {
-          if (!prev) return null;
+          if (!prev || emailToUserId(prev.email) !== userId) return prev;
           return {
             ...prev,
             ...(data?.skillLevel ? { skillLevel: data.skillLevel } : {}),
             throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
           };
         });
+        return true;
       })
-      .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
-      .finally(() => setFirestoreProfileReady(true));
+      .then((applied) => {
+        if (!applied || !isCurrentLoad()) return;
+        setSyncStatus('synced');
+        firestoreInitialLoadDoneRef.current = true;
+      })
+      .catch((e) => {
+        if (!isCurrentLoad()) return;
+        console.warn('[DiscLibrary] Initial Firestore sync failed', e);
+        setSyncStatus('error');
+        firestoreInitialLoadDoneRef.current = false;
+      })
+      .finally(() => {
+        if (isCurrentLoad()) setFirestoreProfileReady(true);
+      });
+    return () => {
+      if (firestoreLoadGenerationRef.current === loadGeneration) firestoreLoadGenerationRef.current += 1;
+    };
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -6580,7 +6603,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
