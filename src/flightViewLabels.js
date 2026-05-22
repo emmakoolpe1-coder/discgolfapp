@@ -2,7 +2,7 @@
  * Shared flight chart UI: pair modes (standard vs mirrored geometry), toggle labels,
  * and per-disc preference (primary / both / opposite).
  */
-import { normalizeThrowStyle } from './firestoreSync.js';
+import { normalizeThrowStyle } from './profileFields.js';
 
 /** @returns {'standard'|'mirrored'} */
 export function primaryFlightPairMode(throwStyle) {

@@ -16,6 +16,9 @@ import {
   safeDeleteDoc,
   backupUserData,
 } from './services/firestoreService.js';
+import { normalizeSkillLevel, normalizeThrowStyle } from './profileFields.js';
+
+export { normalizeSkillLevel, normalizeThrowStyle } from './profileFields.js';
 
 function removeUndefined(obj) {
   try {
@@ -114,18 +117,6 @@ function normalizeBag(b) {
 export function emailToUserId(email) {
   if (!email || typeof email !== 'string') return '';
   return email.replace(/\./g, '_').replace(/@/g, '_');
-}
-
-/** @returns {'beginner'|'intermediate'|'advanced'|undefined} */
-export function normalizeSkillLevel(v) {
-  if (v === 'beginner' || v === 'intermediate' || v === 'advanced') return v;
-  return undefined;
-}
-
-/** Primary throwing style for profile / future flight charts. */
-export function normalizeThrowStyle(v) {
-  if (v === 'rhbh' || v === 'rhfh' || v === 'lhbh' || v === 'lhfh') return v;
-  return undefined;
 }
 
 export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel, throwStyle) {
@@ -311,7 +302,7 @@ export async function loadFromFirestore(userId) {
         longestThrows: [],
         personalBests: [],
         skillLevel: undefined,
-        throwStyle: 'rhbh',
+        throwStyle: undefined,
       };
     } else {
       const d = userSnap.data() || {};
@@ -327,7 +318,7 @@ export async function loadFromFirestore(userId) {
         longestThrows: longestThrowsRaw.map(lt => lt && typeof lt === 'object' ? { id: lt.id ?? '', discId: lt.discId ?? '', distance: lt.distance ?? 0, ...lt } : { id: '', discId: '', distance: 0 }),
         personalBests: personalBestsRaw.map(pb => pb && typeof pb === 'object' ? { id: pb.id ?? '', category: pb.category ?? '', value: pb.value ?? '', course: pb.course ?? '', date: pb.date ?? '', ...pb } : { id: '', category: '', value: '', course: '', date: '' }),
         skillLevel: normalizeSkillLevel(d.skillLevel),
-        throwStyle: normalizeThrowStyle(d.throwStyle) ?? 'rhbh',
+        throwStyle: normalizeThrowStyle(d.throwStyle),
       };
     }
 

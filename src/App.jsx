@@ -9,7 +9,8 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useCallback, useR
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Analytics } from '@vercel/analytics/react';
-import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore, normalizeSkillLevel, normalizeThrowStyle } from './firestoreSync.js';
+import { emailToUserId, syncToFirestore, loadFromFirestore, deleteUserDataFromFirestore } from './firestoreSync.js';
+import { mergeFirestoreProfileIntoAuth, normalizeSkillLevel, normalizeThrowStyle } from './profileFields.js';
 import {
   defaultPairModeFromThrowStyle,
   getFlightPathToggleLabels,
@@ -6554,14 +6555,7 @@ function DiscLibrary() {
         setTournaments(mergeById(remoteTournaments, localTournaments));
         setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
-        setUserAuth((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            ...(data?.skillLevel ? { skillLevel: data.skillLevel } : {}),
-            throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
-          };
-        });
+        setUserAuth((prev) => mergeFirestoreProfileIntoAuth(prev, data));
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
       .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
