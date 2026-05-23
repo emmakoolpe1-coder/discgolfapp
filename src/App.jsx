@@ -6580,7 +6580,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
