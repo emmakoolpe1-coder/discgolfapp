@@ -16,6 +16,7 @@ import {
   safeDeleteDoc,
   backupUserData,
 } from './services/firestoreService.js';
+import { shouldBlockDiscSync } from './firestoreSyncGuards.js';
 
 function removeUndefined(obj) {
   try {
@@ -95,6 +96,7 @@ function normalizeAce(data, docId) {
     hole: typeof a.hole === 'number' ? a.hole : (a.hole != null ? parseInt(a.hole, 10) : 0) ?? 0,
     distance: typeof a.distance === 'number' ? a.distance : (a.distance != null ? parseInt(a.distance, 10) : 0) ?? 0,
     witnessed: !!a.witnessed,
+    witnessNames: a.witnessNames ?? '',
     notes: a.notes ?? '',
     photo: a.photo ?? null,
   };
@@ -150,14 +152,10 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const currentDiscSnap = await getDocs(discsCol);
     const remoteDiscCount = currentDiscSnap.size;
 
-    // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
-    if (discsList.length === 0 && remoteDiscCount > 0) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
-      return false;
-    }
-    // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
-    if (discsList.length < remoteDiscCount) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
+    // Guard startup/cache writes before Firestore has loaded. Once loaded, lower counts
+    // are intentional deletes and must be allowed so removed docs can be deleted below.
+    if (shouldBlockDiscSync(discsList.length, remoteDiscCount, dataLoaded)) {
+      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs before Firestore load completed when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
       return false;
     }
 
