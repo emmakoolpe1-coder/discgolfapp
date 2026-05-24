@@ -16,6 +16,7 @@ import {
   safeDeleteDoc,
   backupUserData,
 } from './services/firestoreService.js';
+import { planAceSync, planDiscSync } from './firestoreSyncGuards.js';
 
 function removeUndefined(obj) {
   try {
@@ -128,7 +129,7 @@ export function normalizeThrowStyle(v) {
   return undefined;
 }
 
-export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel, throwStyle) {
+export async function syncToFirestore(userId, discs, bags, aces, tournaments, longestThrows, personalBests, dataLoaded = false, skillLevel, throwStyle, options = {}) {
   if (!userId || !db) return false;
   const firebaseUser = getAuth().currentUser;
   // This app uses custom email auth + Google Identity Services; Firebase Auth currentUser
@@ -147,17 +148,26 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const acesCol = collection(userRef, 'aces');
 
     const discsList = discs ?? [];
+    const allowDiscDeletions = !!options.allowDiscDeletions;
+    const allowAceDeletions = !!options.allowAceDeletions || allowDiscDeletions;
     const currentDiscSnap = await getDocs(discsCol);
-    const remoteDiscCount = currentDiscSnap.size;
+    const discSyncPlan = planDiscSync({
+      localDiscIds: discsList.map((d) => d?.id),
+      remoteDiscIds: currentDiscSnap.docs.map((s) => s.id),
+      allowDiscDeletions,
+    });
 
-    // CRITICAL: Never sync empty local state when Firestore has discs (data loss protection)
-    if (discsList.length === 0 && remoteDiscCount > 0) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write 0 discs when Firestore has', remoteDiscCount, 'discs. Possible data loss prevented.');
-      return false;
-    }
-    // CRITICAL: Never allow a sync that would reduce total disc count (data loss protection)
-    if (discsList.length < remoteDiscCount) {
-      console.warn('[sync] ⚠️ BLOCKED: Refusing to write', discsList.length, 'discs when Firestore has', remoteDiscCount, '. Would reduce count. Possible data loss prevented.');
+    // CRITICAL: Pre-load and migration writes must never delete remote disc docs.
+    // Intentional deletes are allowed only from the post-load app sync path.
+    if (discSyncPlan.blocked) {
+      console.warn(
+        '[sync] ⚠️ BLOCKED: Refusing to delete remote discs before a verified post-load sync.',
+        {
+          remoteCount: discSyncPlan.remoteCount,
+          localCount: discSyncPlan.localCount,
+          remoteIdsMissingLocally: discSyncPlan.remoteIdsMissingLocally,
+        }
+      );
       return false;
     }
 
@@ -166,9 +176,9 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     // Sync discs subcollection
     {
       console.log('[sync] Writing discs to Firestore for user:', userId, 'count:', discsList.length);
-      const incomingDiscIds = new Set(discsList.map(d => d.id).filter(Boolean));
+      const discIdsToDelete = new Set(discSyncPlan.idsToDelete);
       currentDiscSnap.forEach(s => {
-        if (!incomingDiscIds.has(s.id)) safeBatchDelete(batch, s.ref);
+        if (discIdsToDelete.has(s.id)) safeBatchDelete(batch, s.ref);
       });
       discsList.forEach(d => {
         if (!d || !d.id) return;
@@ -185,34 +195,44 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     }
 
     // Sync aces subcollection
-    // GUARD: Only block empty overwrite when dataLoaded is false (startup state before load).
-    // When dataLoaded is true, empty arrays are intentional user deletions — allow them.
     const acesList = aces ?? [];
     const currentAceSnap = await getDocs(acesCol);
-    if (!dataLoaded && acesList.length === 0 && currentAceSnap.size > 0) {
-      console.warn('[sync] ⚠️ Skipping aces write: data not loaded yet, incoming empty but Firestore has', currentAceSnap.size, 'aces — possible data loss prevented');
-    } else {
-      console.log('[sync] Writing aces to Firestore for user:', userId, 'count:', acesList.length, 'path:', `users/${userId}/aces`);
-      const incomingAceIds = new Set(acesList.map(a => a.id).filter(Boolean));
-      currentAceSnap.forEach(s => {
-        if (!incomingAceIds.has(s.id)) safeBatchDelete(batch, s.ref);
-      });
-      acesList.forEach(a => {
-        if (!a || !a.id) return;
-        const safe = { ...a };
-        if (safe.photo && typeof safe.photo === 'string' && safe.photo.length > 900000) {
-          console.error('Ace photo too large for Firestore:', safe.photo.length, 'bytes for ace', safe.id);
-          safe.photo = undefined;
+    const aceSyncPlan = planAceSync({
+      localAceIds: acesList.map((a) => a?.id),
+      remoteAceIds: currentAceSnap.docs.map((s) => s.id),
+      allowAceDeletions,
+    });
+    if (aceSyncPlan.blocked) {
+      console.warn(
+        '[sync] ⚠️ BLOCKED: Refusing to delete remote aces before a verified post-load sync.',
+        {
+          remoteCount: aceSyncPlan.remoteCount,
+          localCount: aceSyncPlan.localCount,
+          remoteIdsMissingLocally: aceSyncPlan.remoteIdsMissingLocally,
         }
-        const ref = doc(acesCol, String(safe.id));
-        // merge: true — safe for updates; full object written so merge prevents partial-write data loss
-        safeBatchSet(batch, ref, removeUndefined(safe), { merge: true });
-      });
-      console.log('[sync] ✅ Aces write enqueued');
+      );
+      return false;
     }
+    console.log('[sync] Writing aces to Firestore for user:', userId, 'count:', acesList.length, 'path:', `users/${userId}/aces`);
+    const aceIdsToDelete = new Set(aceSyncPlan.idsToDelete);
+    currentAceSnap.forEach(s => {
+      if (aceIdsToDelete.has(s.id)) safeBatchDelete(batch, s.ref);
+    });
+    acesList.forEach(a => {
+      if (!a || !a.id) return;
+      const safe = { ...a };
+      if (safe.photo && typeof safe.photo === 'string' && safe.photo.length > 900000) {
+        console.error('Ace photo too large for Firestore:', safe.photo.length, 'bytes for ace', safe.id);
+        safe.photo = undefined;
+      }
+      const ref = doc(acesCol, String(safe.id));
+      // merge: true — safe for updates; full object written so merge prevents partial-write data loss
+      safeBatchSet(batch, ref, removeUndefined(safe), { merge: true });
+    });
+    console.log('[sync] ✅ Aces write enqueued');
 
-    // Root user document for bags / tournaments / longestThrows / personalBests
-    // GUARD: Only block empty overwrite when dataLoaded is false. When dataLoaded is true, allow all writes (including intentional deletions).
+    // Root user document for bags / tournaments / longestThrows / personalBests.
+    // Pre-load writes may add data to empty fields, but must not replace existing arrays.
     const userSnap = await getDoc(userRef);
     const existing = userSnap.exists() ? userSnap.data() : {};
     const payload = removeUndefined({
@@ -226,17 +246,24 @@ export async function syncToFirestore(userId, discs, bags, aces, tournaments, lo
     const existingTournaments = existing.tournaments;
     const existingLongestThrows = existing.longestThrows;
     const existingPersonalBests = existing.personalBests;
+    const shouldWriteRootArray = (incoming, existingValue) => {
+      if (incoming == null) return false;
+      if (dataLoaded) return true;
+      const incomingList = Array.isArray(incoming) ? incoming : [];
+      if (Array.isArray(existingValue) && existingValue.length > 0) return false;
+      return incomingList.length > 0 || !Array.isArray(existingValue) || existingValue.length === 0;
+    };
     if (bags != null) {
-      if (dataLoaded || bags.length > 0 || !Array.isArray(existingBags) || existingBags.length === 0) payload.bags = bags;
+      if (shouldWriteRootArray(bags, existingBags)) payload.bags = bags;
     }
     if (tournaments != null) {
-      if (dataLoaded || tournaments.length > 0 || !Array.isArray(existingTournaments) || existingTournaments.length === 0) payload.tournaments = tournaments;
+      if (shouldWriteRootArray(tournaments, existingTournaments)) payload.tournaments = tournaments;
     }
     if (longestThrows != null) {
-      if (dataLoaded || longestThrows.length > 0 || !Array.isArray(existingLongestThrows) || existingLongestThrows.length === 0) payload.longestThrows = longestThrows;
+      if (shouldWriteRootArray(longestThrows, existingLongestThrows)) payload.longestThrows = longestThrows;
     }
     if (personalBests != null) {
-      if (dataLoaded || personalBests.length > 0 || !Array.isArray(existingPersonalBests) || existingPersonalBests.length === 0) payload.personalBests = personalBests;
+      if (shouldWriteRootArray(personalBests, existingPersonalBests)) payload.personalBests = personalBests;
     }
     // merge: true — only updates provided fields; existing data preserved when we skip empty overwrite
     safeBatchSet(batch, userRef, payload, { merge: true });
@@ -335,7 +362,7 @@ export async function loadFromFirestore(userId) {
     backupUserData(userId, data);
 
     return data;
-  } catch (e) { console.warn('Firestore load failed', e); return null; }
+  } catch (e) { console.warn('Firestore load failed', e); throw e; }
 }
 
 export async function deleteUserDataFromFirestore(userId) {

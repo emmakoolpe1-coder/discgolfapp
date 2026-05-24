@@ -6519,8 +6519,10 @@ function DiscLibrary() {
   useEffect(() => {
     const email = userAuth?.email;
     if (!email) {
+      firestoreSyncUserIdRef.current = null;
+      firestoreInitialLoadDoneRef.current = false;
       setFirestoreProfileReady(false);
-      return;
+      return undefined;
     }
     const userId = emailToUserId(email);
     if (firestoreSyncUserIdRef.current === userId) return;
@@ -6529,8 +6531,11 @@ function DiscLibrary() {
     setSyncStatus('syncing');
     setFirestoreProfileReady(false);
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
+    let cancelled = false;
     loadFromFirestore(userId)
       .then((data) => {
+        if (cancelled || firestoreSyncUserIdRef.current !== userId) return false;
+        if (!data) throw new Error('Firestore load returned no data');
         const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
@@ -6555,17 +6560,32 @@ function DiscLibrary() {
         setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
         setUserAuth((prev) => {
-          if (!prev) return null;
+          if (!prev || prev.email !== email) return prev;
           return {
             ...prev,
             ...(data?.skillLevel ? { skillLevel: data.skillLevel } : {}),
             throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
           };
         });
+        return true;
       })
-      .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
-      .finally(() => setFirestoreProfileReady(true));
+      .then((applied) => {
+        if (!applied || cancelled || firestoreSyncUserIdRef.current !== userId) return;
+        setSyncStatus('synced');
+        firestoreInitialLoadDoneRef.current = true;
+      })
+      .catch((e) => {
+        if (cancelled || firestoreSyncUserIdRef.current !== userId) return;
+        console.warn('[DiscLibrary] Initial Firestore sync failed', e);
+        setSyncStatus('error');
+        firestoreInitialLoadDoneRef.current = false;
+      })
+      .finally(() => {
+        if (!cancelled && firestoreSyncUserIdRef.current === userId) setFirestoreProfileReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -6579,9 +6599,19 @@ function DiscLibrary() {
     const tournamentsCopy = [...tournaments];
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
-    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
-      .catch(() => { setSyncStatus('error'); });
+    syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh', { allowDiscDeletions: true })
+      .then((ok) => {
+        if (firestoreSyncUserIdRef.current !== userId) return;
+        if (ok) {
+          setSyncStatus('synced');
+          return;
+        }
+        console.warn('[DiscLibrary] Firestore sync was blocked by safety guards');
+        setSyncStatus('error');
+      })
+      .catch(() => {
+        if (firestoreSyncUserIdRef.current === userId) setSyncStatus('error');
+      });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   useEffect(() => {
@@ -6860,9 +6890,13 @@ function DiscLibrary() {
       const tournamentsCopy = [...tournaments];
       const longestCopy = [...longestThrows];
       const pbsCopy = [...personalBests];
+      const allowDiscDeletions = firestoreInitialLoadDoneRef.current && firestoreSyncUserIdRef.current === userId;
       // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
+      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh', { allowDiscDeletions })
+        .then((ok) => {
+          if (ok) console.log('[signOut] Firestore save on sign-out completed');
+          else console.warn('[signOut] Firestore save on sign-out was blocked by safety guards');
+        })
         .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
@@ -6896,7 +6930,7 @@ function DiscLibrary() {
     setFirestoreProfileReady(false);
     setWelcomeInitialView('main');
     setCreateAccountModalOpen(false);
-  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+  }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   const completeGuestFirebaseAuth = useCallback(async (firebaseUser, provider) => {
     const email = firebaseUser.email;
@@ -6912,7 +6946,7 @@ function DiscLibrary() {
     const pbsCopy = [...personalBests];
     let migrationOk = true;
     try {
-      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
+      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, false, sk, ts, { allowDiscDeletions: false });
       if (!ok) migrationOk = false;
     } catch (e) {
       console.warn('[guest] migrate guest data failed', e);
