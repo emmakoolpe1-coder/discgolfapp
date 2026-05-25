@@ -6511,6 +6511,7 @@ function DiscLibrary() {
 
   const firestoreSyncUserIdRef = useRef(null);
   const firestoreInitialLoadDoneRef = useRef(false);
+  const firestoreLoadGenerationRef = useRef(0);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
   const [firestoreProfileReady, setFirestoreProfileReady] = useState(false);
 
@@ -6519,11 +6520,22 @@ function DiscLibrary() {
   useEffect(() => {
     const email = userAuth?.email;
     if (!email) {
+      firestoreLoadGenerationRef.current += 1;
+      firestoreSyncUserIdRef.current = null;
+      firestoreInitialLoadDoneRef.current = false;
       setFirestoreProfileReady(false);
       return;
     }
     const userId = emailToUserId(email);
-    if (firestoreSyncUserIdRef.current === userId) return;
+    if (firestoreSyncUserIdRef.current === userId && firestoreInitialLoadDoneRef.current) return;
+    const loadGeneration = firestoreLoadGenerationRef.current + 1;
+    firestoreLoadGenerationRef.current = loadGeneration;
+    let cancelled = false;
+    const isCurrentLoad = () => (
+      !cancelled &&
+      firestoreLoadGenerationRef.current === loadGeneration &&
+      firestoreSyncUserIdRef.current === userId
+    );
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
     setSyncStatus('syncing');
@@ -6531,6 +6543,8 @@ function DiscLibrary() {
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
+        if (!isCurrentLoad()) return;
+        if (!data) throw new Error('Initial Firestore load returned no data');
         const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
@@ -6563,9 +6577,24 @@ function DiscLibrary() {
           };
         });
       })
-      .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
-      .finally(() => setFirestoreProfileReady(true));
+      .then(() => {
+        if (!isCurrentLoad()) return;
+        setSyncStatus('synced');
+        firestoreInitialLoadDoneRef.current = true;
+      })
+      .catch((e) => {
+        if (!isCurrentLoad()) return;
+        console.warn('[DiscLibrary] Initial Firestore sync failed', e);
+        setSyncStatus('error');
+        firestoreInitialLoadDoneRef.current = false;
+      })
+      .finally(() => {
+        if (!isCurrentLoad()) return;
+        setFirestoreProfileReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -6580,7 +6609,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
@@ -6852,6 +6881,8 @@ function DiscLibrary() {
   }, []);
 
   const handleSignOut = useCallback(() => {
+    const signOutHadLoadedData = firestoreInitialLoadDoneRef.current;
+    firestoreLoadGenerationRef.current += 1;
     const email = userAuth?.email;
     if (email) {
       const userId = emailToUserId(email);
@@ -6861,8 +6892,11 @@ function DiscLibrary() {
       const longestCopy = [...longestThrows];
       const pbsCopy = [...personalBests];
       // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
+      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, signOutHadLoadedData, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
+        .then((ok) => {
+          if (ok) console.log('[signOut] Firestore save on sign-out completed');
+          else console.warn('[signOut] Firestore save on sign-out was blocked because initial data had not loaded');
+        })
         .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
@@ -6912,7 +6946,7 @@ function DiscLibrary() {
     const pbsCopy = [...personalBests];
     let migrationOk = true;
     try {
-      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
+      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, false, sk, ts);
       if (!ok) migrationOk = false;
     } catch (e) {
       console.warn('[guest] migrate guest data failed', e);
@@ -6994,6 +7028,7 @@ function DiscLibrary() {
 
   const handleDeleteAccount = useCallback(async () => {
     try {
+      firestoreLoadGenerationRef.current += 1;
       const userId = firestoreSyncUserIdRef.current;
       if (userId) {
         await deleteUserDataFromFirestore(userId);
