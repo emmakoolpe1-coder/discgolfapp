@@ -1069,6 +1069,13 @@ function saveState(data) {
   } catch(e) { console.warn('Failed to save', e); }
 }
 
+function mergeByIdPreservingRemote(remote, local, idKey = 'id') {
+  const remoteList = Array.isArray(remote) ? remote : [];
+  const localList = Array.isArray(local) ? local : [];
+  const remoteIds = new Set(remoteList.map((x) => x && x[idKey]).filter(Boolean));
+  return [...remoteList, ...localList.filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
+}
+
 function loadAuth() {
   try {
     const raw = localStorage.getItem(AUTH_KEY);
@@ -6511,6 +6518,7 @@ function DiscLibrary() {
 
   const firestoreSyncUserIdRef = useRef(null);
   const firestoreInitialLoadDoneRef = useRef(false);
+  const firestoreLoadGenerationRef = useRef(0);
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
   const [firestoreProfileReady, setFirestoreProfileReady] = useState(false);
 
@@ -6526,11 +6534,17 @@ function DiscLibrary() {
     if (firestoreSyncUserIdRef.current === userId) return;
     firestoreSyncUserIdRef.current = userId;
     firestoreInitialLoadDoneRef.current = false;
+    const loadGeneration = firestoreLoadGenerationRef.current + 1;
+    firestoreLoadGenerationRef.current = loadGeneration;
     setSyncStatus('syncing');
     setFirestoreProfileReady(false);
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
-    loadFromFirestore(userId)
-      .then((data) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await loadFromFirestore(userId);
+        if (cancelled || firestoreLoadGenerationRef.current !== loadGeneration || firestoreSyncUserIdRef.current !== userId) return;
+        if (!data) throw new Error('Firestore load returned no data.');
         const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
@@ -6544,16 +6558,12 @@ function DiscLibrary() {
         const localTournaments = local?.tournaments ?? [];
         const localLongestThrows = local?.longestThrows ?? [];
         const localPersonalBests = local?.personalBests ?? [];
-        const mergeById = (remote, local, idKey = 'id') => {
-          const remoteIds = new Set((remote || []).map((x) => x && x[idKey]).filter(Boolean));
-          return [...(remote || []), ...(local || []).filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
-        };
-        setDiscs(mergeById(remoteDiscs, localDiscs));
-        setBags(mergeById(remoteBags, localBags));
-        setAceHistory(mergeById(remoteAces, localAces));
-        setTournaments(mergeById(remoteTournaments, localTournaments));
-        setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
-        setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
+        setDiscs(mergeByIdPreservingRemote(remoteDiscs, localDiscs));
+        setBags(mergeByIdPreservingRemote(remoteBags, localBags));
+        setAceHistory(mergeByIdPreservingRemote(remoteAces, localAces));
+        setTournaments(mergeByIdPreservingRemote(remoteTournaments, localTournaments));
+        setLongestThrows(mergeByIdPreservingRemote(remoteLongestThrows, localLongestThrows));
+        setPersonalBests(mergeByIdPreservingRemote(remotePersonalBests, localPersonalBests));
         setUserAuth((prev) => {
           if (!prev) return null;
           return {
@@ -6562,10 +6572,20 @@ function DiscLibrary() {
             throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
           };
         });
-      })
-      .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
-      .finally(() => setFirestoreProfileReady(true));
+        firestoreInitialLoadDoneRef.current = true;
+        setSyncStatus('synced');
+      } catch (e) {
+        if (cancelled || firestoreLoadGenerationRef.current !== loadGeneration || firestoreSyncUserIdRef.current !== userId) return;
+        console.warn('[DiscLibrary] Initial Firestore sync failed', e);
+        firestoreInitialLoadDoneRef.current = false;
+        setSyncStatus('error');
+      } finally {
+        if (!cancelled && firestoreLoadGenerationRef.current === loadGeneration && firestoreSyncUserIdRef.current === userId) {
+          setFirestoreProfileReady(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -6580,7 +6600,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
@@ -6862,7 +6882,7 @@ function DiscLibrary() {
       const pbsCopy = [...personalBests];
       // Sync in background — don't block sign-out (so user can always log out)
       syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
+        .then((ok) => console.log(ok ? '[signOut] Firestore save on sign-out completed' : '[signOut] Firestore save on sign-out was blocked'))
         .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
@@ -6879,6 +6899,7 @@ function DiscLibrary() {
       if (savedGuestChartSkill) localStorage.setItem(GUEST_CHART_SKILL_KEY, savedGuestChartSkill);
       if (savedGuestChartThrow) localStorage.setItem(GUEST_CHART_THROW_KEY, savedGuestChartThrow);
     } catch(_) {}
+    firestoreLoadGenerationRef.current += 1;
     firestoreSyncUserIdRef.current = null;
     firestoreInitialLoadDoneRef.current = false;
     setDiscs([]);
@@ -6910,13 +6931,37 @@ function DiscLibrary() {
     const tournamentsCopy = [...tournaments];
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
-    let migrationOk = true;
+    const remote = await loadFromFirestore(userId);
+    if (!remote) {
+      await firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut after guest migration load failure failed', e));
+      throw new Error('Could not load your cloud data, so your guest collection was not migrated. Try again.');
+    }
+    const mergedDiscs = mergeByIdPreservingRemote(remote.discs, discsCopy);
+    const mergedBags = mergeByIdPreservingRemote(remote.bags, bagsCopy);
+    const mergedAces = mergeByIdPreservingRemote(remote.aceHistory, aceCopy);
+    const mergedTournaments = mergeByIdPreservingRemote(remote.tournaments, tournamentsCopy);
+    const mergedLongestThrows = mergeByIdPreservingRemote(remote.longestThrows, longestCopy);
+    const mergedPersonalBests = mergeByIdPreservingRemote(remote.personalBests, pbsCopy);
+    const profileSkill = normalizeSkillLevel(remote.skillLevel) ?? sk;
+    const profileThrowStyle = normalizeThrowStyle(remote.throwStyle) ?? ts;
     try {
-      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
-      if (!ok) migrationOk = false;
+      const ok = await syncToFirestore(
+        userId,
+        mergedDiscs,
+        mergedBags,
+        mergedAces,
+        mergedTournaments,
+        mergedLongestThrows,
+        mergedPersonalBests,
+        true,
+        profileSkill,
+        profileThrowStyle
+      );
+      if (!ok) throw new Error('Cloud sync was blocked, so your guest collection was not migrated.');
     } catch (e) {
       console.warn('[guest] migrate guest data failed', e);
-      migrationOk = false;
+      await firebaseSignOut(getAuth()).catch((signOutErr) => console.warn('[auth] Firebase signOut after guest migration failure failed', signOutErr));
+      throw e;
     }
     try {
       localStorage.removeItem(GUEST_MODE_KEY);
@@ -6932,8 +6977,8 @@ function DiscLibrary() {
         email,
         displayName: firebaseUser.displayName || displayName,
         picture,
-        skillLevel: sk,
-        throwStyle: ts,
+        skillLevel: profileSkill,
+        throwStyle: profileThrowStyle,
       });
     } else {
       setUserAuth({
@@ -6941,17 +6986,24 @@ function DiscLibrary() {
         email,
         displayName,
         picture,
-        skillLevel: sk,
-        throwStyle: ts,
+        skillLevel: profileSkill,
+        throwStyle: profileThrowStyle,
       });
     }
+    firestoreSyncUserIdRef.current = userId;
+    firestoreInitialLoadDoneRef.current = true;
+    firestoreLoadGenerationRef.current += 1;
+    setDiscs(mergedDiscs);
+    setBags(mergedBags);
+    setAceHistory(mergedAces);
+    setTournaments(mergedTournaments);
+    setLongestThrows(mergedLongestThrows);
+    setPersonalBests(mergedPersonalBests);
     setGuestMode(false);
     setCreateAccountModalOpen(false);
-    if (migrationOk) {
-      setToast('Account created! Your discs have been saved.');
-    } else {
-      setToast('Account created! Some data may not have transferred. Check your collection.');
-    }
+    setFirestoreProfileReady(true);
+    setSyncStatus('synced');
+    setToast('Account created! Your discs have been saved.');
   }, [discs, bags, aceHistory, tournaments, longestThrows, personalBests, guestChartSkill, guestChartThrow]);
 
   const handleCreateAccountGoogle = useCallback(async () => {
