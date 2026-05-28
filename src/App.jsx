@@ -6556,10 +6556,12 @@ function DiscLibrary() {
         setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
         setUserAuth((prev) => {
           if (!prev) return null;
+          const remoteThrowStyle = normalizeThrowStyle(data?.throwStyle);
+          const currentThrowStyle = normalizeThrowStyle(prev.throwStyle);
           return {
             ...prev,
             ...(data?.skillLevel ? { skillLevel: data.skillLevel } : {}),
-            throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
+            throwStyle: remoteThrowStyle ?? currentThrowStyle ?? 'rhbh',
           };
         });
       })
