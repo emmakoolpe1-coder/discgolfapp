@@ -19,7 +19,7 @@ import {
   preserveFlightPreferenceAcrossThrowStyleChange,
   userDominantHandLabel,
 } from './flightViewLabels.js';
-import { getAuth, signOut as firebaseSignOut, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, signOut as firebaseSignOut, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth, googleProvider } from './firebase.js';
 import FlightChart from './components/FlightChart.jsx';
 import { ThrowStyleContext, useThrowStyle } from './throwStyleContext.js';
@@ -34,6 +34,7 @@ import {
 } from './flightChartMath.js';
 import { track } from './utils/analytics.js';
 import { getPlasticsForManufacturer } from './plasticTypes.js';
+import { mergeRemoteAndLocalData } from './syncStateMerge.js';
 import ReactGA from 'react-ga4';
 import {
   Trophy, Plus, Search, X, ChevronDown, Check, Minus, Target,
@@ -6275,13 +6276,13 @@ function WelcomeScreen({ onGuestClick, onGoogleClick, onEmailSignUp, onEmailLogi
     setView('main');
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
     const email = loginEmail.trim().toLowerCase();
     if (!email) { setAuthError('Please enter your email.'); return; }
     if (!loginPassword) { setAuthError('Please enter your password.'); return; }
-    const result = onEmailLogin({ email, password: loginPassword });
+    const result = await onEmailLogin({ email, password: loginPassword });
     if (result && result.error) { setAuthError(result.error); return; }
     setView('main');
   };
@@ -6531,29 +6532,15 @@ function DiscLibrary() {
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
+        if (!data) throw new Error('Firestore load returned no data.');
         const local = loadState();
-        const remoteDiscs = data?.discs ?? [];
-        const remoteBags = data?.bags ?? [];
-        const remoteAces = data?.aceHistory ?? [];
-        const remoteTournaments = data?.tournaments ?? [];
-        const remoteLongestThrows = data?.longestThrows ?? [];
-        const remotePersonalBests = data?.personalBests ?? [];
-        const localDiscs = local?.discs ?? [];
-        const localBags = local?.bags ?? [];
-        const localAces = local?.aceHistory ?? [];
-        const localTournaments = local?.tournaments ?? [];
-        const localLongestThrows = local?.longestThrows ?? [];
-        const localPersonalBests = local?.personalBests ?? [];
-        const mergeById = (remote, local, idKey = 'id') => {
-          const remoteIds = new Set((remote || []).map((x) => x && x[idKey]).filter(Boolean));
-          return [...(remote || []), ...(local || []).filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
-        };
-        setDiscs(mergeById(remoteDiscs, localDiscs));
-        setBags(mergeById(remoteBags, localBags));
-        setAceHistory(mergeById(remoteAces, localAces));
-        setTournaments(mergeById(remoteTournaments, localTournaments));
-        setLongestThrows(mergeById(remoteLongestThrows, localLongestThrows));
-        setPersonalBests(mergeById(remotePersonalBests, localPersonalBests));
+        const merged = mergeRemoteAndLocalData(data, local);
+        setDiscs(merged.discs);
+        setBags(merged.bags);
+        setAceHistory(merged.aceHistory);
+        setTournaments(merged.tournaments);
+        setLongestThrows(merged.longestThrows);
+        setPersonalBests(merged.personalBests);
         setUserAuth((prev) => {
           if (!prev) return null;
           return {
@@ -6564,7 +6551,7 @@ function DiscLibrary() {
         });
       })
       .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
+      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = false; })
       .finally(() => setFirestoreProfileReady(true));
   }, [userAuth?.email]);
 
@@ -6580,7 +6567,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
@@ -6634,10 +6621,29 @@ function DiscLibrary() {
     return null;
   }, []);
 
-  const handleEmailLogin = useCallback(({ email, password }) => {
+  const handleEmailLogin = useCallback(async ({ email, password }) => {
     const accounts = loadEmailAccounts();
     const account = accounts[email];
-    if (!account) return { error: 'No account found with this email.' };
+    if (!account) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const firebaseUser = cred.user;
+        try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
+        setGuestMode(false);
+        setUserAuth({
+          type: 'firebase-email',
+          email,
+          displayName: firebaseUser.displayName || email.split('@')[0] || 'Player',
+          picture: firebaseUser.photoURL || null,
+        });
+        return null;
+      } catch (err) {
+        if (err?.code === 'auth/wrong-password' || err?.code === 'auth/invalid-credential') {
+          return { error: 'Wrong password.' };
+        }
+        return { error: 'No account found with this email.' };
+      }
+    }
     if (account.password !== password) return { error: 'Wrong password.' };
     try { localStorage.removeItem(GUEST_MODE_KEY); } catch(_) {}
     setGuestMode(false);
@@ -6855,15 +6861,19 @@ function DiscLibrary() {
     const email = userAuth?.email;
     if (email) {
       const userId = emailToUserId(email);
-      const discsCopy = [...discs];
-      const acesCopy = [...aceHistory];
-      const tournamentsCopy = [...tournaments];
-      const longestCopy = [...longestThrows];
-      const pbsCopy = [...personalBests];
-      // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
-        .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
+      if (firestoreInitialLoadDoneRef.current && firestoreSyncUserIdRef.current === userId) {
+        const discsCopy = [...discs];
+        const acesCopy = [...aceHistory];
+        const tournamentsCopy = [...tournaments];
+        const longestCopy = [...longestThrows];
+        const pbsCopy = [...personalBests];
+        // Sync in background — don't block sign-out (so user can always log out)
+        syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
+          .then((ok) => console.log(ok ? '[signOut] Firestore save on sign-out completed' : '[signOut] Firestore save on sign-out blocked'))
+          .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
+      } else {
+        console.warn('[signOut] Skipping Firestore save because initial cloud load did not complete safely');
+      }
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
     try {
@@ -6896,7 +6906,7 @@ function DiscLibrary() {
     setFirestoreProfileReady(false);
     setWelcomeInitialView('main');
     setCreateAccountModalOpen(false);
-  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+  }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   const completeGuestFirebaseAuth = useCallback(async (firebaseUser, provider) => {
     const email = firebaseUser.email;
@@ -6904,15 +6914,32 @@ function DiscLibrary() {
     const userId = emailToUserId(email);
     const sk = normalizeSkillLevel(guestChartSkill) ?? 'intermediate';
     const ts = normalizeThrowStyle(guestChartThrow) ?? 'rhbh';
-    const discsCopy = [...discs];
-    const bagsCopy = [...bags];
-    const aceCopy = [...aceHistory];
-    const tournamentsCopy = [...tournaments];
-    const longestCopy = [...longestThrows];
-    const pbsCopy = [...personalBests];
+    const localGuestState = {
+      discs: [...discs],
+      bags: [...bags],
+      aceHistory: [...aceHistory],
+      tournaments: [...tournaments],
+      longestThrows: [...longestThrows],
+      personalBests: [...personalBests],
+    };
     let migrationOk = true;
+    let mergedState = localGuestState;
     try {
-      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
+      const remoteData = await loadFromFirestore(userId);
+      if (!remoteData) throw new Error('Firestore load returned no data.');
+      mergedState = mergeRemoteAndLocalData(remoteData, localGuestState);
+      const ok = await syncToFirestore(
+        userId,
+        mergedState.discs,
+        mergedState.bags,
+        mergedState.aceHistory,
+        mergedState.tournaments,
+        mergedState.longestThrows,
+        mergedState.personalBests,
+        true,
+        sk,
+        ts
+      );
       if (!ok) migrationOk = false;
     } catch (e) {
       console.warn('[guest] migrate guest data failed', e);
@@ -6945,6 +6972,12 @@ function DiscLibrary() {
         throwStyle: ts,
       });
     }
+    setDiscs(mergedState.discs);
+    setBags(mergedState.bags);
+    setAceHistory(mergedState.aceHistory);
+    setTournaments(mergedState.tournaments);
+    setLongestThrows(mergedState.longestThrows);
+    setPersonalBests(mergedState.personalBests);
     setGuestMode(false);
     setCreateAccountModalOpen(false);
     if (migrationOk) {
