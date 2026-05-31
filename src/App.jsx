@@ -89,12 +89,18 @@ function getDiscBagIds(d) {
   return [];
 }
 
+function getBagDiscIds(bag) {
+  return Array.isArray(bag?.disc_ids)
+    ? [...new Set(bag.disc_ids.filter((id) => typeof id === 'string' && id))]
+    : [];
+}
+
 /** When disc only had legacy bag membership via disc_ids, infer bagIds for the form. */
 function inferBagIdsFromMembership(editDisc, bags) {
   const ids = getDiscBagIds(editDisc);
   if (ids.length) return ids;
   if (!editDisc?.id || !bags?.length) return [];
-  return bags.filter((b) => b.disc_ids.includes(editDisc.id)).map((b) => b.id);
+  return bags.filter((b) => getBagDiscIds(b).includes(editDisc.id)).map((b) => b.id);
 }
 
 /** Discs shown in a bag detail view: in_bag + bag id in disc.bagIds (or legacy bagId / disc_ids). */
@@ -102,7 +108,12 @@ function discBelongsToBagView(d, bag) {
   if (!bag || !d || d.status !== 'in_bag') return false;
   const ids = getDiscBagIds(d);
   if (ids.length) return ids.includes(bag.id);
-  return bag.disc_ids.includes(d.id);
+  return getBagDiscIds(bag).includes(d.id);
+}
+
+function mergeById(remote, local, idKey = 'id') {
+  const remoteIds = new Set((remote || []).map((x) => x && x[idKey]).filter(Boolean));
+  return [...(remote || []), ...(local || []).filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
 }
 const FN_META = [
   { key:'speed',label:'SPD',bg:'bg-secondary/10',text:'text-secondary' },
@@ -5753,7 +5764,7 @@ function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup
   }, [open]);
   if (!open||!disc) return null;
   const cfg = DT[disc.disc_type]; const st = SM[disc.status]; const stab = classifyStability(disc); const stabM = STAB_META[stab];
-  const inBags = bags.filter(b => b.disc_ids.includes(disc.id));
+  const inBags = bags.filter(b => getBagDiscIds(b).includes(disc.id));
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={onClose}/>
@@ -5868,7 +5879,7 @@ function DiscDetailModal({ open, disc, onClose, bags, onEdit, onDelete, onBackup
                   <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-52" style={{zIndex:10}}>
                     {bags.length===0 && <div className="px-3 py-3 text-xs text-text-muted">No bags yet</div>}
                     {bags.map(b => {
-                      const inBag = b.disc_ids.includes(disc.id);
+                      const inBag = getBagDiscIds(b).includes(disc.id);
                       return (
                         <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs hover:bg-surface/60">
                           <span className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={10} className="text-text"/>}</span>
@@ -5917,7 +5928,7 @@ function DiscCard({
   const [newBagName, setNewBagName] = useState('');
   const cfg = DT[disc.disc_type];
   const st = SM[disc.status];
-  const inBags = bags.filter((b) => b.disc_ids.includes(disc.id));
+  const inBags = bags.filter((b) => getBagDiscIds(b).includes(disc.id));
   const hasNick = !!disc.custom_name;
   const isGallery = viewMode === 'gallery';
   const lostNotePreview = String(disc.lostNote || '').trim();
@@ -6177,7 +6188,7 @@ function DiscCard({
                   <div className="absolute bottom-full mb-2 bg-card border border-border rounded-xl overflow-hidden shadow-card w-44 left-1/2 -translate-x-1/2" style={{zIndex:40}}>
                     {bags.length===0 && <div className="px-3 py-2.5 text-xs text-text-muted">No bags yet</div>}
                     {bags.map(b => {
-                      const inBag = b.disc_ids.includes(disc.id);
+                      const inBag = getBagDiscIds(b).includes(disc.id);
                       return (
                         <button key={b.id} onClick={() => onToggleBag(b.id,disc.id)} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-surface/60">
                           <span className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${inBag?'border-primary':'border-border'}`} style={inBag?{backgroundColor:b.bagColor||'#6B8F71',borderColor:b.bagColor||'#6B8F71'}:{}}>{inBag&&<Check size={8} className="text-text"/>}</span>
@@ -6531,6 +6542,8 @@ function DiscLibrary() {
     console.log('[DiscLibrary] Loading from Firestore first for user:', userId);
     loadFromFirestore(userId)
       .then((data) => {
+        if (firestoreSyncUserIdRef.current !== userId) return false;
+        if (!data) throw new Error('Firestore load returned no data');
         const local = loadState();
         const remoteDiscs = data?.discs ?? [];
         const remoteBags = data?.bags ?? [];
@@ -6544,10 +6557,6 @@ function DiscLibrary() {
         const localTournaments = local?.tournaments ?? [];
         const localLongestThrows = local?.longestThrows ?? [];
         const localPersonalBests = local?.personalBests ?? [];
-        const mergeById = (remote, local, idKey = 'id') => {
-          const remoteIds = new Set((remote || []).map((x) => x && x[idKey]).filter(Boolean));
-          return [...(remote || []), ...(local || []).filter((x) => x && x[idKey] && !remoteIds.has(x[idKey]))];
-        };
         setDiscs(mergeById(remoteDiscs, localDiscs));
         setBags(mergeById(remoteBags, localBags));
         setAceHistory(mergeById(remoteAces, localAces));
@@ -6562,10 +6571,23 @@ function DiscLibrary() {
             throwStyle: normalizeThrowStyle(data?.throwStyle) ?? 'rhbh',
           };
         });
+        return true;
       })
-      .then(() => { setSyncStatus('synced'); firestoreInitialLoadDoneRef.current = true; })
-      .catch((e) => { console.warn('[DiscLibrary] Initial Firestore sync failed', e); setSyncStatus('error'); firestoreInitialLoadDoneRef.current = true; })
-      .finally(() => setFirestoreProfileReady(true));
+      .then((loaded) => {
+        if (loaded && firestoreSyncUserIdRef.current === userId) {
+          setSyncStatus('synced');
+          firestoreInitialLoadDoneRef.current = true;
+        }
+      })
+      .catch((e) => {
+        if (firestoreSyncUserIdRef.current !== userId) return;
+        console.warn('[DiscLibrary] Initial Firestore sync failed', e);
+        setSyncStatus('error');
+        firestoreInitialLoadDoneRef.current = false;
+      })
+      .finally(() => {
+        if (firestoreSyncUserIdRef.current === userId) setFirestoreProfileReady(true);
+      });
   }, [userAuth?.email]);
 
   // On discs/bags/aceHistory change, sync to Firestore when signed in (after initial load done)
@@ -6580,7 +6602,7 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-      .then(() => { setSyncStatus('synced'); })
+      .then((ok) => { setSyncStatus(ok ? 'synced' : 'error'); })
       .catch(() => { setSyncStatus('error'); });
   }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
@@ -6855,15 +6877,22 @@ function DiscLibrary() {
     const email = userAuth?.email;
     if (email) {
       const userId = emailToUserId(email);
-      const discsCopy = [...discs];
-      const acesCopy = [...aceHistory];
-      const tournamentsCopy = [...tournaments];
-      const longestCopy = [...longestThrows];
-      const pbsCopy = [...personalBests];
-      // Sync in background — don't block sign-out (so user can always log out)
-      syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
-        .then(() => console.log('[signOut] Firestore save on sign-out completed'))
-        .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
+      if (firestoreInitialLoadDoneRef.current && firestoreSyncUserIdRef.current === userId) {
+        const discsCopy = [...discs];
+        const acesCopy = [...aceHistory];
+        const tournamentsCopy = [...tournaments];
+        const longestCopy = [...longestThrows];
+        const pbsCopy = [...personalBests];
+        // Sync in background — don't block sign-out (so user can always log out)
+        syncToFirestore(userId, discsCopy, bags, acesCopy, tournamentsCopy, longestCopy, pbsCopy, true, userAuth?.skillLevel, userAuth?.throwStyle ?? 'rhbh')
+          .then((ok) => {
+            if (ok) console.log('[signOut] Firestore save on sign-out completed');
+            else console.warn('[signOut] Firestore save on sign-out was blocked');
+          })
+          .catch((e) => console.warn('[signOut] Firestore save on sign-out failed', e));
+      } else {
+        console.warn('[signOut] Skipping Firestore save because initial load did not complete');
+      }
       firebaseSignOut(getAuth()).catch((e) => console.warn('[auth] Firebase signOut failed', e));
     }
     try {
@@ -6896,7 +6925,7 @@ function DiscLibrary() {
     setFirestoreProfileReady(false);
     setWelcomeInitialView('main');
     setCreateAccountModalOpen(false);
-  }, [userAuth?.email, userAuth?.skillLevel, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
+  }, [userAuth?.email, userAuth?.skillLevel, userAuth?.throwStyle, discs, bags, aceHistory, tournaments, longestThrows, personalBests]);
 
   const completeGuestFirebaseAuth = useCallback(async (firebaseUser, provider) => {
     const email = firebaseUser.email;
@@ -6911,8 +6940,22 @@ function DiscLibrary() {
     const longestCopy = [...longestThrows];
     const pbsCopy = [...personalBests];
     let migrationOk = true;
+    let mergedDiscs = discsCopy;
+    let mergedBags = bagsCopy;
+    let mergedAces = aceCopy;
+    let mergedTournaments = tournamentsCopy;
+    let mergedLongestThrows = longestCopy;
+    let mergedPersonalBests = pbsCopy;
     try {
-      const ok = await syncToFirestore(userId, discsCopy, bagsCopy, aceCopy, tournamentsCopy, longestCopy, pbsCopy, true, sk, ts);
+      const remote = await loadFromFirestore(userId);
+      if (!remote) throw new Error('Unable to load existing Firestore data before guest migration');
+      mergedDiscs = mergeById(remote.discs ?? [], discsCopy);
+      mergedBags = mergeById(remote.bags ?? [], bagsCopy);
+      mergedAces = mergeById(remote.aceHistory ?? [], aceCopy);
+      mergedTournaments = mergeById(remote.tournaments ?? [], tournamentsCopy);
+      mergedLongestThrows = mergeById(remote.longestThrows ?? [], longestCopy);
+      mergedPersonalBests = mergeById(remote.personalBests ?? [], pbsCopy);
+      const ok = await syncToFirestore(userId, mergedDiscs, mergedBags, mergedAces, mergedTournaments, mergedLongestThrows, mergedPersonalBests, true, sk, ts);
       if (!ok) migrationOk = false;
     } catch (e) {
       console.warn('[guest] migrate guest data failed', e);
@@ -6945,6 +6988,12 @@ function DiscLibrary() {
         throwStyle: ts,
       });
     }
+    setDiscs(mergedDiscs);
+    setBags(mergedBags);
+    setAceHistory(mergedAces);
+    setTournaments(mergedTournaments);
+    setLongestThrows(mergedLongestThrows);
+    setPersonalBests(mergedPersonalBests);
     setGuestMode(false);
     setCreateAccountModalOpen(false);
     if (migrationOk) {
@@ -7086,12 +7135,13 @@ function DiscLibrary() {
   const clearAllFilters = useCallback(() => { setSelectedBrand('All'); setSelectedSpeed('All'); setSelectedPlastic('All'); setAceFilter(false); setSelectedSort('Recent'); setTypeFilter('all'); setSearch(''); }, []);
 
   const toggleBag = useCallback((bagId, discId) => {
-    const wasIn = bags.find((b) => b.id === bagId)?.disc_ids.includes(discId);
+    const wasIn = getBagDiscIds(bags.find((b) => b.id === bagId)).includes(discId);
     setBags((prev) =>
       prev.map((b) => {
         if (b.id !== bagId) return b;
-        if (wasIn) return { ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) };
-        return { ...b, disc_ids: [...b.disc_ids, discId] };
+        const ids = getBagDiscIds(b);
+        if (wasIn) return { ...b, disc_ids: ids.filter((id) => id !== discId) };
+        return { ...b, disc_ids: [...ids, discId] };
       })
     );
     setDiscs((prev) =>
@@ -7117,8 +7167,9 @@ function DiscLibrary() {
     setBags((prev) =>
       prev.map((b) => {
         if (b.id !== bagId) return b;
-        if (b.disc_ids.includes(discId)) return b;
-        return { ...b, disc_ids: [...b.disc_ids, discId] };
+        const ids = getBagDiscIds(b);
+        if (ids.includes(discId)) return b;
+        return { ...b, disc_ids: [...ids, discId] };
       })
     );
     setDiscs((prev) =>
@@ -7143,7 +7194,7 @@ function DiscLibrary() {
 
   const removeDiscFromBag = useCallback((bagId, discId) => {
     setBags((prev) =>
-      prev.map((b) => (b.id !== bagId ? b : { ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) }))
+      prev.map((b) => (b.id !== bagId ? b : { ...b, disc_ids: getBagDiscIds(b).filter((id) => id !== discId) }))
     );
     setDiscs((prev) =>
       prev.map((d) => {
@@ -7163,26 +7214,26 @@ function DiscLibrary() {
   }, [discs]);
 
   const removeDiscFromAllBags = useCallback((discId) => {
-    setBags((prev) => prev.map((b) => ({ ...b, disc_ids: b.disc_ids.filter((id) => id !== discId) })));
+    setBags((prev) => prev.map((b) => ({ ...b, disc_ids: getBagDiscIds(b).filter((id) => id !== discId) })));
   }, []);
 
   const syncDiscBagMembership = useCallback((disc) => {
     setBags((prev) => {
-      const without = prev.map((b) => ({ ...b, disc_ids: b.disc_ids.filter((id) => id !== disc.id) }));
+      const without = prev.map((b) => ({ ...b, disc_ids: getBagDiscIds(b).filter((id) => id !== disc.id) }));
       if (disc.status === 'in_bag') {
         const ids = getDiscBagIds(disc);
         if (ids.length) {
-          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...getBagDiscIds(b), disc.id] } : b));
         }
         return without;
       }
       if (disc.status === 'lost') {
         const ids = getDiscBagIds(disc);
         if (ids.length) {
-          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+          return without.map((b) => (ids.includes(b.id) ? { ...b, disc_ids: [...getBagDiscIds(b), disc.id] } : b));
         }
         if (disc.bagId) {
-          return without.map((b) => (b.id === disc.bagId ? { ...b, disc_ids: [...b.disc_ids, disc.id] } : b));
+          return without.map((b) => (b.id === disc.bagId ? { ...b, disc_ids: [...getBagDiscIds(b), disc.id] } : b));
         }
         return without;
       }
@@ -7297,7 +7348,7 @@ function DiscLibrary() {
     if (!deleteConfirm) return;
     const {id,disc} = deleteConfirm;
     setDiscs(p=>p.filter(x=>x.id!==id));
-    setBags(p=>p.map(b=>({...b,disc_ids:b.disc_ids.filter(did=>did!==id)})));
+    setBags(p=>p.map(b=>({...b,disc_ids:getBagDiscIds(b).filter(did=>did!==id)})));
     setAceHistory(p=>p.filter(a=>a.discId!==id));
     setToast(`🗑️ ${disc?.mold||'Disc'} deleted`);
     setDeleteConfirm(null);
@@ -7313,7 +7364,25 @@ function DiscLibrary() {
     setBags((p) => [...p, { id, name, bagColor: bagColor || BAG_COLORS[p.length % BAG_COLORS.length], disc_ids: [] }]);
     return id;
   }, []);
-  const deleteBag = useCallback(id => { setBags(p=>p.filter(b=>b.id!==id)); if(activeBagId===id)setActiveBagId(null); }, [activeBagId]);
+  const deleteBag = useCallback(id => {
+    const remainingBags = bags.filter((b) => b.id !== id);
+    const deletedDiscIds = new Set(getBagDiscIds(bags.find((b) => b.id === id)));
+    setBags(() => remainingBags);
+    setDiscs(p=>p.map((d) => {
+      const explicitIds = getDiscBagIds(d);
+      const legacyIds = explicitIds.length ? [] : remainingBags.filter((b) => getBagDiscIds(b).includes(d.id)).map((b) => b.id);
+      const ids = explicitIds.length ? explicitIds : legacyIds;
+      if (!ids.includes(id) && d.bagId !== id && !deletedDiscIds.has(d.id)) return d;
+      const next = ids.filter((bagId) => bagId !== id);
+      return {
+        ...d,
+        bagIds: next,
+        bagId: null,
+        status: next.length === 0 && d.status === 'in_bag' ? 'backup' : d.status,
+      };
+    }));
+    if(activeBagId===id)setActiveBagId(null);
+  }, [activeBagId, bags]);
   const requestDeleteBag = useCallback(id => {
     const bag = bags.find(b => b.id === id);
     if (bag) setDeleteBagConfirm({ id: bag.id, name: bag.name });
